@@ -1,11 +1,11 @@
 # AI Coding Agent
 
 ## What It Does
-- CLI coding agent that reads/writes files directly using tool calls (read, write, edit, patch, scaffold, list).
-- Runs in “safe mode”: shows previews and asks for confirmation before writing or patching files.
-- Uses OpenRouter with Claude Sonnet 4.5 for reliable tool calling and low-temperature, deterministic behavior.
-- Retries with validation on malformed tool arguments and falls back gracefully.
+- CLI coding agent that reads/writes files directly using tools (read, write, edit, patch, scaffold, list, run_command).
+- Runs in “safe mode”: previews and asks for confirmation before writes/patches/commands.
+- Uses OpenRouter with Claude Sonnet 4.5 (low-temp, deterministic) and retries with validation on malformed tool args.
 - Includes scaffolding templates (API, chatbot, static, React) to bootstrap new projects quickly.
+- Can execute shell commands (e.g., `pytest`, `npm test`) via `run_command`, streaming output and honoring timeouts.
 
 ## Tech Stack
 - Runtime: Bun
@@ -31,15 +31,24 @@ bun install
 
 On launch, the agent:
 - Prints an ASCII banner and safe-mode notice.
-- Loads tools for file operations and scaffolding.
-- Uses interactive CLI prompts; you can exit with `ctrl-c`.
-- Shows previews of changes and requires `y/yes` confirmation before applying writes/patches.
-- Handles malformed tool arguments with retries and validation.
+- Loads tools for file ops, scaffolding, and `run_command`.
+- Uses interactive CLI prompts; exit with `ctrl-c`.
+- Shows previews and requires `y/yes` before writes/patches/commands.
+- Handles malformed tool arguments with retries, validation, and truncation detection for large `write_file` payloads.
 
-## Future Steps (detailed next tasks)
-- Add automated tests (unit/integration) for tool flows and confirmation prompts.
-- Improve error handling/logging and surface clearer diagnostics for tool failures.
-- Extend the toolset (e.g., search/grep helpers, formatting, lint hooks).
+## Running Tests via the Agent
+- Use `run_command` to execute tests (confirmation required):
+  - Python: create venv (`python3 -m venv venv`), install deps (`venv/bin/pip install pytest`), run tests (`venv/bin/pytest tests/`).
+  - Node: install deps (`npm install` or `bun install`), run tests (`npm test` or `bun test`).
+- The agent streams stdout/stderr and returns exit code; rerun after fixes with `run_command`.
+
+## Notes
+- Token budget raised to 16384 for tool calls to allow full `write_file` payloads (prevents truncation).
+- Safe-mode confirmations apply to file writes, patches, and shell commands.
+
+## Future Steps
+- Add automated tests for tool flows and confirmation prompts.
+- Extend the toolset (search/grep helpers, formatting, lint hooks).
 - Support additional models and configurable model selection at runtime.
-- Containerize/distribute (Docker image, binary bundle) for easier installation.
+- Containerize/distribute (Docker image, binary bundle) for easier install.
 
