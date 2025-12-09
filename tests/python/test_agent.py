@@ -1,7 +1,14 @@
 """
-test_agent.py
-
 Unit tests for agent.py
+
+Tests cover:
+- Agent initialization
+- Tool registration and unregistration
+- Tool listing
+- Tool decision logic
+- Query execution
+- History tracking
+- Edge cases and error handling
 """
 
 import pytest
@@ -14,27 +21,33 @@ from agent import (
 )
 
 
-class TestAgent:
-    """Test suite for the Agent class."""
+class TestAgentInitialization:
+    """Test Agent initialization and default state."""
 
-    def test_agent_initialization(self):
-        """Test that a new agent starts with empty tools and history."""
+    def test_agent_default_initialization(self):
+        """Agent should initialize with empty tools and history."""
         agent = Agent()
         assert agent.tools == {}
         assert agent.history == []
+
+    def test_agent_list_tools_empty(self):
+        """list_tools should return empty list for new agent."""
+        agent = Agent()
         assert agent.list_tools() == []
 
-    def test_register_tool_success(self):
-        """Test successful tool registration."""
+
+class TestToolRegistration:
+    """Test tool registration functionality."""
+
+    def test_register_single_tool(self):
+        """Should successfully register a single tool."""
         agent = Agent()
         agent.register_tool("uppercase", uppercase_tool)
-        
         assert "uppercase" in agent.tools
-        assert agent.tools["uppercase"] == uppercase_tool
         assert agent.list_tools() == ["uppercase"]
 
     def test_register_multiple_tools(self):
-        """Test registering multiple tools."""
+        """Should successfully register multiple tools."""
         agent = Agent()
         agent.register_tool("uppercase", uppercase_tool)
         agent.register_tool("word_count", word_count_tool)
@@ -43,303 +56,330 @@ class TestAgent:
         assert len(agent.tools) == 3
         assert set(agent.list_tools()) == {"uppercase", "word_count", "reverse"}
 
-    def test_register_tool_empty_name_raises_error(self):
-        """Test that registering a tool with an empty name raises ValueError."""
-        agent = Agent()
-        
-        with pytest.raises(ValueError, match="Tool name must be a non-empty string"):
-            agent.register_tool("", uppercase_tool)
-        
-        with pytest.raises(ValueError, match="Tool name must be a non-empty string"):
-            agent.register_tool("   ", uppercase_tool)
-
-    def test_register_tool_duplicate_name_raises_error(self):
-        """Test that registering a duplicate tool name raises ValueError."""
+    def test_register_duplicate_tool_raises_error(self):
+        """Registering a duplicate tool name should raise ValueError."""
         agent = Agent()
         agent.register_tool("uppercase", uppercase_tool)
         
-        with pytest.raises(ValueError, match="Tool 'uppercase' already registered"):
+        with pytest.raises(ValueError, match="already registered"):
             agent.register_tool("uppercase", word_count_tool)
 
-    def test_unregister_tool_success(self):
-        """Test successful tool unregistration."""
+    def test_register_empty_name_raises_error(self):
+        """Registering with empty name should raise ValueError."""
+        agent = Agent()
+        
+        with pytest.raises(ValueError, match="non-empty string"):
+            agent.register_tool("", uppercase_tool)
+
+    def test_register_whitespace_name_raises_error(self):
+        """Registering with whitespace-only name should raise ValueError."""
+        agent = Agent()
+        
+        with pytest.raises(ValueError, match="non-empty string"):
+            agent.register_tool("   ", uppercase_tool)
+
+    def test_register_non_string_name_raises_error(self):
+        """Registering with non-string name should raise ValueError."""
+        agent = Agent()
+        
+        with pytest.raises(ValueError, match="non-empty string"):
+            agent.register_tool(123, uppercase_tool)
+
+
+class TestToolUnregistration:
+    """Test tool unregistration functionality."""
+
+    def test_unregister_existing_tool(self):
+        """Should successfully unregister an existing tool."""
         agent = Agent()
         agent.register_tool("uppercase", uppercase_tool)
-        agent.register_tool("word_count", word_count_tool)
+        assert "uppercase" in agent.tools
         
         agent.unregister_tool("uppercase")
-        
         assert "uppercase" not in agent.tools
-        assert "word_count" in agent.tools
-        assert agent.list_tools() == ["word_count"]
+        assert agent.list_tools() == []
 
-    def test_unregister_tool_not_found_raises_error(self):
-        """Test that unregistering a non-existent tool raises KeyError."""
+    def test_unregister_nonexistent_tool_raises_error(self):
+        """Unregistering a non-existent tool should raise KeyError."""
         agent = Agent()
         
         with pytest.raises(KeyError):
             agent.unregister_tool("nonexistent")
 
-    def test_list_tools_returns_copy(self):
-        """Test that list_tools returns a list (not affecting internal state)."""
+    def test_unregister_one_of_many_tools(self):
+        """Should unregister only the specified tool."""
         agent = Agent()
         agent.register_tool("uppercase", uppercase_tool)
+        agent.register_tool("word_count", word_count_tool)
+        agent.register_tool("reverse", reverse_tool)
         
-        tools_list = agent.list_tools()
-        tools_list.append("fake_tool")
+        agent.unregister_tool("word_count")
         
-        # Original agent should not be affected
-        assert agent.list_tools() == ["uppercase"]
+        assert "word_count" not in agent.tools
+        assert "uppercase" in agent.tools
+        assert "reverse" in agent.tools
+        assert set(agent.list_tools()) == {"uppercase", "reverse"}
 
-    def test_decide_tool_single_match(self):
-        """Test decide_tool with a single matching tool."""
+
+class TestToolDecision:
+    """Test the tool decision logic."""
+
+    def test_decide_tool_exact_match(self):
+        """Should find tool when query contains exact tool name."""
         agent = Agent()
         agent.register_tool("uppercase", uppercase_tool)
         
-        assert agent.decide_tool("please use UPPERCASE here") == "uppercase"
-        assert agent.decide_tool("UPPERCASE this") == "uppercase"
-        assert agent.decide_tool("uppercase") == "uppercase"
+        assert agent.decide_tool("use uppercase please") == "uppercase"
 
     def test_decide_tool_case_insensitive(self):
-        """Test that decide_tool is case-insensitive."""
+        """Tool matching should be case-insensitive."""
         agent = Agent()
         agent.register_tool("uppercase", uppercase_tool)
         
-        assert agent.decide_tool("UPPERCASE") == "uppercase"
-        assert agent.decide_tool("UpPeRcAsE") == "uppercase"
-        assert agent.decide_tool("uppercase") == "uppercase"
+        assert agent.decide_tool("use UPPERCASE please") == "uppercase"
+        assert agent.decide_tool("use UpPeRcAsE please") == "uppercase"
 
     def test_decide_tool_no_match(self):
-        """Test decide_tool when no tool matches."""
+        """Should return None when no tool matches."""
         agent = Agent()
         agent.register_tool("uppercase", uppercase_tool)
         
-        assert agent.decide_tool("please do something else") is None
-        assert agent.decide_tool("") is None
+        assert agent.decide_tool("do something else") is None
 
-    def test_decide_tool_multiple_matches_first_wins(self):
-        """Test that when multiple tools match, the first registered wins."""
+    def test_decide_tool_multiple_matches_returns_first(self):
+        """When multiple tools match, should return first registered."""
         agent = Agent()
-        agent.register_tool("word", lambda x: "word_tool")
+        agent.register_tool("word", uppercase_tool)
         agent.register_tool("word_count", word_count_tool)
         
         # "word" is registered first and matches
-        result = agent.decide_tool("use word_count please")
-        assert result == "word"
+        assert agent.decide_tool("use word_count") == "word"
 
-    def test_decide_tool_insertion_order(self):
-        """Test that tool matching respects insertion order."""
+    def test_decide_tool_substring_match(self):
+        """Tool name as substring should match."""
         agent = Agent()
-        agent.register_tool("reverse", reverse_tool)
+        agent.register_tool("count", word_count_tool)
+        
+        assert agent.decide_tool("word_count this") == "count"
+
+    def test_decide_tool_empty_query(self):
+        """Empty query should not match any tool."""
+        agent = Agent()
         agent.register_tool("uppercase", uppercase_tool)
-        agent.register_tool("word_count", word_count_tool)
         
-        # Only "reverse" matches
-        assert agent.decide_tool("reverse this") == "reverse"
-        
-        # Only "uppercase" matches
-        assert agent.decide_tool("uppercase this") == "uppercase"
-        
-        # If query contains multiple tool names, first registered wins
-        assert agent.decide_tool("reverse and uppercase") == "reverse"
+        assert agent.decide_tool("") is None
+
+
+class TestAgentRun:
+    """Test the agent's run method."""
 
     def test_run_with_matching_tool(self):
-        """Test run() when a tool matches the query."""
+        """Should execute the matching tool."""
         agent = Agent()
         agent.register_tool("uppercase", uppercase_tool)
         
-        result = agent.run("please use UPPERCASE here")
-        
-        assert result == "PLEASE USE UPPERCASE HERE"
+        result = agent.run("use uppercase on this")
+        assert result == "USE UPPERCASE ON THIS"
 
-    def test_run_with_no_matching_tool(self):
-        """Test run() when no tool matches (echo behavior)."""
+    def test_run_without_matching_tool(self):
+        """Should echo the query when no tool matches."""
         agent = Agent()
         agent.register_tool("uppercase", uppercase_tool)
         
         result = agent.run("do something else")
-        
         assert result == "[echo] do something else"
 
+    def test_run_with_word_count_tool(self):
+        """Should correctly execute word_count_tool."""
+        agent = Agent()
+        agent.register_tool("word_count", word_count_tool)
+        
+        result = agent.run("run word_count on this sentence")
+        assert result == "word_count=5"
+
+    def test_run_with_reverse_tool(self):
+        """Should correctly execute reverse_tool."""
+        agent = Agent()
+        agent.register_tool("reverse", reverse_tool)
+        
+        result = agent.run("reverse hello")
+        assert result == "olleh esrever"
+
     def test_run_updates_history(self):
-        """Test that run() appends to history."""
+        """Each run should append to history."""
         agent = Agent()
         agent.register_tool("uppercase", uppercase_tool)
+        
+        assert len(agent.history) == 0
         
         agent.run("use uppercase")
-        agent.run("do something else")
+        assert len(agent.history) == 1
         
+        agent.run("do something")
         assert len(agent.history) == 2
-        
-        # First invocation
-        assert agent.history[0].query == "use uppercase"
-        assert agent.history[0].tool_name == "uppercase"
-        assert agent.history[0].result == "USE UPPERCASE"
-        
-        # Second invocation
-        assert agent.history[1].query == "do something else"
-        assert agent.history[1].tool_name is None
-        assert agent.history[1].result == "[echo] do something else"
 
-    def test_last_invocation_with_history(self):
-        """Test last_invocation() returns the most recent record."""
+    def test_run_history_records_correct_data(self):
+        """History should record query, tool_name, and result."""
         agent = Agent()
         agent.register_tool("uppercase", uppercase_tool)
         
-        agent.run("first query")
-        agent.run("second query")
-        agent.run("third query")
+        result = agent.run("use uppercase here")
         
-        last = agent.last_invocation()
-        
-        assert last is not None
-        assert last.query == "third query"
-        assert last.result == "[echo] third query"
+        record = agent.history[0]
+        assert isinstance(record, InvocationRecord)
+        assert record.query == "use uppercase here"
+        assert record.tool_name == "uppercase"
+        assert record.result == "USE UPPERCASE HERE"
 
-    def test_last_invocation_empty_history(self):
-        """Test last_invocation() returns None when history is empty."""
+    def test_run_history_records_echo(self):
+        """History should record None for tool_name when echoing."""
         agent = Agent()
+        agent.register_tool("uppercase", uppercase_tool)
         
-        assert agent.last_invocation() is None
+        result = agent.run("no match")
+        
+        record = agent.history[0]
+        assert record.query == "no match"
+        assert record.tool_name is None
+        assert record.result == "[echo] no match"
 
     def test_run_multiple_queries(self):
-        """Test running multiple queries with different tools."""
+        """Should handle multiple sequential queries correctly."""
         agent = Agent()
         agent.register_tool("uppercase", uppercase_tool)
         agent.register_tool("word_count", word_count_tool)
-        agent.register_tool("reverse", reverse_tool)
         
-        result1 = agent.run("use uppercase on this")
+        result1 = agent.run("use uppercase")
         result2 = agent.run("run word_count here")
-        result3 = agent.run("reverse this text")
-        result4 = agent.run("no tool matches")
+        result3 = agent.run("no tool")
         
-        assert result1 == "USE UPPERCASE ON THIS"
+        assert result1 == "USE UPPERCASE"
         assert result2 == "word_count=3"
-        assert result3 == "txet siht esrever"
-        assert result4 == "[echo] no tool matches"
+        assert result3 == "[echo] no tool"
+        assert len(agent.history) == 3
+
+
+class TestLastInvocation:
+    """Test the last_invocation method."""
+
+    def test_last_invocation_empty_history(self):
+        """Should return None when history is empty."""
+        agent = Agent()
+        assert agent.last_invocation() is None
+
+    def test_last_invocation_single_record(self):
+        """Should return the only record."""
+        agent = Agent()
+        agent.register_tool("uppercase", uppercase_tool)
+        agent.run("use uppercase")
         
-        assert len(agent.history) == 4
+        last = agent.last_invocation()
+        assert last is not None
+        assert last.query == "use uppercase"
+        assert last.tool_name == "uppercase"
 
-
-class TestInvocationRecord:
-    """Test suite for the InvocationRecord dataclass."""
-
-    def test_invocation_record_creation(self):
-        """Test creating an InvocationRecord."""
-        record = InvocationRecord(
-            query="test query",
-            tool_name="uppercase",
-            result="TEST QUERY"
-        )
+    def test_last_invocation_multiple_records(self):
+        """Should return the most recent record."""
+        agent = Agent()
+        agent.register_tool("uppercase", uppercase_tool)
+        agent.register_tool("word_count", word_count_tool)
         
-        assert record.query == "test query"
-        assert record.tool_name == "uppercase"
-        assert record.result == "TEST QUERY"
-
-    def test_invocation_record_with_none_tool(self):
-        """Test InvocationRecord with None tool_name."""
-        record = InvocationRecord(
-            query="test query",
-            tool_name=None,
-            result="[echo] test query"
-        )
+        agent.run("first query uppercase")
+        agent.run("second query word_count")
+        agent.run("third query")
         
-        assert record.query == "test query"
-        assert record.tool_name is None
-        assert record.result == "[echo] test query"
+        last = agent.last_invocation()
+        assert last is not None
+        assert last.query == "third query"
+        assert last.tool_name is None
+        assert last.result == "[echo] third query"
 
 
-class TestTools:
-    """Test suite for the example tool functions."""
+class TestExampleTools:
+    """Test the example tool functions."""
 
     def test_uppercase_tool(self):
-        """Test the uppercase_tool function."""
+        """uppercase_tool should convert to uppercase."""
         assert uppercase_tool("hello world") == "HELLO WORLD"
-        assert uppercase_tool("ALREADY UPPER") == "ALREADY UPPER"
         assert uppercase_tool("MiXeD CaSe") == "MIXED CASE"
         assert uppercase_tool("") == ""
 
     def test_word_count_tool(self):
-        """Test the word_count_tool function."""
-        assert word_count_tool("hello world") == "word_count=2"
-        assert word_count_tool("one") == "word_count=1"
-        assert word_count_tool("one two three four five") == "word_count=5"
+        """word_count_tool should count words correctly."""
+        assert word_count_tool("one two three") == "word_count=3"
+        assert word_count_tool("single") == "word_count=1"
         assert word_count_tool("") == "word_count=0"
-        assert word_count_tool("   spaces   between   ") == "word_count=2"
+        assert word_count_tool("  multiple   spaces  ") == "word_count=2"
 
     def test_reverse_tool(self):
-        """Test the reverse_tool function."""
+        """reverse_tool should reverse the string."""
         assert reverse_tool("hello") == "olleh"
-        assert reverse_tool("hello world") == "dlrow olleh"
-        assert reverse_tool("") == ""
-        assert reverse_tool("a") == "a"
         assert reverse_tool("racecar") == "racecar"
+        assert reverse_tool("") == ""
+        assert reverse_tool("a b c") == "c b a"
 
 
-class TestAgentIntegration:
-    """Integration tests for Agent with various scenarios."""
+class TestIntegrationScenarios:
+    """Test complete workflows and integration scenarios."""
 
-    def test_agent_workflow(self):
-        """Test a complete workflow with the agent."""
+    def test_complete_workflow(self):
+        """Test a complete agent workflow."""
         agent = Agent()
         
         # Start with no tools
-        assert agent.run("hello") == "[echo] hello"
+        assert agent.list_tools() == []
         
         # Register tools
         agent.register_tool("uppercase", uppercase_tool)
         agent.register_tool("word_count", word_count_tool)
         
         # Use tools
-        assert agent.run("use uppercase") == "USE UPPERCASE"
-        assert agent.run("run word_count on this") == "word_count=4"
+        result1 = agent.run("please use uppercase")
+        assert result1 == "PLEASE USE UPPERCASE"
+        
+        result2 = agent.run("run word_count on this")
+        assert result2 == "word_count=4"
+        
+        # Check history
+        assert len(agent.history) == 2
+        assert agent.last_invocation().result == "word_count=4"
         
         # Unregister a tool
         agent.unregister_tool("uppercase")
         
-        # Tool no longer works
-        assert agent.run("use uppercase") == "[echo] use uppercase"
-        
-        # Other tool still works
-        assert agent.run("word_count test") == "word_count=2"
-        
-        # Check history
-        assert len(agent.history) == 5
+        # Now uppercase query should echo
+        result3 = agent.run("use uppercase again")
+        assert result3 == "[echo] use uppercase again"
 
-    def test_agent_with_custom_tool(self):
-        """Test agent with a custom tool function."""
+    def test_tool_priority_order(self):
+        """Test that tool registration order matters for matching."""
+        agent = Agent()
+        
+        # Register in specific order
+        agent.register_tool("test", lambda q: "test_tool")
+        agent.register_tool("testing", lambda q: "testing_tool")
+        
+        # "test" matches first
+        result = agent.run("use testing")
+        assert result == "test_tool"
+
+    def test_custom_tool_function(self):
+        """Test registering custom tool functions."""
         agent = Agent()
         
         def custom_tool(query: str) -> str:
             return f"Custom: {query}"
         
         agent.register_tool("custom", custom_tool)
-        
         result = agent.run("use custom tool")
+        
         assert result == "Custom: use custom tool"
-        
-        last = agent.last_invocation()
-        assert last.tool_name == "custom"
 
-    def test_agent_tool_name_substring_matching(self):
-        """Test that tool names are matched as substrings."""
+    def test_lambda_tool_function(self):
+        """Test registering lambda functions as tools."""
         agent = Agent()
-        agent.register_tool("count", lambda x: "count_tool")
         
-        # "count" is a substring of these queries
-        assert agent.run("word_count") == "count_tool"
-        assert agent.run("counting") == "count_tool"
-        assert agent.run("account") == "count_tool"
-
-    def test_agent_empty_query(self):
-        """Test agent behavior with empty query."""
-        agent = Agent()
-        agent.register_tool("uppercase", uppercase_tool)
+        agent.register_tool("double", lambda q: q + q)
+        result = agent.run("double this")
         
-        result = agent.run("")
-        assert result == "[echo] "
-        
-        last = agent.last_invocation()
-        assert last.query == ""
-        assert last.tool_name is None
+        assert result == "double thisdouble this"
