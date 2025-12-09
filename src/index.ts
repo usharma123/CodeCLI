@@ -71,6 +71,78 @@ const colors = {
   magenta: "\u001b[95m",
   gray: "\u001b[90m",
   bold: "\u001b[1m",
+  white: "\u001b[97m",
+};
+
+// UI Helper Functions for Cursor-style display
+
+// Format tool name for display (e.g., "read_file" -> "Read")
+const formatToolName = (name: string): string => {
+  const nameMap: Record<string, string> = {
+    read_file: "Read",
+    list_files: "List",
+    write_file: "Write",
+    edit_file: "Update",
+    patch_file: "Patch",
+    run_command: "Run",
+    scaffold_project: "Scaffold",
+  };
+  return nameMap[name] || name.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join("");
+};
+
+// Format tool arguments for single-line display
+const formatToolArgs = (name: string, args: any): string => {
+  switch (name) {
+    case "read_file":
+      return args.path || "";
+    case "list_files":
+      return args.path || ".";
+    case "write_file":
+      return args.path || "";
+    case "edit_file":
+      return args.path || "";
+    case "patch_file":
+      return args.path || "";
+    case "run_command": {
+      const cmd = args.command || "";
+      return cmd.length > 60 ? cmd.substring(0, 57) + "..." : cmd;
+    }
+    case "scaffold_project":
+      return `${args.template}${args.name ? `: ${args.name}` : ""}`;
+    default:
+      return JSON.stringify(args).substring(0, 50);
+  }
+};
+
+// Format result summary for tree display
+const formatResultSummary = (name: string, result: string): string => {
+  switch (name) {
+    case "read_file": {
+      const lines = result.split("\n").length;
+      return `Read ${colors.bold}${lines}${colors.reset}${colors.gray} lines`;
+    }
+    case "list_files": {
+      try {
+        const files = JSON.parse(result);
+        return `Listed ${colors.bold}${files.length}${colors.reset}${colors.gray} paths`;
+      } catch {
+        return "Listed files";
+      }
+    }
+    case "write_file":
+      return result.includes("created") ? "File created" : result.includes("overwritten") ? "File overwritten" : result;
+    case "edit_file":
+      return result.includes("updated") ? "Changes applied" : result;
+    case "run_command": {
+      if (result.includes("SUCCESS")) return `${colors.green}Completed successfully${colors.reset}`;
+      if (result.includes("FAILED")) return `${colors.red}Failed${colors.reset}`;
+      if (result.includes("TIMEOUT")) return `${colors.yellow}Timed out${colors.reset}`;
+      if (result.includes("cancelled")) return `${colors.yellow}Cancelled${colors.reset}`;
+      return "Completed";
+    }
+    default:
+      return result.length > 50 ? result.substring(0, 47) + "..." : result;
+  }
 };
 
 // AI Coding Agent Class
@@ -151,27 +223,23 @@ You should NOT: Tell the user to set up the environment themselves`,
   }
 
   async run(): Promise<void> {
-    // ASCII Art for AI Coding Agent - Cyan color
-    console.log("\u001b[96m");
-    console.log(`
+    // ASCII Art header
+    console.log(`${colors.cyan}
    █████╗ ██╗     █████╗  ██████╗ ███████╗███╗   ██╗████████╗
   ██╔══██╗██║    ██╔══██╗██╔════╝ ██╔════╝████╗  ██║╚══██╔══╝
   ███████║██║    ███████║██║  ███╗█████╗  ██╔██╗ ██║   ██║
   ██╔══██║██║    ██╔══██║██║   ██║██╔══╝  ██║╚██╗██║   ██║
   ██║  ██║██║    ██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║
   ╚═╝  ╚═╝╚═╝    ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝
-
-            🛡️  SAFE MODE: Preview & Confirm Changes  🛡️
-`);
-    console.log("\u001b[0m");
+${colors.reset}`);
     console.log(
-      "Chat with your AI-powered coding agent (use 'ctrl-c' to quit)"
+      `${colors.gray}Safe mode enabled (ctrl+c to quit)${colors.reset}`
     );
     console.log(
-      `${colors.green}✓ File changes require your approval before being applied${colors.reset}`
+      `${colors.gray}File changes require your approval before being applied${colors.reset}`
     );
     console.log(
-      `${colors.yellow}✓ Using Claude Sonnet 4.5 for reliable tool calling${colors.reset}\n`
+      `${colors.gray}Using Claude Sonnet 4.5 via OpenRouter${colors.reset}\n`
     );
 
     process.on("SIGINT", () => {
@@ -182,7 +250,7 @@ You should NOT: Tell the user to set up the environment themselves`,
 
     while (true) {
       try {
-        const userInput = await this.rl.question("\u001b[94mYou\u001b[0m: ");
+        const userInput = await this.rl.question(`\n${colors.blue}>${colors.reset} `);
 
         if (!userInput) continue;
 
@@ -235,7 +303,8 @@ You should NOT: Tell the user to set up the environment themselves`,
       }));
 
       // Show processing indicator
-      console.log(`${colors.cyan}🤔 AI Agent is thinking...${colors.reset}`);
+      process.stdout.write(`${colors.yellow}*${colors.reset} ${colors.gray}Thinking...${colors.reset}`);
+      const startTime = Date.now();
 
       // Call OpenRouter API with Claude Sonnet 4.5 model
       const completion = await this.client.chat.completions.create({
@@ -247,8 +316,10 @@ You should NOT: Tell the user to set up the environment themselves`,
         max_tokens: 16384, // Large enough for write_file with full content
       });
 
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
       const message = completion.choices[0].message;
-      console.log(`${colors.green}✓ Got response from Claude Sonnet 4.5${colors.reset}\n`);
+      // Clear the "Thinking..." line and show completion
+      process.stdout.write(`\r${colors.green}●${colors.reset} ${colors.gray}Response (${elapsed}s)${colors.reset}\n`);
 
       // Safety net: Check if model should have called tools but didn't
       // (This is rare with Claude Sonnet 4.5 but kept as a precaution)
@@ -256,10 +327,9 @@ You should NOT: Tell the user to set up the environment themselves`,
         const mentionsTools = message.content.match(/\b(read_file|write_file|edit_file|list_files|patch_file)\b/i);
 
         if (mentionsTools) {
-          console.log(
-            `${colors.yellow}⚠️  Model mentioned tools but didn't invoke them, retrying...${colors.reset}`
-          );
-          console.log(`${colors.cyan}🤔 Fallback model is thinking...${colors.reset}`);
+          console.log(`  ${colors.gray}└ Retrying with tool enforcement...${colors.reset}`);
+          process.stdout.write(`${colors.yellow}*${colors.reset} ${colors.gray}Thinking...${colors.reset}`);
+          const retryStart = Date.now();
 
           // Retry the same request with Sonnet as fallback
           const fallbackCompletion = await this.client.chat.completions.create({
@@ -271,8 +341,9 @@ You should NOT: Tell the user to set up the environment themselves`,
             max_tokens: 16384,
           });
 
+          const retryElapsed = ((Date.now() - retryStart) / 1000).toFixed(1);
           const fallbackMessage = fallbackCompletion.choices[0].message;
-          console.log(`${colors.green}✓ Got response from Claude Sonnet${colors.reset}\n`);
+          process.stdout.write(`\r${colors.green}●${colors.reset} ${colors.gray}Response (${retryElapsed}s)${colors.reset}\n`);
           this.messages.push(fallbackMessage);
 
           // Continue with fallback response
@@ -280,7 +351,7 @@ You should NOT: Tell the user to set up the environment themselves`,
             await this.handleToolCalls(fallbackMessage.tool_calls);
             return;
           } else if (fallbackMessage.content) {
-            console.log(`\u001b[96mAI Agent\u001b[0m: ${fallbackMessage.content}\n`);
+            console.log(`\n${fallbackMessage.content}\n`);
             return;
           }
         }
@@ -294,15 +365,11 @@ You should NOT: Tell the user to set up the environment themselves`,
         await this.handleToolCalls(message.tool_calls);
       } else if (message.content) {
         // Regular text response
-        console.log(`\u001b[96mAI Agent\u001b[0m: ${message.content}\n`);
+        console.log(`\n${message.content}\n`);
       }
     } catch (error: any) {
       if (error?.status === 400 && this.retryCount < this.maxRetries) {
-        console.log(
-          `${colors.yellow}API error, attempting recovery (${ 
-            this.retryCount + 1
-          }/${this.maxRetries})...${colors.reset}`
-        );
+        console.log(`  ${colors.gray}└ ${colors.yellow}Retrying (${this.retryCount + 1}/${this.maxRetries})...${colors.reset}`);
         this.retryCount++;
 
         // Remove the last message and try again
@@ -326,10 +393,6 @@ You should NOT: Tell the user to set up the environment themselves`,
 
   private async handleToolCalls(toolCalls: any[]): Promise<void> {
     const toolCallResults = [];
-
-    console.log(`${colors.bold}${colors.cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${colors.reset}`);
-    console.log(`${colors.bold}${colors.cyan}🔧 Tool Calls (${toolCalls.length})${colors.reset}`);
-    console.log(`${colors.cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${colors.reset}\n`);
 
     for (const toolCall of toolCalls) {
       const functionName = toolCall?.function?.name ?? "unknown";
@@ -375,7 +438,7 @@ You should NOT: Tell the user to set up the environment themselves`,
           // Fix unterminated strings by adding closing quotes if needed
           if (openQuotes % 2 !== 0) {
             if (!wasTruncated) {
-              console.log(`${colors.yellow}⚠️  Fixing unterminated string in arguments${colors.reset}`);
+              console.log(`  ${colors.gray}└ ${colors.yellow}Fixing unterminated string${colors.reset}`);
             }
             rawArgs = rawArgs + '"';
           }
@@ -388,14 +451,14 @@ You should NOT: Tell the user to set up the environment themselves`,
 
           if (finalOpenBraces > finalCloseBraces) {
             if (!wasTruncated) {
-              console.log(`${colors.yellow}⚠️  Adding ${finalOpenBraces - finalCloseBraces} missing closing brace(s)${colors.reset}`);
+              console.log(`  ${colors.gray}└ ${colors.yellow}Adding ${finalOpenBraces - finalCloseBraces} missing brace(s)${colors.reset}`);
             }
             rawArgs = rawArgs + '}'.repeat(finalOpenBraces - finalCloseBraces);
           }
 
           if (openBrackets > closeBrackets) {
             if (!wasTruncated) {
-              console.log(`${colors.yellow}⚠️  Adding ${openBrackets - closeBrackets} missing closing bracket(s)${colors.reset}`);
+              console.log(`  ${colors.gray}└ ${colors.yellow}Adding ${openBrackets - closeBrackets} missing bracket(s)${colors.reset}`);
             }
             rawArgs = rawArgs + ']'.repeat(openBrackets - closeBrackets);
           }
@@ -405,7 +468,7 @@ You should NOT: Tell the user to set up the environment themselves`,
           
           // Log truncation detection for write_file
           if (wasTruncated) {
-            console.log(`${colors.red}⚠️  TRUNCATION DETECTED: ${truncationInfo}${colors.reset}`);
+            console.log(`  ${colors.gray}└ ${colors.red}Truncation detected: ${truncationInfo}${colors.reset}`);
           }
         }
 
@@ -413,7 +476,7 @@ You should NOT: Tell the user to set up the environment themselves`,
         
         // If truncation was detected for write_file, skip execution and report
         if (wasTruncated && functionName === "write_file") {
-          console.log(`${colors.red}❌ write_file skipped due to truncated response${colors.reset}\n`);
+          console.log(`  ${colors.gray}└ ${colors.red}Skipped due to truncation${colors.reset}\n`);
           toolCallResults.push({
             tool_call_id: toolCall.id,
             role: "tool" as const,
@@ -438,7 +501,7 @@ Received (truncated): ${JSON.stringify(functionArgs, null, 2)}`,
       } catch (parseError) {
         const errorMsg = parseError instanceof Error ? parseError.message : String(parseError);
         console.log(
-          `${colors.red}❌ Failed to parse tool call: ${errorMsg}${colors.reset}`
+`  ${colors.gray}└ ${colors.red}Parse error: ${errorMsg}${colors.reset}`
         );
         console.log(`${colors.gray}Raw arguments: ${toolCall.function.arguments}${colors.reset}\n`);
 
@@ -462,10 +525,10 @@ Please retry the ${functionName} tool call with properly formatted JSON. Make su
         continue;
       }
 
-      // Show detailed tool call info
-      console.log(`${colors.magenta}${colors.bold}Tool: ${functionName}${colors.reset}`);
-      console.log(`${colors.gray}Arguments:${colors.reset}`);
-      console.log(`${colors.gray}${JSON.stringify(functionArgs, null, 2)}${colors.reset}\n`);
+      // Show clean tool call info (Cursor-style)
+      const displayName = formatToolName(functionName);
+      const displayArgs = formatToolArgs(functionName, functionArgs);
+      console.log(`${colors.green}●${colors.reset} ${colors.bold}${displayName}${colors.reset}${colors.gray}(${displayArgs})${colors.reset}`);
 
       const tool = this.tools.find((t) => t.name === functionName);
 
@@ -488,9 +551,7 @@ Please retry the ${functionName} tool call with properly formatted JSON. Make su
           const attempt =
             (this.validationFailureCounts.get(signatureKey) ?? 0) + 1;
           this.validationFailureCounts.set(signatureKey, attempt);
-          console.log(
-            `${colors.red}❌ write_file call skipped: missing required path/content${colors.reset}\n`
-          );
+          console.log(`  ${colors.gray}└ ${colors.red}Missing required path/content${colors.reset}\n`);
           const retryNote =
             attempt > 1
               ? `Repeated invalid write_file call (#${attempt}). Do not retry until you include a "content" string with the full file text.`
@@ -512,11 +573,9 @@ Please retry the ${functionName} tool call with properly formatted JSON. Make su
 
       if (tool) {
         try {
-          console.log(`${colors.cyan}⏳ Executing ${functionName}...${colors.reset}`);
           const result = await tool.function(functionArgs);
-
-          console.log(`${colors.green}✓ ${functionName} completed${colors.reset}`);
-          console.log(`${colors.gray}Result preview: ${result.substring(0, 100)}${result.length > 100 ? '...' : ''}${colors.reset}\n`);
+          const summary = formatResultSummary(functionName, result);
+          console.log(`  ${colors.gray}└ ${summary}${colors.reset}\n`);
 
           toolCallResults.push({
             tool_call_id: toolCall.id,
@@ -525,7 +584,7 @@ Please retry the ${functionName} tool call with properly formatted JSON. Make su
           });
         } catch (error) {
           const errorMsg = error instanceof Error ? error.message : String(error);
-          console.log(`${colors.red}❌ ${functionName} failed: ${errorMsg}${colors.reset}\n`);
+          console.log(`  ${colors.gray}└ ${colors.red}Error: ${errorMsg}${colors.reset}\n`);
 
           // Send detailed error back to the model so it can fix itself
           toolCallResults.push({
@@ -544,10 +603,7 @@ Please analyze the error and retry with corrected parameters. Common issues:
           });
         }
       } else {
-        console.log(
-          `${colors.red}❌ Unknown tool: ${functionName}${colors.reset}`
-        );
-        console.log(`${colors.gray}Available tools: ${this.tools.map((t) => t.name).join(", ")}${colors.reset}\n`);
+        console.log(`  ${colors.gray}└ ${colors.red}Unknown tool${colors.reset}\n`);
         toolCallResults.push({
           tool_call_id: toolCall.id,
           role: "tool" as const,
@@ -558,14 +614,10 @@ Please analyze the error and retry with corrected parameters. Common issues:
       }
     }
 
-    console.log(`${colors.cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${colors.reset}\n`);
-
     // Add ALL tool results to messages
     for (const result of toolCallResults) {
       this.messages.push(result);
     }
-
-    console.log(`${colors.cyan}🤔 Getting follow-up response...${colors.reset}`);
 
     try {
       // Prepare tools for OpenAI format
@@ -597,14 +649,10 @@ Please analyze the error and retry with corrected parameters. Common issues:
         await this.handleToolCalls(followUpMessage.tool_calls);
       } else if (followUpMessage.content) {
         // Task is complete, show final response
-        console.log(
-          `\u001b[96mAI Agent\u001b[0m: ${followUpMessage.content}\n`
-        );
+        console.log(`\n${followUpMessage.content}\n`);
       }
     } catch (followUpError) {
-      console.log(
-        `${colors.yellow}Follow-up response failed, but tools were executed successfully${colors.reset}\n`
-      );
+      // Silent fail - tools were executed
     }
   }
 
@@ -640,7 +688,6 @@ const readFileDefinition: ToolDefinition = {
   },
   function: async (input: ReadFileInput) => {
     try {
-      console.log(`${colors.blue}📖 Reading: ${input.path}${colors.reset}`);
       const content = await fs.readFile(input.path, "utf-8");
       // Limit response size to avoid issues
       if (content.length > 10000) {
@@ -671,7 +718,6 @@ const listFilesDefinition: ToolDefinition = {
     const dir = input.path || ".";
 
     try {
-      console.log(`${colors.blue}📁 Listing files in: ${dir}${colors.reset}`);
       const files: string[] = [];
 
       async function walk(
@@ -775,41 +821,25 @@ const writeFileDefinition: ToolDefinition = {
         }
       }
 
-      // Show preview
-      console.log(
-        "\n" + colors.bold + colors.cyan + "═══ File Preview ═══" + colors.reset
-      );
-      console.log(`${colors.yellow}File: ${input.path}${colors.reset}`);
-
-      if (fileExists) {
-        console.log(
-          `${colors.red}⚠️  This will OVERWRITE the existing file!${colors.reset}`
-        );
-      }
-
-      // Show content preview (first 20 lines)
+      // Show preview (Cursor-style)
       const lines = input.content.split("\n");
-      const previewLines = lines.slice(0, 20);
-      console.log(
-        `${colors.green}Content preview (first ${Math.min(
-          20,
-          lines.length
-        )} lines):${colors.reset}`
-      );
-      console.log(colors.gray + previewLines.join("\n") + colors.reset);
-
-      if (lines.length > 20) {
-        console.log(
-          colors.gray + `... (${lines.length - 20} more lines)` + colors.reset
-        );
+      const totalLines = lines.length;
+      const previewCount = Math.min(15, totalLines);
+      
+      console.log(`  ${colors.gray}└ ${fileExists ? "Overwrite" : "Create"} ${colors.bold}${input.path}${colors.reset}${colors.gray} (${totalLines} lines)${colors.reset}`);
+      
+      // Show line-numbered preview
+      for (let i = 0; i < previewCount; i++) {
+        const lineNum = String(i + 1).padStart(4, " ");
+        console.log(`    ${colors.gray}${lineNum}${colors.reset} ${colors.green}+${colors.reset} ${lines[i]}`);
       }
-
-      console.log("\n" + colors.cyan + "════════════════════" + colors.reset);
+      
+      if (totalLines > previewCount) {
+        console.log(`    ${colors.gray}     ... (${totalLines - previewCount} more lines)${colors.reset}`);
+      }
 
       // Ask for confirmation
-      const question = fileExists
-        ? `\n${colors.yellow}⚠️  Do you want to OVERWRITE ${input.path}? (y/n): ${colors.reset}`
-        : `\n${colors.yellow}Do you want to create ${input.path}? (y/n): ${colors.reset}`;
+      const question = `\n${colors.yellow}Apply changes? (y/n): ${colors.reset}`;
 
       const answer = await rl.question(question);
 
@@ -822,23 +852,11 @@ const writeFileDefinition: ToolDefinition = {
 
         // Write the file
         await fs.writeFile(input.path, input.content, "utf-8");
-
-        console.log(
-          `${colors.green}✓ File ${
-            fileExists ? "overwritten" : "created"
-          } successfully!${colors.reset}\n`
-        );
-        return `File ${input.path} ${
-          fileExists ? "overwritten" : "created"
-        } successfully`;
+        return `File ${input.path} ${fileExists ? "overwritten" : "created"} successfully`;
       } else {
-        console.log(
-          `${colors.red}✗ Operation cancelled by user${colors.reset}\n`
-        );
         return "Operation cancelled by user";
       }
     } catch (error) {
-      console.log(`${colors.red}Error in write_file: ${error}${colors.reset}`);
       if (error instanceof Error) {
         throw error;
       }
@@ -914,58 +932,52 @@ const editFileDefinition: ToolDefinition = {
         newContent = currentContent.replace(input.old_str, input.new_str);
       }
 
-      // Show preview
-      console.log(
-        "\n" +
-          colors.bold +
-          colors.cyan +
-          "═══ Change Preview ═══" +
-          colors.reset
-      );
-      console.log(`${colors.yellow}File: ${input.path}${colors.reset}`);
-
-      if (input.old_str && input.new_str) {
-        const oldLines = input.old_str.split("\n");
-        const newLines = input.new_str.split("\n");
-
-        // Limit preview size
-        const maxLines = 10;
-        const oldPreview = oldLines.slice(0, maxLines);
-        const newPreview = newLines.slice(0, maxLines);
-
-        console.log(`${colors.red}--- Remove:${colors.reset}`);
-        console.log(
-          colors.red +
-            oldPreview.map((line) => "  " + line).join("\n") +
-            colors.reset
-        );
-        if (oldLines.length > maxLines) {
-          console.log(
-            colors.red +
-              `  ... (${oldLines.length - maxLines} more lines)` +
-              colors.reset
-          );
-        }
-
-        console.log(`${colors.green}+++ Add:${colors.reset}`);
-        console.log(
-          colors.green +
-            newPreview.map((line) => "  " + line).join("\n") +
-            colors.reset
-        );
-        if (newLines.length > maxLines) {
-          console.log(
-            colors.green +
-              `  ... (${newLines.length - maxLines} more lines)` +
-              colors.reset
-          );
+      // Show preview (Cursor-style with line numbers)
+      const oldLines = input.old_str.split("\n");
+      const newLines = input.new_str.split("\n");
+      const addCount = newLines.filter(l => l.trim()).length;
+      const removeCount = oldLines.filter(l => l.trim()).length;
+      
+      // Find line number where the change starts
+      const allLines = currentContent.split("\n");
+      let startLineNum = 1;
+      if (input.old_str) {
+        const idx = currentContent.indexOf(input.old_str);
+        if (idx >= 0) {
+          startLineNum = currentContent.substring(0, idx).split("\n").length;
         }
       }
-
-      console.log("\n" + colors.cyan + "════════════════════" + colors.reset);
+      
+      console.log(`  ${colors.gray}└ Updated ${colors.bold}${input.path}${colors.reset}${colors.gray} with ${colors.green}${addCount} addition${addCount !== 1 ? "s" : ""}${colors.gray} and ${colors.red}${removeCount} removal${removeCount !== 1 ? "s" : ""}${colors.reset}`);
+      
+      // Show the diff with line numbers
+      const maxPreview = 8;
+      let lineNum = startLineNum;
+      
+      // Show removals
+      const oldPreview = oldLines.slice(0, maxPreview);
+      for (const line of oldPreview) {
+        const ln = String(lineNum).padStart(4, " ");
+        console.log(`    ${colors.gray}${ln}${colors.reset} ${colors.red}-${colors.reset} ${colors.red}${line}${colors.reset}`);
+      }
+      if (oldLines.length > maxPreview) {
+        console.log(`    ${colors.gray}     ... (${oldLines.length - maxPreview} more removals)${colors.reset}`);
+      }
+      
+      // Show additions
+      lineNum = startLineNum;
+      const newPreview = newLines.slice(0, maxPreview);
+      for (const line of newPreview) {
+        const ln = String(lineNum).padStart(4, " ");
+        console.log(`    ${colors.gray}${ln}${colors.reset} ${colors.green}+${colors.reset} ${colors.green}${line}${colors.reset}`);
+        lineNum++;
+      }
+      if (newLines.length > maxPreview) {
+        console.log(`    ${colors.gray}     ... (${newLines.length - maxPreview} more additions)${colors.reset}`);
+      }
 
       // Ask for confirmation
-      const question = `\n${colors.yellow}Do you want to apply these changes? (y/n): ${colors.reset}`;
+      const question = `\n${colors.yellow}Apply changes? (y/n): ${colors.reset}`;
       const answer = await rl.question(question);
 
       if (answer.toLowerCase() === "y" || answer.toLowerCase() === "yes") {
@@ -977,15 +989,8 @@ const editFileDefinition: ToolDefinition = {
         }
 
         await fs.writeFile(input.path, newContent, "utf-8");
-
-        console.log(
-          `${colors.green}✓ Changes applied successfully!${colors.reset}\n`
-        );
         return "File successfully updated";
       } else {
-        console.log(
-          `${colors.red}✗ Changes cancelled by user${colors.reset}\n`
-        );
         return "Changes cancelled by user";
       }
     } catch (error) {
@@ -1585,17 +1590,10 @@ const scaffoldProjectDefinition: ToolDefinition = {
     const { baseDir, files, description } = buildTemplateFiles(input);
     const rl = getConfirmInterface();
 
-    console.log(
-      `${colors.cyan}Scaffold: ${description}${colors.reset} -> ${baseDir}`
-    );
-    console.log(
-      `${colors.gray}Files to create:${colors.reset}\n${files
-        .map((f) => ` - ${f.path}`)
-        .join("\n")}\n`
-    );
+    console.log(`  ${colors.gray}└ ${description} -> ${colors.bold}${baseDir}${colors.reset}${colors.gray} (${files.length} files)${colors.reset}`);
 
     const answer = await rl.question(
-      `${colors.yellow}Proceed to scaffold into ${baseDir}? (y/n): ${colors.reset}`
+      `\n${colors.yellow}Scaffold project? (y/n): ${colors.reset}`
     );
 
     if (!["y", "yes"].includes(answer.toLowerCase())) {
@@ -1746,56 +1744,39 @@ const patchFileDefinition: ToolDefinition = {
 
       const newContent = newLines.join("\n");
 
-      // Show preview
-      console.log(
-        "\n" +
-          colors.bold +
-          colors.cyan +
-          "═══ Patch Preview ═══" +
-          colors.reset
-      );
-      console.log(`${colors.yellow}File: ${input.path}${colors.reset}`);
-      console.log(
-        `${colors.gray}Starting at line ${startLine + 1}${colors.reset}\n`
-      );
-
-      console.log(`${colors.red}--- Lines to remove (${removedLines.length}):${colors.reset}`);
-      removedLines.slice(0, 10).forEach((line, i) => {
-        console.log(colors.red + `  ${i + 1}. ${line}` + colors.reset);
+      // Show preview (Cursor-style)
+      console.log(`  ${colors.gray}└ Patch ${colors.bold}${input.path}${colors.reset}${colors.gray} with ${colors.green}${addedLines.length} addition${addedLines.length !== 1 ? "s" : ""}${colors.gray} and ${colors.red}${removedLines.length} removal${removedLines.length !== 1 ? "s" : ""}${colors.reset}`);
+      
+      // Show removals with line numbers
+      const maxPreview = 8;
+      let lineNum = startLine + 1;
+      removedLines.slice(0, maxPreview).forEach((line) => {
+        const ln = String(lineNum).padStart(4, " ");
+        console.log(`    ${colors.gray}${ln}${colors.reset} ${colors.red}-${colors.reset} ${colors.red}${line}${colors.reset}`);
       });
-      if (removedLines.length > 10) {
-        console.log(
-          colors.red + `  ... (${removedLines.length - 10} more lines)` + colors.reset
-        );
+      if (removedLines.length > maxPreview) {
+        console.log(`    ${colors.gray}     ... (${removedLines.length - maxPreview} more removals)${colors.reset}`);
       }
-
-      console.log(`\n${colors.green}+++ Lines to add (${addedLines.length}):${colors.reset}`);
-      addedLines.slice(0, 10).forEach((line, i) => {
-        console.log(colors.green + `  ${i + 1}. ${line}` + colors.reset);
+      
+      // Show additions with line numbers
+      lineNum = startLine + 1;
+      addedLines.slice(0, maxPreview).forEach((line) => {
+        const ln = String(lineNum).padStart(4, " ");
+        console.log(`    ${colors.gray}${ln}${colors.reset} ${colors.green}+${colors.reset} ${colors.green}${line}${colors.reset}`);
+        lineNum++;
       });
-      if (addedLines.length > 10) {
-        console.log(
-          colors.green + `  ... (${addedLines.length - 10} more lines)` + colors.reset
-        );
+      if (addedLines.length > maxPreview) {
+        console.log(`    ${colors.gray}     ... (${addedLines.length - maxPreview} more additions)${colors.reset}`);
       }
-
-      console.log("\n" + colors.cyan + "════════════════════" + colors.reset);
 
       // Ask for confirmation
-      const question = `\n${colors.yellow}Do you want to apply this patch? (y/n): ${colors.reset}`;
+      const question = `\n${colors.yellow}Apply patch? (y/n): ${colors.reset}`;
       const answer = await rl.question(question);
 
       if (answer.toLowerCase() === "y" || answer.toLowerCase() === "yes") {
         await fs.writeFile(input.path, newContent, "utf-8");
-
-        console.log(
-          `${colors.green}✓ Patch applied successfully!${colors.reset}\n`
-        );
         return "Patch successfully applied to file";
       } else {
-        console.log(
-          `${colors.red}✗ Patch cancelled by user${colors.reset}\n`
-        );
         return "Patch cancelled by user";
       }
     } catch (error) {
@@ -1852,30 +1833,22 @@ const runCommandDefinition: ToolDefinition = {
     // Set working directory
     const workingDir = input.working_dir || process.cwd();
 
-    // Show command preview
-    console.log(
-      "\n" + colors.bold + colors.cyan + "═══ Command Preview ═══" + colors.reset
-    );
-    console.log(`${colors.yellow}Command: ${input.command}${colors.reset}`);
-    console.log(`${colors.gray}Working directory: ${workingDir}${colors.reset}`);
-    console.log(
-      `${colors.gray}Timeout: ${timeoutSeconds} seconds${colors.reset}`
-    );
-    console.log("\n" + colors.cyan + "════════════════════" + colors.reset);
+    // Show command preview (Cursor-style)
+    console.log(`  ${colors.gray}└ Command: ${colors.white}${input.command}${colors.reset}`);
+    if (input.working_dir) {
+      console.log(`    ${colors.gray}cwd: ${workingDir}${colors.reset}`);
+    }
 
     // Ask for confirmation
     const answer = await rl.question(
-      `\n${colors.yellow}Do you want to run this command? (y/n): ${colors.reset}`
+      `\n${colors.yellow}Run command? (y/n): ${colors.reset}`
     );
 
     if (answer.toLowerCase() !== "y" && answer.toLowerCase() !== "yes") {
-      console.log(
-        `${colors.red}✗ Command cancelled by user${colors.reset}\n`
-      );
       return "Command cancelled by user";
     }
 
-    console.log(`${colors.cyan}⏳ Running command...${colors.reset}\n`);
+    console.log();
 
     return new Promise<string>((resolve) => {
       let stdout = "";
@@ -1919,17 +1892,11 @@ const runCommandDefinition: ToolDefinition = {
 
         console.log("\n");
         if (timedOut) {
-          console.log(
-            `${colors.red}⏱️  Command timed out after ${timeoutSeconds} seconds${colors.reset}\n`
-          );
+          console.log(`  ${colors.gray}└ ${colors.yellow}Timed out after ${timeoutSeconds}s${colors.reset}\n`);
         } else if (success) {
-          console.log(
-            `${colors.green}✓ Command completed with exit code ${exitCode}${colors.reset}\n`
-          );
+          console.log(`  ${colors.gray}└ ${colors.green}Exit code ${exitCode}${colors.reset}\n`);
         } else {
-          console.log(
-            `${colors.red}✗ Command failed with exit code ${exitCode}${colors.reset}\n`
-          );
+          console.log(`  ${colors.gray}└ ${colors.red}Failed with exit code ${exitCode}${colors.reset}\n`);
         }
 
         // Build result string for the model
@@ -1965,9 +1932,7 @@ const runCommandDefinition: ToolDefinition = {
 
       child.on("error", (error) => {
         clearTimeout(timeoutId);
-        console.log(
-          `${colors.red}✗ Command error: ${error.message}${colors.reset}\n`
-        );
+        console.log(`  ${colors.gray}└ ${colors.red}Error: ${error.message}${colors.reset}\n`);
         resolve(`Command failed to start: ${error.message}`);
       });
     });
@@ -1988,12 +1953,6 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`${colors.green}Initializing AI Coding Agent...${colors.reset}`);
-  console.log("Model: Claude Sonnet 4.5 (Anthropic's latest coding model)");
-  console.log("API: OpenRouter (unified AI model gateway)");
-  console.log(
-    `${colors.yellow}Mode: Safe Mode with Error Recovery${colors.reset}\n`
-  );
 
   const tools = [
     readFileDefinition,
