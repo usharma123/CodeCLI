@@ -204,8 +204,21 @@ Node.js environment setup:
 2. If dependencies not installed: run_command with "npm install" or "bun install"
 3. Run tests: run_command with "npm test" or "bun test"
 
+Java/JUnit environment setup (do this before running Java tests):
+1. Check if junit-platform-console-standalone.jar exists: run_command with "ls *.jar" or check the test directory
+2. If no JUnit JAR, download it: run_command with "curl -L -o junit-platform-console-standalone.jar https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/1.10.2/junit-platform-console-standalone-1.10.2.jar"
+3. Compile source and test files: run_command with "javac -cp junit-platform-console-standalone.jar:. SourceFile.java TestFile.java"
+4. Run tests: run_command with "java -jar junit-platform-console-standalone.jar --class-path . --scan-class-path"
+Note: On Windows use semicolon (;) instead of colon (:) for classpath separator
+
+JUnit test file conventions:
+- Test class name should end with "Test" (e.g., CurrencyConverterTest.java)
+- Import org.junit.jupiter.api.Test and org.junit.jupiter.api.Assertions
+- Each test method should be annotated with @Test
+- Use assertions like assertEquals(), assertTrue(), assertThrows()
+
 Test-Driven Development workflow:
-1. Set up environment (venv for Python, npm install for Node)
+1. Set up environment (venv for Python, npm install for Node, download JUnit JAR for Java)
 2. Write tests using write_file
 3. Run tests using run_command
 4. If tests fail, read the output, fix the code using edit_file
@@ -1788,6 +1801,103 @@ const patchFileDefinition: ToolDefinition = {
   },
 };
 
+// Helper to run a shell command and capture output (used internally)
+const runShellCommand = (
+  command: string,
+  workingDir: string,
+  timeoutMs: number,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<{ stdout: string; stderr: string; exitCode: number; timedOut: boolean }> => {
+  return new Promise((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+
+    const child = spawn(command, [], {
+      shell: true,
+      cwd: workingDir,
+      env: { ...env },
+    });
+
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+      setTimeout(() => child.kill("SIGKILL"), 5000);
+    }, timeoutMs);
+
+    child.stdout.on("data", (data) => {
+      const text = data.toString();
+      stdout += text;
+      process.stdout.write(colors.gray + text + colors.reset);
+    });
+
+    child.stderr.on("data", (data) => {
+      const text = data.toString();
+      stderr += text;
+      process.stdout.write(colors.yellow + text + colors.reset);
+    });
+
+    child.on("close", (code) => {
+      clearTimeout(timeoutId);
+      resolve({ stdout, stderr, exitCode: code ?? -1, timedOut });
+    });
+
+    child.on("error", (error) => {
+      clearTimeout(timeoutId);
+      resolve({ stdout, stderr: error.message, exitCode: -1, timedOut: false });
+    });
+  });
+};
+
+// Helper to install Java via Homebrew
+const installJavaWithHomebrew = async (rl: readline.Interface): Promise<{ success: boolean; javaHome?: string }> => {
+  console.log(`\n${colors.yellow}Java is not installed on this system.${colors.reset}`);
+  console.log(`${colors.cyan}Would you like to install Java via Homebrew?${colors.reset}`);
+  
+  const answer = await rl.question(`\n${colors.yellow}Install Java? (y/n): ${colors.reset}`);
+  
+  if (answer.toLowerCase() !== "y" && answer.toLowerCase() !== "yes") {
+    return { success: false };
+  }
+
+  console.log(`\n${colors.cyan}Installing OpenJDK via Homebrew...${colors.reset}\n`);
+  
+  // First check if Homebrew is installed
+  const brewCheck = await runShellCommand("which brew", process.cwd(), 10000);
+  if (brewCheck.exitCode !== 0) {
+    console.log(`\n${colors.red}Homebrew is not installed.${colors.reset}`);
+    console.log(`${colors.yellow}Install Homebrew first: https://brew.sh${colors.reset}\n`);
+    return { success: false };
+  }
+
+  // Install OpenJDK
+  console.log(`${colors.cyan}Running: brew install openjdk${colors.reset}\n`);
+  const installResult = await runShellCommand("brew install openjdk", process.cwd(), 300000); // 5 min timeout
+  
+  if (installResult.exitCode !== 0) {
+    console.log(`\n${colors.red}Failed to install Java.${colors.reset}\n`);
+    return { success: false };
+  }
+
+  // Get the Homebrew prefix and construct JAVA_HOME
+  const prefixResult = await runShellCommand("brew --prefix openjdk", process.cwd(), 10000);
+  const brewPrefix = prefixResult.stdout.trim();
+  const javaHome = `${brewPrefix}/libexec/openjdk.jdk/Contents/Home`;
+
+  console.log(`\n${colors.green}Java installed successfully!${colors.reset}`);
+  console.log(`${colors.gray}JAVA_HOME: ${javaHome}${colors.reset}\n`);
+
+  // Create symlink for system-wide access (optional, may require sudo)
+  console.log(`${colors.cyan}Creating symlink for system Java access...${colors.reset}\n`);
+  const symlinkCmd = `sudo ln -sfn ${brewPrefix}/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk.jdk 2>/dev/null || true`;
+  await runShellCommand(symlinkCmd, process.cwd(), 30000);
+
+  return { success: true, javaHome };
+};
+
+// Track Java installation state for the session
+let sessionJavaHome: string | undefined = undefined;
+
 const runCommandDefinition: ToolDefinition = {
   name: "run_command",
   description:
@@ -1850,92 +1960,132 @@ const runCommandDefinition: ToolDefinition = {
 
     console.log();
 
-    return new Promise<string>((resolve) => {
-      let stdout = "";
-      let stderr = "";
-      let timedOut = false;
+    // Build environment with Java if we've installed it this session
+    const commandEnv: NodeJS.ProcessEnv = { ...process.env };
+    if (sessionJavaHome) {
+      commandEnv.JAVA_HOME = sessionJavaHome;
+      commandEnv.PATH = `${sessionJavaHome}/bin:${process.env.PATH}`;
+    }
 
-      // Use shell to run the command
-      const child = spawn(input.command, [], {
-        shell: true,
-        cwd: workingDir,
-        env: { ...process.env },
-      });
+    // Run the command
+    const { stdout, stderr, exitCode, timedOut } = await runShellCommand(
+      input.command,
+      workingDir,
+      timeoutMs,
+      commandEnv
+    );
 
-      // Set timeout
-      const timeoutId = setTimeout(() => {
-        timedOut = true;
-        child.kill("SIGTERM");
-        // Force kill after 5 more seconds if still running
-        setTimeout(() => child.kill("SIGKILL"), 5000);
-      }, timeoutMs);
+    // Check for Java not installed error
+    const combinedOutput = stdout + stderr;
+    const javaNotInstalled = combinedOutput.includes("Unable to locate a Java Runtime") ||
+                            combinedOutput.includes("No Java runtime present");
 
-      child.stdout.on("data", (data) => {
-        const text = data.toString();
-        stdout += text;
-        // Stream output to console in real-time
-        process.stdout.write(colors.gray + text + colors.reset);
-      });
+    if (javaNotInstalled && !sessionJavaHome) {
+      // Offer to install Java
+      const installResult = await installJavaWithHomebrew(rl);
+      
+      if (installResult.success && installResult.javaHome) {
+        sessionJavaHome = installResult.javaHome;
+        
+        // Ask if user wants to retry the command
+        const retryAnswer = await rl.question(
+          `\n${colors.yellow}Retry the original command with Java? (y/n): ${colors.reset}`
+        );
+        
+        if (retryAnswer.toLowerCase() === "y" || retryAnswer.toLowerCase() === "yes") {
+          console.log(`\n${colors.cyan}Retrying command with Java...${colors.reset}\n`);
+          
+          // Build new environment with Java
+          const javaEnv: NodeJS.ProcessEnv = { ...process.env };
+          javaEnv.JAVA_HOME = sessionJavaHome;
+          javaEnv.PATH = `${sessionJavaHome}/bin:${process.env.PATH}`;
+          
+          // Retry the command
+          const retryResult = await runShellCommand(
+            input.command,
+            workingDir,
+            timeoutMs,
+            javaEnv
+          );
 
-      child.stderr.on("data", (data) => {
-        const text = data.toString();
-        stderr += text;
-        // Stream stderr in yellow
-        process.stdout.write(colors.yellow + text + colors.reset);
-      });
+          console.log("\n");
+          if (retryResult.timedOut) {
+            console.log(`  ${colors.gray}└ ${colors.yellow}Timed out after ${timeoutSeconds}s${colors.reset}\n`);
+          } else if (retryResult.exitCode === 0) {
+            console.log(`  ${colors.gray}└ ${colors.green}Exit code ${retryResult.exitCode}${colors.reset}\n`);
+          } else {
+            console.log(`  ${colors.gray}└ ${colors.red}Failed with exit code ${retryResult.exitCode}${colors.reset}\n`);
+          }
 
-      child.on("close", (code) => {
-        clearTimeout(timeoutId);
+          // Build result string
+          let result = `Command: ${input.command}\n`;
+          result += `Exit code: ${retryResult.exitCode}\n`;
+          result += `Status: ${retryResult.timedOut ? "TIMEOUT" : retryResult.exitCode === 0 ? "SUCCESS" : "FAILED"}\n`;
+          result += `Note: Java was installed via Homebrew (JAVA_HOME=${sessionJavaHome})\n`;
 
-        const exitCode = code ?? -1;
-        const success = exitCode === 0;
+          if (retryResult.stdout.trim()) {
+            const maxLength = 8000;
+            const truncatedStdout =
+              retryResult.stdout.length > maxLength
+                ? retryResult.stdout.substring(0, maxLength) + "\n... (output truncated)"
+                : retryResult.stdout;
+            result += `\n--- STDOUT ---\n${truncatedStdout}`;
+          }
 
-        console.log("\n");
-        if (timedOut) {
-          console.log(`  ${colors.gray}└ ${colors.yellow}Timed out after ${timeoutSeconds}s${colors.reset}\n`);
-        } else if (success) {
-          console.log(`  ${colors.gray}└ ${colors.green}Exit code ${exitCode}${colors.reset}\n`);
-        } else {
-          console.log(`  ${colors.gray}└ ${colors.red}Failed with exit code ${exitCode}${colors.reset}\n`);
+          if (retryResult.stderr.trim()) {
+            const maxLength = 4000;
+            const truncatedStderr =
+              retryResult.stderr.length > maxLength
+                ? retryResult.stderr.substring(0, maxLength) + "\n... (stderr truncated)"
+                : retryResult.stderr;
+            result += `\n--- STDERR ---\n${truncatedStderr}`;
+          }
+
+          return result;
         }
+      }
+    }
 
-        // Build result string for the model
-        let result = `Command: ${input.command}\n`;
-        result += `Exit code: ${exitCode}\n`;
-        result += `Status: ${timedOut ? "TIMEOUT" : success ? "SUCCESS" : "FAILED"}\n`;
+    const success = exitCode === 0;
 
-        if (stdout.trim()) {
-          // Limit output size to avoid token issues
-          const maxLength = 8000;
-          const truncatedStdout =
-            stdout.length > maxLength
-              ? stdout.substring(0, maxLength) + "\n... (output truncated)"
-              : stdout;
-          result += `\n--- STDOUT ---\n${truncatedStdout}`;
-        }
+    console.log("\n");
+    if (timedOut) {
+      console.log(`  ${colors.gray}└ ${colors.yellow}Timed out after ${timeoutSeconds}s${colors.reset}\n`);
+    } else if (success) {
+      console.log(`  ${colors.gray}└ ${colors.green}Exit code ${exitCode}${colors.reset}\n`);
+    } else {
+      console.log(`  ${colors.gray}└ ${colors.red}Failed with exit code ${exitCode}${colors.reset}\n`);
+    }
 
-        if (stderr.trim()) {
-          const maxLength = 4000;
-          const truncatedStderr =
-            stderr.length > maxLength
-              ? stderr.substring(0, maxLength) + "\n... (stderr truncated)"
-              : stderr;
-          result += `\n--- STDERR ---\n${truncatedStderr}`;
-        }
+    // Build result string for the model
+    let result = `Command: ${input.command}\n`;
+    result += `Exit code: ${exitCode}\n`;
+    result += `Status: ${timedOut ? "TIMEOUT" : success ? "SUCCESS" : "FAILED"}\n`;
 
-        if (!stdout.trim() && !stderr.trim()) {
-          result += "\n(No output)";
-        }
+    if (stdout.trim()) {
+      // Limit output size to avoid token issues
+      const maxLength = 8000;
+      const truncatedStdout =
+        stdout.length > maxLength
+          ? stdout.substring(0, maxLength) + "\n... (output truncated)"
+          : stdout;
+      result += `\n--- STDOUT ---\n${truncatedStdout}`;
+    }
 
-        resolve(result);
-      });
+    if (stderr.trim()) {
+      const maxLength = 4000;
+      const truncatedStderr =
+        stderr.length > maxLength
+          ? stderr.substring(0, maxLength) + "\n... (stderr truncated)"
+          : stderr;
+      result += `\n--- STDERR ---\n${truncatedStderr}`;
+    }
 
-      child.on("error", (error) => {
-        clearTimeout(timeoutId);
-        console.log(`  ${colors.gray}└ ${colors.red}Error: ${error.message}${colors.reset}\n`);
-        resolve(`Command failed to start: ${error.message}`);
-      });
-    });
+    if (!stdout.trim() && !stderr.trim()) {
+      result += "\n(No output)";
+    }
+
+    return result;
   },
 };
 

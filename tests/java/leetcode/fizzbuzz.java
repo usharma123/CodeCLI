@@ -24,7 +24,10 @@ Constraints:
 1 <= n <= 10^4
 */
 
-class Solution {
+import java.util.ArrayList;
+import java.util.List;
+
+class FizzBuzzSolution {
     public List<String> fizzBuzz(int n) {
         List<String> answer = new ArrayList<>();
         

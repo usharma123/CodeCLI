@@ -12,7 +12,7 @@ nums2.length == n
 */
 
 
-class Solution {
+class MedianTwoSortedArraysSolution {
     public double findMedianSortedArrays(int[] nums1, int[] nums2) {
         // Ensure nums1 is the smaller array for efficiency
         if (nums1.length > nums2.length) {
