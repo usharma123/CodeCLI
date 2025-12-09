@@ -45,6 +45,7 @@ On launch, the agent:
 ## Notes
 - Token budget raised to 16384 for tool calls to allow full `write_file` payloads (prevents truncation).
 - Safe-mode confirmations apply to file writes, patches, and shell commands.
+- Known limitation: the agent can sometimes prefer overwriting an entire file instead of issuing a targeted edit/patch, which wastes tokens and can increase cost; guide the agent toward `edit_file`/`patch_file` for small changes.
 
 ## Future Steps
 - Add automated tests for tool flows and confirmation prompts.
