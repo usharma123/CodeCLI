@@ -3,6 +3,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import * as readline from "readline/promises";
 import { stdin as input, stdout as output } from "process";
+import { spawn } from "child_process";
 import dotenv from "dotenv";
 
 // Load environment variables from .env file
@@ -53,6 +54,12 @@ interface PatchFileInput {
   patch: string;
 }
 
+interface RunCommandInput {
+  command: string;
+  working_dir?: string;
+  timeout_seconds?: number;
+}
+
 // Color codes for terminal output
 const colors = {
   reset: "\u001b[0m",
@@ -74,6 +81,8 @@ class AIAgent {
   private messages: any[] = [];
   private retryCount: number = 0;
   private maxRetries: number = 3;
+  // Track repeated validation failures to prevent retry storms
+  private validationFailureCounts: Map<string, number> = new Map();
 
   constructor(apiKey: string, tools: ToolDefinition[]) {
     // Configure OpenAI client to use OpenRouter's API
@@ -92,7 +101,7 @@ class AIAgent {
     // Add system prompt to encourage tool usage
     this.messages.push({
       role: "system",
-      content: `You are an AI coding assistant with direct access to the file system. When the user asks you to create, read, edit, or list files, you MUST use the available tools to do it directly - do NOT give instructions for the user to do it manually.
+      content: `You are an AI coding assistant with direct access to the file system and terminal. When the user asks you to create, read, edit, list files, or run commands, you MUST use the available tools to do it directly - do NOT give instructions for the user to do it manually.
 
 Available tools:
 - read_file: Read any file's contents
@@ -100,22 +109,44 @@ Available tools:
 - edit_file: Make string replacements in existing files (USE THIS for most edits)
 - patch_file: Apply unified diff patches (advanced - only if you know unified diff format perfectly)
 - list_files: List files and directories
+- run_command: Execute shell commands (pytest, npm test, python, etc.)
 
 Tool selection guide:
 - For NEW files: Use write_file
 - For EDITING files: Use edit_file (find the exact text to replace)
 - For COMPLEX multi-hunk patches: Use patch_file (only if you can generate perfect unified diff format)
+- For RUNNING tests: Use run_command with pytest, npm test, etc.
+- For BUILDING/LINTING: Use run_command
 
 IMPORTANT: Always use these tools directly. Never tell the user to manually create files or run commands. You have the power to do it yourself!
+
+Python environment setup (do this before running Python tests):
+1. Check if venv exists: run_command with "ls -la" or check for venv/bin/activate
+2. If no venv, create one: run_command with "python3 -m venv venv"
+3. Install dependencies: run_command with "venv/bin/pip install pytest" (or other needed packages)
+4. Run tests with venv: run_command with "venv/bin/pytest tests/" (use venv/bin/python for scripts)
+Note: On Windows use venv\\Scripts\\pytest instead of venv/bin/pytest
+
+Node.js environment setup:
+1. Check for package.json
+2. If dependencies not installed: run_command with "npm install" or "bun install"
+3. Run tests: run_command with "npm test" or "bun test"
+
+Test-Driven Development workflow:
+1. Set up environment (venv for Python, npm install for Node)
+2. Write tests using write_file
+3. Run tests using run_command
+4. If tests fail, read the output, fix the code using edit_file
+5. Run tests again until they pass
 
 Example:
 User: "Create an index.html file with a simple page"
 You should: Use write_file tool to create the file immediately
 You should NOT: Say "Copy this code into a file named index.html"
 
-User: "Improve the error handling in server.js"
-You should: Use patch_file with a unified diff showing the changes
-You should NOT: Use edit_file for multi-line changes`,
+User: "Run the Python tests and fix any failures"
+You should: First ensure venv exists and pytest is installed, then run_command with "venv/bin/pytest tests/", fix failures with edit_file
+You should NOT: Tell the user to set up the environment themselves`,
     });
   }
 
@@ -213,7 +244,7 @@ You should NOT: Use edit_file for multi-line changes`,
         tools: openAITools,
         tool_choice: "auto",
         temperature: 0.3, // Lower temperature for consistent tool calling
-        max_tokens: 2048,
+        max_tokens: 16384, // Large enough for write_file with full content
       });
 
       const message = completion.choices[0].message;
@@ -237,7 +268,7 @@ You should NOT: Use edit_file for multi-line changes`,
             tools: openAITools,
             tool_choice: "auto",
             temperature: 0.3,  // Sonnet works well with lower temp
-            max_tokens: 2048,
+            max_tokens: 16384,
           });
 
           const fallbackMessage = fallbackCompletion.choices[0].message;
@@ -305,42 +336,105 @@ You should NOT: Use edit_file for multi-line changes`,
       let functionArgs: any;
 
       try {
-        // Try to parse JSON, with aggressive error handling
+        // Try to parse JSON, with truncation detection
         let rawArgs = toolCall.function.arguments;
+        let wasTruncated = false;
+        let truncationInfo = "";
 
         // Clean up common JSON issues
         if (typeof rawArgs === 'string') {
           // Remove any trailing commas before closing braces/brackets
           rawArgs = rawArgs.replace(/,(\s*[}\]])/g, '$1');
 
-          // Fix unterminated strings by adding closing quotes if needed
+          // Detect truncation: check for unbalanced quotes/braces BEFORE fixing
           const openQuotes = (rawArgs.match(/"/g) || []).length;
+          const openBraces = (rawArgs.match(/\{/g) || []).length;
+          const closeBraces = (rawArgs.match(/\}/g) || []).length;
+          
+          // For write_file, check if we have path but content appears truncated
+          if (functionName === "write_file") {
+            const hasPathKey = rawArgs.includes('"path"');
+            const hasContentKey = rawArgs.includes('"content"');
+            
+            // If we have path but no content key, or unbalanced structure, it's truncated
+            if (hasPathKey && !hasContentKey && (openBraces > closeBraces || openQuotes % 2 !== 0)) {
+              wasTruncated = true;
+              truncationInfo = "The response was truncated before the 'content' property could be included.";
+            }
+            // If content key exists but value is incomplete (odd quotes after content key)
+            else if (hasContentKey) {
+              const afterContent = rawArgs.substring(rawArgs.indexOf('"content"'));
+              const contentQuotes = (afterContent.match(/"/g) || []).length;
+              if (contentQuotes % 2 !== 0 || openBraces > closeBraces) {
+                wasTruncated = true;
+                truncationInfo = "The 'content' property value was truncated mid-string.";
+              }
+            }
+          }
+
+          // Fix unterminated strings by adding closing quotes if needed
           if (openQuotes % 2 !== 0) {
-            console.log(`${colors.yellow}⚠️  Fixing unterminated string in arguments${colors.reset}`);
+            if (!wasTruncated) {
+              console.log(`${colors.yellow}⚠️  Fixing unterminated string in arguments${colors.reset}`);
+            }
             rawArgs = rawArgs + '"';
           }
 
-          // Count braces and brackets to fix missing closures
-          const openBraces = (rawArgs.match(/\{/g) || []).length;
-          const closeBraces = (rawArgs.match(/\}/g) || []).length;
+          // Count braces and brackets to fix missing closures (recount after quote fix)
+          const finalOpenBraces = (rawArgs.match(/\{/g) || []).length;
+          const finalCloseBraces = (rawArgs.match(/\}/g) || []).length;
           const openBrackets = (rawArgs.match(/\[/g) || []).length;
           const closeBrackets = (rawArgs.match(/\]/g) || []).length;
 
-          if (openBraces > closeBraces) {
-            console.log(`${colors.yellow}⚠️  Adding ${openBraces - closeBraces} missing closing brace(s)${colors.reset}`);
-            rawArgs = rawArgs + '}'.repeat(openBraces - closeBraces);
+          if (finalOpenBraces > finalCloseBraces) {
+            if (!wasTruncated) {
+              console.log(`${colors.yellow}⚠️  Adding ${finalOpenBraces - finalCloseBraces} missing closing brace(s)${colors.reset}`);
+            }
+            rawArgs = rawArgs + '}'.repeat(finalOpenBraces - finalCloseBraces);
           }
 
           if (openBrackets > closeBrackets) {
-            console.log(`${colors.yellow}⚠️  Adding ${openBrackets - closeBrackets} missing closing bracket(s)${colors.reset}`);
+            if (!wasTruncated) {
+              console.log(`${colors.yellow}⚠️  Adding ${openBrackets - closeBrackets} missing closing bracket(s)${colors.reset}`);
+            }
             rawArgs = rawArgs + ']'.repeat(openBrackets - closeBrackets);
           }
 
           // Remove any trailing commas again after fixes
           rawArgs = rawArgs.replace(/,(\s*[}\]])/g, '$1');
+          
+          // Log truncation detection for write_file
+          if (wasTruncated) {
+            console.log(`${colors.red}⚠️  TRUNCATION DETECTED: ${truncationInfo}${colors.reset}`);
+          }
         }
 
         functionArgs = typeof rawArgs === 'string' ? JSON.parse(rawArgs) : rawArgs;
+        
+        // If truncation was detected for write_file, skip execution and report
+        if (wasTruncated && functionName === "write_file") {
+          console.log(`${colors.red}❌ write_file skipped due to truncated response${colors.reset}\n`);
+          toolCallResults.push({
+            tool_call_id: toolCall.id,
+            role: "tool" as const,
+            content: `TRUNCATION ERROR: Your response was cut off before the complete tool call could be transmitted.
+
+${truncationInfo}
+
+The write_file tool requires BOTH "path" AND "content" properties.
+
+SOLUTION: Your response may have been too long. Please try again with a shorter file content, or split the file into multiple smaller write_file calls.
+
+Example of valid write_file call:
+{
+  "path": "tests/python/test_agent.py",
+  "content": "import pytest\\n\\ndef test_example():\\n    assert True"
+}
+
+Received (truncated): ${JSON.stringify(functionArgs, null, 2)}`,
+          });
+          continue;
+        }
       } catch (parseError) {
         const errorMsg = parseError instanceof Error ? parseError.message : String(parseError);
         console.log(
@@ -374,6 +468,47 @@ Please retry the ${functionName} tool call with properly formatted JSON. Make su
       console.log(`${colors.gray}${JSON.stringify(functionArgs, null, 2)}${colors.reset}\n`);
 
       const tool = this.tools.find((t) => t.name === functionName);
+
+      // Early validation for common mistakes so the model can self-correct
+      if (functionName === "write_file") {
+        const hasContentProp =
+          functionArgs &&
+          Object.prototype.hasOwnProperty.call(functionArgs, "content");
+        const contentIsString =
+          hasContentProp && typeof functionArgs.content === "string";
+        const pathIsString =
+          functionArgs && typeof functionArgs.path === "string";
+
+        if (!pathIsString || !hasContentProp || !contentIsString) {
+          const hint =
+            'write_file needs both "path" and "content" strings, e.g. {"path":"tests/python/test_agent.py","content":"...file contents..."}';
+          const signatureKey = `${functionName}:${JSON.stringify(
+            functionArgs ?? {}
+          )}`;
+          const attempt =
+            (this.validationFailureCounts.get(signatureKey) ?? 0) + 1;
+          this.validationFailureCounts.set(signatureKey, attempt);
+          console.log(
+            `${colors.red}❌ write_file call skipped: missing required path/content${colors.reset}\n`
+          );
+          const retryNote =
+            attempt > 1
+              ? `Repeated invalid write_file call (#${attempt}). Do not retry until you include a "content" string with the full file text.`
+              : "";
+          toolCallResults.push({
+            tool_call_id: toolCall.id,
+            role: "tool" as const,
+            content: `Tool Validation Error: ${hint}\nAttempt: ${attempt}${
+              retryNote ? `\n${retryNote}` : ""
+            }\n\nReceived: ${JSON.stringify(
+              functionArgs,
+              null,
+              2
+            )}`,
+          });
+          continue;
+        }
+      }
 
       if (tool) {
         try {
@@ -450,7 +585,7 @@ Please analyze the error and retry with corrected parameters. Common issues:
         tools: openAITools,
         tool_choice: "auto",
         temperature: 0.3,
-        max_tokens: 2048,
+        max_tokens: 16384, // Large enough for write_file with full content
       });
 
       const followUpMessage = followUp.choices[0].message;
@@ -606,12 +741,24 @@ const writeFileDefinition: ToolDefinition = {
     const rl = agentInstance.rl;
 
     try {
-      // Validate input
+      // Validate input eagerly so the model gets actionable feedback
       if (!input.path || typeof input.path !== "string") {
-        throw new Error("Invalid file path");
+        throw new Error(
+          "write_file requires a string 'path' (relative or absolute)."
+        );
       }
+
+      const hasContentProp =
+        input && Object.prototype.hasOwnProperty.call(input, "content");
+
+      if (!hasContentProp) {
+        throw new Error(
+          "write_file is missing the required 'content' string. Please call with both 'path' and the full file contents, e.g. {\"path\":\"tests/python/test_agent.py\",\"content\":\"...\"}."
+        );
+      }
+
       if (typeof input.content !== "string") {
-        throw new Error("Invalid file content");
+        throw new Error("write_file 'content' must be a string (can be empty).");
       }
 
       // Check if file exists
@@ -1660,6 +1807,173 @@ const patchFileDefinition: ToolDefinition = {
   },
 };
 
+const runCommandDefinition: ToolDefinition = {
+  name: "run_command",
+  description:
+    "Execute a shell command and return the output. Use this to run tests (pytest, npm test), linters, build commands, or other CLI tools. The command runs in a shell with the working directory defaulting to the project root.",
+  parameters: {
+    type: "object",
+    properties: {
+      command: {
+        type: "string",
+        description:
+          "The shell command to execute (e.g., 'pytest tests/', 'npm test', 'python script.py')",
+      },
+      working_dir: {
+        type: "string",
+        description:
+          "Optional working directory for the command. Defaults to current directory.",
+      },
+      timeout_seconds: {
+        type: "number",
+        description:
+          "Optional timeout in seconds. Defaults to 60. Max 300 (5 minutes).",
+      },
+    },
+    required: ["command"],
+  },
+  function: async (input: RunCommandInput) => {
+    if (!input.command || typeof input.command !== "string") {
+      throw new Error("Command must be a non-empty string");
+    }
+
+    if (!agentInstance) {
+      throw new Error("Agent not initialized");
+    }
+    const rl = agentInstance.rl;
+
+    // Validate and set timeout (default 60s, max 300s)
+    const timeoutSeconds = Math.min(
+      Math.max(input.timeout_seconds || 60, 1),
+      300
+    );
+    const timeoutMs = timeoutSeconds * 1000;
+
+    // Set working directory
+    const workingDir = input.working_dir || process.cwd();
+
+    // Show command preview
+    console.log(
+      "\n" + colors.bold + colors.cyan + "═══ Command Preview ═══" + colors.reset
+    );
+    console.log(`${colors.yellow}Command: ${input.command}${colors.reset}`);
+    console.log(`${colors.gray}Working directory: ${workingDir}${colors.reset}`);
+    console.log(
+      `${colors.gray}Timeout: ${timeoutSeconds} seconds${colors.reset}`
+    );
+    console.log("\n" + colors.cyan + "════════════════════" + colors.reset);
+
+    // Ask for confirmation
+    const answer = await rl.question(
+      `\n${colors.yellow}Do you want to run this command? (y/n): ${colors.reset}`
+    );
+
+    if (answer.toLowerCase() !== "y" && answer.toLowerCase() !== "yes") {
+      console.log(
+        `${colors.red}✗ Command cancelled by user${colors.reset}\n`
+      );
+      return "Command cancelled by user";
+    }
+
+    console.log(`${colors.cyan}⏳ Running command...${colors.reset}\n`);
+
+    return new Promise<string>((resolve) => {
+      let stdout = "";
+      let stderr = "";
+      let timedOut = false;
+
+      // Use shell to run the command
+      const child = spawn(input.command, [], {
+        shell: true,
+        cwd: workingDir,
+        env: { ...process.env },
+      });
+
+      // Set timeout
+      const timeoutId = setTimeout(() => {
+        timedOut = true;
+        child.kill("SIGTERM");
+        // Force kill after 5 more seconds if still running
+        setTimeout(() => child.kill("SIGKILL"), 5000);
+      }, timeoutMs);
+
+      child.stdout.on("data", (data) => {
+        const text = data.toString();
+        stdout += text;
+        // Stream output to console in real-time
+        process.stdout.write(colors.gray + text + colors.reset);
+      });
+
+      child.stderr.on("data", (data) => {
+        const text = data.toString();
+        stderr += text;
+        // Stream stderr in yellow
+        process.stdout.write(colors.yellow + text + colors.reset);
+      });
+
+      child.on("close", (code) => {
+        clearTimeout(timeoutId);
+
+        const exitCode = code ?? -1;
+        const success = exitCode === 0;
+
+        console.log("\n");
+        if (timedOut) {
+          console.log(
+            `${colors.red}⏱️  Command timed out after ${timeoutSeconds} seconds${colors.reset}\n`
+          );
+        } else if (success) {
+          console.log(
+            `${colors.green}✓ Command completed with exit code ${exitCode}${colors.reset}\n`
+          );
+        } else {
+          console.log(
+            `${colors.red}✗ Command failed with exit code ${exitCode}${colors.reset}\n`
+          );
+        }
+
+        // Build result string for the model
+        let result = `Command: ${input.command}\n`;
+        result += `Exit code: ${exitCode}\n`;
+        result += `Status: ${timedOut ? "TIMEOUT" : success ? "SUCCESS" : "FAILED"}\n`;
+
+        if (stdout.trim()) {
+          // Limit output size to avoid token issues
+          const maxLength = 8000;
+          const truncatedStdout =
+            stdout.length > maxLength
+              ? stdout.substring(0, maxLength) + "\n... (output truncated)"
+              : stdout;
+          result += `\n--- STDOUT ---\n${truncatedStdout}`;
+        }
+
+        if (stderr.trim()) {
+          const maxLength = 4000;
+          const truncatedStderr =
+            stderr.length > maxLength
+              ? stderr.substring(0, maxLength) + "\n... (stderr truncated)"
+              : stderr;
+          result += `\n--- STDERR ---\n${truncatedStderr}`;
+        }
+
+        if (!stdout.trim() && !stderr.trim()) {
+          result += "\n(No output)";
+        }
+
+        resolve(result);
+      });
+
+      child.on("error", (error) => {
+        clearTimeout(timeoutId);
+        console.log(
+          `${colors.red}✗ Command error: ${error.message}${colors.reset}\n`
+        );
+        resolve(`Command failed to start: ${error.message}`);
+      });
+    });
+  },
+};
+
 // Main function
 async function main() {
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -1688,6 +2002,7 @@ async function main() {
     editFileDefinition,
     scaffoldProjectDefinition,
     patchFileDefinition,
+    runCommandDefinition,
   ];
 
   const agent = new AIAgent(apiKey, tools);

@@ -41,11 +41,12 @@ The agent requires an OpenRouter API key to function:
 - All file operations require explicit user confirmation
 
 **Tool System**
-The agent uses four file operation tools:
+The agent uses the following tools:
 - `read_file`: Read file contents (truncates at 10,000 chars)
 - `list_files`: List directory contents (max depth: 3, skips node_modules/.git/hidden files)
 - `write_file`: Create or overwrite files (shows preview, requires confirmation)
 - `edit_file`: Replace specific text in files (shows diff-style preview, requires confirmation)
+- `run_command`: Execute shell commands (pytest, npm test, etc.) with timeout and output capture
 
 ### Key Architectural Details
 
@@ -53,7 +54,7 @@ The agent uses four file operation tools:
 - Uses OpenAI SDK with custom base URL: `https://openrouter.ai/api/v1`
 - Primary Model: `anthropic/claude-sonnet-4.5` (Anthropic's latest coding model with excellent tool calling)
 - Temperature: 0.3 for consistent and reliable code generation
-- Max tokens: 2048
+- Max tokens: 16384 (large enough for write_file with full content)
 - Optional headers: HTTP-Referer and X-Title for app attribution
 
 **Error Recovery** (src/index.ts:220-245)
