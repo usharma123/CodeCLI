@@ -3,3 +3,4 @@ node_modules
 .cursor
 venv
 tests/java/currency/junit-platform-console-standalone.jar
+tests/java/sudoku/junit-platform-console-standalone.jar
