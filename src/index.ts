@@ -86,6 +86,13 @@ const formatToolName = (name: string): string => {
     patch_file: "Patch",
     run_command: "Run",
     scaffold_project: "Scaffold",
+    run_tests: "Test",
+    analyze_test_failures: "Analyze",
+    get_coverage: "Coverage",
+    detect_changed_files: "Detect",
+    generate_tests: "Generate",
+    analyze_coverage_gaps: "Gaps",
+    generate_regression_test: "Regression",
   };
   return nameMap[name] || name.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join("");
 };
@@ -109,6 +116,20 @@ const formatToolArgs = (name: string, args: any): string => {
     }
     case "scaffold_project":
       return `${args.template}${args.name ? `: ${args.name}` : ""}`;
+    case "run_tests":
+      return `${args.mode || "full"} (${args.language || "all"})`;
+    case "analyze_test_failures":
+      return args.language || "unknown";
+    case "get_coverage":
+      return args.language || "unknown";
+    case "detect_changed_files":
+      return `since ${args.since || "HEAD"}`;
+    case "generate_tests":
+      return args.file_path || "";
+    case "analyze_coverage_gaps":
+      return `${args.language} (min ${args.min_coverage || 80}%)`;
+    case "generate_regression_test":
+      return args.fixed_file || "";
     default:
       return JSON.stringify(args).substring(0, 50);
   }
@@ -140,6 +161,33 @@ const formatResultSummary = (name: string, result: string): string => {
       if (result.includes("cancelled")) return `${colors.yellow}Cancelled${colors.reset}`;
       return "Completed";
     }
+    case "run_tests": {
+      if (result.includes("Status: PASSED")) return `${colors.green}All tests passed${colors.reset}`;
+      if (result.includes("Status: FAILED")) return `${colors.red}Some tests failed${colors.reset}`;
+      return "Tests completed";
+    }
+    case "analyze_test_failures":
+      return "Analysis complete";
+    case "get_coverage": {
+      const match = result.match(/(\d+\.\d+)%/);
+      if (match) return `Coverage: ${colors.bold}${match[1]}%${colors.reset}${colors.gray}`;
+      return "Coverage report ready";
+    }
+    case "detect_changed_files": {
+      const match = result.match(/Filtered: (\d+) files/);
+      if (match) return `Found ${colors.bold}${match[1]}${colors.reset}${colors.gray} changed files`;
+      return "Files detected";
+    }
+    case "generate_tests":
+      return "Test scaffolds generated";
+    case "analyze_coverage_gaps": {
+      if (result.includes("All files meet") || result.includes("All packages meet")) {
+        return `${colors.green}All files meet threshold${colors.reset}`;
+      }
+      return `${colors.yellow}Gaps identified${colors.reset}`;
+    }
+    case "generate_regression_test":
+      return "Regression test generated";
     default:
       return result.length > 50 ? result.substring(0, 47) + "..." : result;
   }
@@ -182,6 +230,13 @@ Available tools:
 - patch_file: Apply unified diff patches (advanced - only if you know unified diff format perfectly)
 - list_files: List files and directories
 - run_command: Execute shell commands (pytest, npm test, python, etc.)
+- run_tests: Run Python/Java tests with structured output (smoke/sanity/full modes, optional coverage)
+- analyze_test_failures: AI-powered analysis of test failures with fix suggestions
+- get_coverage: Get code coverage reports for Python or Java
+- detect_changed_files: Detect code changes since a commit/time (for smart test selection)
+- generate_tests: AI-powered test generation for uncovered code
+- analyze_coverage_gaps: Identify critical missing tests and low-coverage files
+- generate_regression_test: Create tests for fixed bugs to prevent regressions
 
 Tool selection guide:
 - For NEW files: Use write_file
@@ -230,8 +285,29 @@ You should: Use write_file tool to create the file immediately
 You should NOT: Say "Copy this code into a file named index.html"
 
 User: "Run the Python tests and fix any failures"
-You should: First ensure venv exists and pytest is installed, then run_command with "venv/bin/pytest tests/", fix failures with edit_file
-You should NOT: Tell the user to set up the environment themselves`,
+You should: Use run_tests tool with language="python", analyze failures with analyze_test_failures if any fail, then fix using edit_file
+You should NOT: Tell the user to set up the environment themselves
+
+Testing workflow (RECOMMENDED):
+1. Use run_tests to execute tests (supports Python, Java, or both)
+2. If failures occur, use analyze_test_failures to get detailed analysis
+3. Read the failing test files and implementation code
+4. Fix issues using edit_file
+5. Rerun tests with run_tests to verify
+6. Use get_coverage to check test coverage and identify gaps
+
+Advanced testing features (Phase 2):
+- detect_changed_files: Find what code changed, run only affected tests
+- generate_tests: Create comprehensive tests for functions/classes without coverage
+- analyze_coverage_gaps: Identify files below coverage threshold, get specific missing lines
+- generate_regression_test: After fixing a bug, create a test to prevent it from reoccurring
+
+Smart testing workflow:
+1. detect_changed_files to see what changed
+2. Run tests for affected files only (faster feedback)
+3. analyze_coverage_gaps to find critical missing tests
+4. generate_tests for uncovered code
+5. When fixing bugs, use generate_regression_test to prevent regressions`,
     });
   }
 
@@ -2089,6 +2165,996 @@ const runCommandDefinition: ToolDefinition = {
   },
 };
 
+// Testing Tools
+
+interface RunTestsInput {
+  language?: "python" | "java" | "all";
+  mode?: "smoke" | "sanity" | "full";
+  coverage?: boolean;
+}
+
+interface AnalyzeTestFailuresInput {
+  test_output: string;
+  language: "python" | "java";
+}
+
+interface GetCoverageInput {
+  language: "python" | "java";
+}
+
+interface DetectChangedFilesInput {
+  since?: string;
+  language?: "python" | "java" | "all";
+}
+
+interface GenerateTestsInput {
+  file_path: string;
+  language: "python" | "java";
+  coverage_data?: string;
+}
+
+interface AnalyzeCoverageGapsInput {
+  language: "python" | "java";
+  min_coverage?: number;
+}
+
+interface GenerateRegressionTestInput {
+  bug_description: string;
+  fixed_file: string;
+  language: "python" | "java";
+}
+
+const runTestsDefinition: ToolDefinition = {
+  name: "run_tests",
+  description:
+    "Run tests for Python and/or Java projects with structured output parsing. Supports smoke, sanity, and full test modes. Returns test results with pass/fail counts and detailed failure information.",
+  parameters: {
+    type: "object",
+    properties: {
+      language: {
+        type: "string",
+        enum: ["python", "java", "all"],
+        description:
+          "Language to test: python, java, or all (default: all)",
+      },
+      mode: {
+        type: "string",
+        enum: ["smoke", "sanity", "full"],
+        description:
+          "Test mode: smoke (fast critical tests), sanity (targeted tests), full (all tests) (default: full)",
+      },
+      coverage: {
+        type: "boolean",
+        description: "Generate coverage reports (default: false)",
+      },
+    },
+  },
+  function: async (input: RunTestsInput) => {
+    try {
+      const language = input.language || "all";
+      const mode = input.mode || "full";
+      const coverage = input.coverage || false;
+
+      console.log(
+        `\n${colors.blue}Running ${mode} tests for ${language}...${colors.reset}`
+      );
+
+      // Build command
+      let command = `bash scripts/test-runner.sh --mode ${mode} --language ${language}`;
+      if (coverage) {
+        command += " --coverage";
+      }
+
+      // Execute test runner
+      const result = await new Promise<string>((resolve, reject) => {
+        const proc = spawn("bash", ["-c", command], {
+          cwd: process.cwd(),
+          shell: true,
+        });
+
+        let stdout = "";
+        let stderr = "";
+
+        proc.stdout.on("data", (data) => {
+          const output = data.toString();
+          stdout += output;
+          process.stdout.write(output);
+        });
+
+        proc.stderr.on("data", (data) => {
+          const output = data.toString();
+          stderr += output;
+          process.stderr.write(output);
+        });
+
+        proc.on("close", (exitCode) => {
+          let result = `Test Execution Results\n`;
+          result += `======================\n\n`;
+          result += `Mode: ${mode}\n`;
+          result += `Language: ${language}\n`;
+          result += `Coverage: ${coverage ? "enabled" : "disabled"}\n`;
+          result += `Exit Code: ${exitCode}\n`;
+          result += `Status: ${exitCode === 0 ? "PASSED" : "FAILED"}\n\n`;
+
+          if (stdout.trim()) {
+            result += `--- OUTPUT ---\n${stdout}`;
+          }
+
+          if (stderr.trim()) {
+            result += `\n--- ERRORS ---\n${stderr}`;
+          }
+
+          // Parse results from output
+          const totalMatch = stdout.match(/Total Tests:\s+(\d+)/);
+          const passedMatch = stdout.match(/Passed:\s+(\d+)/);
+          const failedMatch = stdout.match(/Failed:\s+(\d+)/);
+
+          if (totalMatch && passedMatch && failedMatch) {
+            result += `\n\n--- SUMMARY ---\n`;
+            result += `Total:  ${totalMatch[1]}\n`;
+            result += `Passed: ${passedMatch[1]}\n`;
+            result += `Failed: ${failedMatch[1]}\n`;
+          }
+
+          // Check for Python test report
+          if (
+            (language === "python" || language === "all") &&
+            require("fs").existsSync("tests/python/test-report.json")
+          ) {
+            try {
+              const reportData = require("fs").readFileSync(
+                "tests/python/test-report.json",
+                "utf-8"
+              );
+              const report = JSON.parse(reportData);
+
+              if (report.tests && report.tests.length > 0) {
+                result += `\n--- PYTHON TEST DETAILS ---\n`;
+                report.tests.forEach((test: any) => {
+                  if (test.outcome === "failed") {
+                    result += `\n❌ ${test.nodeid}\n`;
+                    if (test.call && test.call.longrepr) {
+                      result += `   Error: ${test.call.longrepr}\n`;
+                    }
+                  }
+                });
+              }
+            } catch (e) {
+              // Ignore JSON parsing errors
+            }
+          }
+
+          // Check for Java test reports
+          if (language === "java" || language === "all") {
+            const surefire = "tests/java/target/surefire-reports";
+            if (require("fs").existsSync(surefire)) {
+              result += `\n--- JAVA TEST REPORTS ---\n`;
+              result += `Reports location: ${surefire}\n`;
+            }
+          }
+
+          resolve(result);
+        });
+
+        proc.on("error", (error) => {
+          reject(new Error(`Failed to run tests: ${error.message}`));
+        });
+      });
+
+      return result;
+    } catch (error) {
+      throw new Error(`Failed to run tests: ${error}`);
+    }
+  },
+};
+
+const analyzeTestFailuresDefinition: ToolDefinition = {
+  name: "analyze_test_failures",
+  description:
+    "AI-powered analysis of test failures. Parses stack traces, identifies root causes, and suggests specific fixes. Use this after run_tests when failures occur.",
+  parameters: {
+    type: "object",
+    properties: {
+      test_output: {
+        type: "string",
+        description:
+          "The test output containing failures and stack traces from run_tests",
+      },
+      language: {
+        type: "string",
+        enum: ["python", "java"],
+        description: "Programming language of the tests",
+      },
+    },
+    required: ["test_output", "language"],
+  },
+  function: async (input: AnalyzeTestFailuresInput) => {
+    try {
+      console.log(
+        `\n${colors.yellow}Analyzing ${input.language} test failures...${colors.reset}\n`
+      );
+
+      // Extract failure information
+      const failures: Array<{
+        test: string;
+        error: string;
+        location?: string;
+      }> = [];
+
+      if (input.language === "python") {
+        // Parse Python pytest failures
+        const failurePattern = /FAILED (.*?) - (.*?)(?:\n|$)/g;
+        let match;
+        while ((match = failurePattern.exec(input.test_output)) !== null) {
+          failures.push({
+            test: match[1],
+            error: match[2],
+          });
+        }
+
+        // Extract stack traces
+        const stackPattern = /(.*?):\d+: (.*?)$/gm;
+        let stackMatch;
+        while (
+          (stackMatch = stackPattern.exec(input.test_output)) !== null
+        ) {
+          if (failures.length > 0) {
+            failures[failures.length - 1].location = stackMatch[1];
+          }
+        }
+      } else if (input.language === "java") {
+        // Parse Java JUnit failures
+        const failurePattern = /(?:FAILED|ERROR) (.*?)\((.*?)\)/g;
+        let match;
+        while ((match = failurePattern.exec(input.test_output)) !== null) {
+          failures.push({
+            test: `${match[2]}.${match[1]}`,
+            error: "See stack trace below",
+          });
+        }
+      }
+
+      let analysis = `Test Failure Analysis (${input.language})\n`;
+      analysis += `${"=".repeat(50)}\n\n`;
+      analysis += `Found ${failures.length} test failure(s)\n\n`;
+
+      for (let i = 0; i < failures.length; i++) {
+        const failure = failures[i];
+        analysis += `${i + 1}. ${failure.test}\n`;
+        analysis += `   Error: ${failure.error}\n`;
+        if (failure.location) {
+          analysis += `   Location: ${failure.location}\n`;
+        }
+        analysis += `\n`;
+      }
+
+      analysis += `\nRecommended Actions:\n`;
+      analysis += `1. Read the failing test files to understand expectations\n`;
+      analysis += `2. Read the implementation files at failure locations\n`;
+      analysis += `3. Identify the root cause (logic error, missing feature, incorrect assertion)\n`;
+      analysis += `4. Apply fixes using edit_file tool\n`;
+      analysis += `5. Rerun tests with run_tests to verify fixes\n\n`;
+
+      analysis += `Detailed Output:\n`;
+      analysis += `${"-".repeat(50)}\n`;
+      analysis += input.test_output;
+
+      return analysis;
+    } catch (error) {
+      throw new Error(`Failed to analyze test failures: ${error}`);
+    }
+  },
+};
+
+const getCoverageDefinition: ToolDefinition = {
+  name: "get_coverage",
+  description:
+    "Get code coverage analysis for Python or Java tests. Returns coverage percentages, uncovered lines, and suggestions for additional tests.",
+  parameters: {
+    type: "object",
+    properties: {
+      language: {
+        type: "string",
+        enum: ["python", "java"],
+        description: "Programming language to analyze coverage for",
+      },
+    },
+    required: ["language"],
+  },
+  function: async (input: GetCoverageInput) => {
+    try {
+      console.log(
+        `\n${colors.blue}Getting ${input.language} coverage...${colors.reset}\n`
+      );
+
+      let result = `Coverage Analysis (${input.language})\n`;
+      result += `${"=".repeat(50)}\n\n`;
+
+      if (input.language === "python") {
+        // Check if coverage report exists
+        const coverageFile = "tests/python/.coverage";
+        const htmlReport = "tests/python/htmlcov/index.html";
+
+        if (!require("fs").existsSync(coverageFile)) {
+          return (
+            result +
+            "No coverage data found. Run tests with coverage:\n" +
+            "  run_tests with coverage=true\n"
+          );
+        }
+
+        // Run coverage report command
+        const proc = spawn("bash", [
+          "-c",
+          "cd tests/python && python3 -m coverage report",
+        ]);
+
+        let stdout = "";
+        let stderr = "";
+
+        proc.stdout.on("data", (data) => {
+          stdout += data.toString();
+        });
+        proc.stderr.on("data", (data) => {
+          stderr += data.toString();
+        });
+
+        await new Promise((resolve) => proc.on("close", resolve));
+
+        result += `Coverage Report:\n${stdout}\n`;
+
+        if (require("fs").existsSync(htmlReport)) {
+          result += `\nDetailed HTML report: ${htmlReport}\n`;
+        }
+      } else if (input.language === "java") {
+        // Check for JaCoCo report
+        const jacocoReport = "tests/java/target/site/jacoco/index.html";
+        const jacocoXml = "tests/java/target/site/jacoco/jacoco.xml";
+
+        if (!require("fs").existsSync(jacocoXml)) {
+          return (
+            result +
+            "No coverage data found. Run tests with coverage:\n" +
+            "  run_tests with coverage=true\n"
+          );
+        }
+
+        result += `JaCoCo coverage report generated\n`;
+        result += `HTML report: ${jacocoReport}\n`;
+        result += `XML report: ${jacocoXml}\n\n`;
+
+        // Parse XML for summary (basic)
+        try {
+          const xmlData = require("fs").readFileSync(jacocoXml, "utf-8");
+          const instructionMatch = xmlData.match(
+            /<counter type="INSTRUCTION" missed="(\d+)" covered="(\d+)"/
+          );
+          const branchMatch = xmlData.match(
+            /<counter type="BRANCH" missed="(\d+)" covered="(\d+)"/
+          );
+          const lineMatch = xmlData.match(
+            /<counter type="LINE" missed="(\d+)" covered="(\d+)"/
+          );
+
+          if (instructionMatch) {
+            const missed = parseInt(instructionMatch[1]);
+            const covered = parseInt(instructionMatch[2]);
+            const total = missed + covered;
+            const percent = ((covered / total) * 100).toFixed(2);
+            result += `Instruction Coverage: ${percent}% (${covered}/${total})\n`;
+          }
+
+          if (lineMatch) {
+            const missed = parseInt(lineMatch[1]);
+            const covered = parseInt(lineMatch[2]);
+            const total = missed + covered;
+            const percent = ((covered / total) * 100).toFixed(2);
+            result += `Line Coverage: ${percent}% (${covered}/${total})\n`;
+          }
+
+          if (branchMatch) {
+            const missed = parseInt(branchMatch[1]);
+            const covered = parseInt(branchMatch[2]);
+            const total = missed + covered;
+            const percent = ((covered / total) * 100).toFixed(2);
+            result += `Branch Coverage: ${percent}% (${covered}/${total})\n`;
+          }
+        } catch (e) {
+          result += "Could not parse coverage XML\n";
+        }
+      }
+
+      result += `\nNext Steps:\n`;
+      result += `1. Review uncovered lines in the reports\n`;
+      result += `2. Write additional tests for uncovered code paths\n`;
+      result += `3. Focus on edge cases and error handling\n`;
+
+      return result;
+    } catch (error) {
+      throw new Error(`Failed to get coverage: ${error}`);
+    }
+  },
+};
+
+const detectChangedFilesDefinition: ToolDefinition = {
+  name: "detect_changed_files",
+  description:
+    "Detect files that have changed since a given commit or time period. Uses git to identify modified Python or Java files. Useful for running only affected tests.",
+  parameters: {
+    type: "object",
+    properties: {
+      since: {
+        type: "string",
+        description:
+          "Git reference to compare against (e.g., 'HEAD~1', 'main', '1 day ago'). Default: HEAD",
+      },
+      language: {
+        type: "string",
+        enum: ["python", "java", "all"],
+        description: "Filter by language (default: all)",
+      },
+    },
+  },
+  function: async (input: DetectChangedFilesInput) => {
+    try {
+      const since = input.since || "HEAD";
+      const language = input.language || "all";
+
+      console.log(
+        `\n${colors.blue}Detecting changed files since ${since}...${colors.reset}\n`
+      );
+
+      // Get changed files from git
+      const gitCommand = `git diff --name-only ${since}`;
+      const proc = spawn("bash", ["-c", gitCommand]);
+
+      let stdout = "";
+      let stderr = "";
+
+      proc.stdout.on("data", (data) => {
+        stdout += data.toString();
+      });
+      proc.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      await new Promise((resolve) => proc.on("close", resolve));
+
+      if (stderr) {
+        throw new Error(`Git error: ${stderr}`);
+      }
+
+      const allFiles = stdout
+        .split("\n")
+        .filter((f) => f.trim())
+        .map((f) => f.trim());
+
+      // Filter by language
+      let filteredFiles = allFiles;
+      if (language === "python") {
+        filteredFiles = allFiles.filter((f) => f.endsWith(".py"));
+      } else if (language === "java") {
+        filteredFiles = allFiles.filter((f) => f.endsWith(".java"));
+      } else {
+        filteredFiles = allFiles.filter(
+          (f) => f.endsWith(".py") || f.endsWith(".java")
+        );
+      }
+
+      let result = `Changed Files Analysis\n`;
+      result += `${"=".repeat(50)}\n\n`;
+      result += `Since: ${since}\n`;
+      result += `Language Filter: ${language}\n`;
+      result += `Total Changed: ${allFiles.length} files\n`;
+      result += `Filtered: ${filteredFiles.length} files\n\n`;
+
+      if (filteredFiles.length === 0) {
+        result += "No changed files found.\n";
+        return result;
+      }
+
+      result += `Changed Files:\n`;
+      filteredFiles.forEach((file, idx) => {
+        result += `${idx + 1}. ${file}\n`;
+      });
+
+      // Map to test files
+      result += `\n--- Potentially Affected Tests ---\n`;
+      const testFiles = new Set<string>();
+
+      filteredFiles.forEach((file) => {
+        if (file.endsWith(".py") && !file.includes("test_")) {
+          // For Python, look for test_*.py
+          const dir = require("path").dirname(file);
+          const basename = require("path").basename(file, ".py");
+          testFiles.add(`${dir}/test_${basename}.py`);
+        } else if (file.endsWith(".java") && !file.includes("Test.java")) {
+          // For Java, look for *Test.java
+          const withoutExt = file.replace(".java", "");
+          testFiles.add(`${withoutExt}Test.java`);
+        }
+      });
+
+      if (testFiles.size > 0) {
+        result += `Suggested test files to run:\n`;
+        Array.from(testFiles).forEach((test, idx) => {
+          result += `${idx + 1}. ${test}\n`;
+        });
+      } else {
+        result += "No obvious test file mappings found.\n";
+      }
+
+      result += `\nRecommended Action:\n`;
+      result += `Run tests for these files to verify changes:\n`;
+      result += `  run_tests with appropriate filters\n`;
+
+      return result;
+    } catch (error) {
+      throw new Error(`Failed to detect changed files: ${error}`);
+    }
+  },
+};
+
+const generateTestsDefinition: ToolDefinition = {
+  name: "generate_tests",
+  description:
+    "AI-powered test generation for a given file. Analyzes the code, identifies functions/methods without tests, and generates comprehensive test cases including edge cases.",
+  parameters: {
+    type: "object",
+    properties: {
+      file_path: {
+        type: "string",
+        description: "Path to the source file to generate tests for",
+      },
+      language: {
+        type: "string",
+        enum: ["python", "java"],
+        description: "Programming language of the file",
+      },
+      coverage_data: {
+        type: "string",
+        description:
+          "Optional: Coverage data to identify specific uncovered lines",
+      },
+    },
+    required: ["file_path", "language"],
+  },
+  function: async (input: GenerateTestsInput) => {
+    try {
+      console.log(
+        `\n${colors.green}Generating tests for ${input.file_path}...${colors.reset}\n`
+      );
+
+      // Read the source file
+      let sourceCode = "";
+      try {
+        sourceCode = await require("fs/promises").readFile(
+          input.file_path,
+          "utf-8"
+        );
+      } catch (err) {
+        throw new Error(`Could not read file: ${input.file_path}`);
+      }
+
+      let result = `Test Generation Analysis\n`;
+      result += `${"=".repeat(50)}\n\n`;
+      result += `File: ${input.file_path}\n`;
+      result += `Language: ${input.language}\n\n`;
+
+      // Analyze the code structure
+      if (input.language === "python") {
+        result += `--- Python Code Analysis ---\n\n`;
+
+        // Extract function definitions
+        const functionPattern = /def\s+(\w+)\s*\([^)]*\):/g;
+        const functions: string[] = [];
+        let match;
+
+        while ((match = functionPattern.exec(sourceCode)) !== null) {
+          functions.push(match[1]);
+        }
+
+        result += `Found ${functions.length} function(s):\n`;
+        functions.forEach((fn, idx) => {
+          result += `${idx + 1}. ${fn}()\n`;
+        });
+
+        result += `\n--- Test Generation Strategy ---\n\n`;
+        result += `For each function, generate tests for:\n`;
+        result += `1. Happy path (valid inputs, expected outputs)\n`;
+        result += `2. Edge cases (empty, None, zero, negative values)\n`;
+        result += `3. Error cases (invalid types, out of range)\n`;
+        result += `4. Boundary conditions (min/max values)\n\n`;
+
+        result += `--- Suggested Test File ---\n\n`;
+        const testFileName = input.file_path.replace(
+          ".py",
+          "_generated_test.py"
+        );
+        result += `File: ${testFileName}\n\n`;
+
+        result += `Structure:\n`;
+        result += `\`\`\`python\n`;
+        result += `import pytest\n`;
+        result += `from ${require("path").basename(input.file_path, ".py")} import *\n\n`;
+
+        functions.forEach((fn) => {
+          result += `class Test${fn.charAt(0).toUpperCase() + fn.slice(1)}:\n`;
+          result += `    """Tests for ${fn} function"""\n\n`;
+          result += `    def test_${fn}_happy_path(self):\n`;
+          result += `        """Test ${fn} with valid inputs"""\n`;
+          result += `        # TODO: Implement test\n`;
+          result += `        pass\n\n`;
+          result += `    def test_${fn}_edge_cases(self):\n`;
+          result += `        """Test ${fn} with edge cases"""\n`;
+          result += `        # TODO: Test empty, None, zero\n`;
+          result += `        pass\n\n`;
+          result += `    def test_${fn}_error_handling(self):\n`;
+          result += `        """Test ${fn} error handling"""\n`;
+          result += `        # TODO: Test invalid inputs\n`;
+          result += `        pass\n\n`;
+        });
+
+        result += `\`\`\`\n\n`;
+      } else if (input.language === "java") {
+        result += `--- Java Code Analysis ---\n\n`;
+
+        // Extract class and method definitions
+        const classPattern = /class\s+(\w+)/g;
+        const methodPattern =
+          /(?:public|private|protected)\s+\w+\s+(\w+)\s*\([^)]*\)/g;
+
+        const classes: string[] = [];
+        const methods: string[] = [];
+
+        let match;
+        while ((match = classPattern.exec(sourceCode)) !== null) {
+          classes.push(match[1]);
+        }
+        while ((match = methodPattern.exec(sourceCode)) !== null) {
+          methods.push(match[1]);
+        }
+
+        result += `Found ${classes.length} class(es) and ${methods.length} method(s)\n\n`;
+
+        if (classes.length > 0) {
+          result += `Classes:\n`;
+          classes.forEach((cls, idx) => {
+            result += `${idx + 1}. ${cls}\n`;
+          });
+        }
+
+        result += `\nMethods:\n`;
+        methods.forEach((method, idx) => {
+          result += `${idx + 1}. ${method}()\n`;
+        });
+
+        result += `\n--- Test Generation Strategy ---\n\n`;
+        result += `For each method, generate tests for:\n`;
+        result += `1. Happy path with valid inputs\n`;
+        result += `2. Edge cases (null, empty, boundary values)\n`;
+        result += `3. Exception handling\n`;
+        result += `4. State verification\n\n`;
+
+        result += `--- Suggested Test File ---\n\n`;
+        const className = classes[0] || "Unknown";
+        const testFileName = input.file_path.replace(".java", "Test.java");
+        result += `File: ${testFileName}\n\n`;
+
+        result += `Structure:\n`;
+        result += `\`\`\`java\n`;
+        result += `import org.junit.jupiter.api.Test;\n`;
+        result += `import org.junit.jupiter.api.BeforeEach;\n`;
+        result += `import static org.junit.jupiter.api.Assertions.*;\n\n`;
+        result += `public class ${className}Test {\n\n`;
+        result += `    private ${className} instance;\n\n`;
+        result += `    @BeforeEach\n`;
+        result += `    public void setUp() {\n`;
+        result += `        instance = new ${className}();\n`;
+        result += `    }\n\n`;
+
+        methods.forEach((method) => {
+          result += `    @Test\n`;
+          result += `    public void test${method.charAt(0).toUpperCase() + method.slice(1)}HappyPath() {\n`;
+          result += `        // TODO: Implement test\n`;
+          result += `    }\n\n`;
+          result += `    @Test\n`;
+          result += `    public void test${method.charAt(0).toUpperCase() + method.slice(1)}EdgeCases() {\n`;
+          result += `        // TODO: Test null, empty, boundary values\n`;
+          result += `    }\n\n`;
+        });
+
+        result += `}\n`;
+        result += `\`\`\`\n\n`;
+      }
+
+      result += `\n--- Next Steps ---\n`;
+      result += `1. Review the suggested test structure\n`;
+      result += `2. Use write_file to create the test file\n`;
+      result += `3. Fill in test implementations based on the code logic\n`;
+      result += `4. Run the tests with run_tests\n`;
+      result += `5. Check coverage with get_coverage\n`;
+
+      return result;
+    } catch (error) {
+      throw new Error(`Failed to generate tests: ${error}`);
+    }
+  },
+};
+
+const analyzeCoverageGapsDefinition: ToolDefinition = {
+  name: "analyze_coverage_gaps",
+  description:
+    "Analyze code coverage to identify critical gaps. Highlights uncovered functions, branches, and lines. Prioritizes gaps by importance (public APIs, complex logic, error handling).",
+  parameters: {
+    type: "object",
+    properties: {
+      language: {
+        type: "string",
+        enum: ["python", "java"],
+        description: "Programming language to analyze",
+      },
+      min_coverage: {
+        type: "number",
+        description:
+          "Minimum acceptable coverage percentage (default: 80). Files below this are flagged.",
+      },
+    },
+    required: ["language"],
+  },
+  function: async (input: AnalyzeCoverageGapsInput) => {
+    try {
+      const minCoverage = input.min_coverage || 80;
+
+      console.log(
+        `\n${colors.yellow}Analyzing coverage gaps for ${input.language}...${colors.reset}\n`
+      );
+
+      let result = `Coverage Gap Analysis\n`;
+      result += `${"=".repeat(50)}\n\n`;
+      result += `Language: ${input.language}\n`;
+      result += `Minimum Threshold: ${minCoverage}%\n\n`;
+
+      if (input.language === "python") {
+        // Check for coverage data
+        const coverageFile = "tests/python/.coverage";
+        if (!require("fs").existsSync(coverageFile)) {
+          return (
+            result +
+            "No coverage data found. Run tests with coverage first:\n" +
+            "  run_tests({ language: 'python', coverage: true })\n"
+          );
+        }
+
+        // Run coverage report with missing lines
+        const proc = spawn("bash", [
+          "-c",
+          "cd tests/python && python3 -m coverage report --show-missing",
+        ]);
+
+        let stdout = "";
+        proc.stdout.on("data", (data) => {
+          stdout += data.toString();
+        });
+
+        await new Promise((resolve) => proc.on("close", resolve));
+
+        result += `--- Coverage Report ---\n${stdout}\n\n`;
+
+        // Parse for files below threshold
+        const lines = stdout.split("\n");
+        const lowCoverageFiles: Array<{
+          file: string;
+          coverage: number;
+          missing: string;
+        }> = [];
+
+        lines.forEach((line) => {
+          const match = line.match(/(\S+\.py)\s+\d+\s+\d+\s+(\d+)%\s+(.*)/);
+          if (match) {
+            const [, file, coverage, missing] = match;
+            const cov = parseInt(coverage);
+            if (cov < minCoverage) {
+              lowCoverageFiles.push({ file, coverage: cov, missing });
+            }
+          }
+        });
+
+        if (lowCoverageFiles.length > 0) {
+          result += `--- Files Below ${minCoverage}% Coverage ---\n\n`;
+          lowCoverageFiles.forEach((item, idx) => {
+            result += `${idx + 1}. ${item.file} (${item.coverage}%)\n`;
+            result += `   Missing lines: ${item.missing}\n\n`;
+          });
+
+          result += `\n--- Recommended Actions ---\n`;
+          lowCoverageFiles.forEach((item, idx) => {
+            result += `${idx + 1}. ${item.file}:\n`;
+            result += `   - Read the file to understand uncovered code\n`;
+            result += `   - Use generate_tests to create tests for missing lines\n`;
+            result += `   - Focus on: error handling, edge cases, branches\n\n`;
+          });
+        } else {
+          result += `✅ All files meet ${minCoverage}% coverage threshold!\n`;
+        }
+      } else if (input.language === "java") {
+        // Check for JaCoCo report
+        const jacocoXml = "tests/java/target/site/jacoco/jacoco.xml";
+        if (!require("fs").existsSync(jacocoXml)) {
+          return (
+            result +
+            "No coverage data found. Run tests with coverage first:\n" +
+            "  run_tests({ language: 'java', coverage: true })\n"
+          );
+        }
+
+        // Parse JaCoCo XML
+        const xmlData = require("fs").readFileSync(jacocoXml, "utf-8");
+
+        // Extract package/class coverage
+        const packagePattern =
+          /<package name="([^"]+)"[\s\S]*?<counter type="LINE" missed="(\d+)" covered="(\d+)"/g;
+        let match;
+        const packages: Array<{
+          name: string;
+          coverage: number;
+          missed: number;
+          covered: number;
+        }> = [];
+
+        while ((match = packagePattern.exec(xmlData)) !== null) {
+          const name = match[1];
+          const missed = parseInt(match[2]);
+          const covered = parseInt(match[3]);
+          const total = missed + covered;
+          const coverage = total > 0 ? ((covered / total) * 100).toFixed(2) : 0;
+
+          if (parseFloat(coverage.toString()) < minCoverage) {
+            packages.push({
+              name,
+              coverage: parseFloat(coverage.toString()),
+              missed,
+              covered,
+            });
+          }
+        }
+
+        if (packages.length > 0) {
+          result += `--- Packages Below ${minCoverage}% Coverage ---\n\n`;
+          packages.forEach((pkg, idx) => {
+            result += `${idx + 1}. ${pkg.name} (${pkg.coverage}%)\n`;
+            result += `   Missed: ${pkg.missed} lines, Covered: ${pkg.covered} lines\n\n`;
+          });
+
+          result += `\n--- Recommended Actions ---\n`;
+          packages.forEach((pkg, idx) => {
+            result += `${idx + 1}. Package: ${pkg.name}\n`;
+            result += `   - Review JaCoCo HTML report for detailed line-by-line coverage\n`;
+            result += `   - Use generate_tests to create missing tests\n`;
+            result += `   - Focus on uncovered branches and error paths\n\n`;
+          });
+        } else {
+          result += `✅ All packages meet ${minCoverage}% coverage threshold!\n`;
+        }
+
+        result += `\nDetailed Report: tests/java/target/site/jacoco/index.html\n`;
+      }
+
+      return result;
+    } catch (error) {
+      throw new Error(`Failed to analyze coverage gaps: ${error}`);
+    }
+  },
+};
+
+const generateRegressionTestDefinition: ToolDefinition = {
+  name: "generate_regression_test",
+  description:
+    "Generate a regression test for a bug that was just fixed. Takes the bug description and fixed file, creates a test that verifies the fix and prevents the bug from reoccurring.",
+  parameters: {
+    type: "object",
+    properties: {
+      bug_description: {
+        type: "string",
+        description:
+          "Description of the bug that was fixed (what was broken, how it was fixed)",
+      },
+      fixed_file: {
+        type: "string",
+        description: "Path to the file that was fixed",
+      },
+      language: {
+        type: "string",
+        enum: ["python", "java"],
+        description: "Programming language",
+      },
+    },
+    required: ["bug_description", "fixed_file", "language"],
+  },
+  function: async (input: GenerateRegressionTestInput) => {
+    try {
+      console.log(
+        `\n${colors.magenta}Generating regression test...${colors.reset}\n`
+      );
+
+      let result = `Regression Test Generation\n`;
+      result += `${"=".repeat(50)}\n\n`;
+      result += `Bug: ${input.bug_description}\n`;
+      result += `Fixed File: ${input.fixed_file}\n`;
+      result += `Language: ${input.language}\n\n`;
+
+      result += `--- Regression Test Strategy ---\n\n`;
+      result += `A regression test should:\n`;
+      result += `1. Reproduce the exact bug scenario\n`;
+      result += `2. Verify the fix works correctly\n`;
+      result += `3. Use clear naming: test_regression_[bug_description]\n`;
+      result += `4. Include a comment explaining the original bug\n`;
+      result += `5. Test edge cases related to the bug\n\n`;
+
+      if (input.language === "python") {
+        const testFileName = input.fixed_file.replace(
+          ".py",
+          "_regression_test.py"
+        );
+        result += `--- Suggested Test ---\n\n`;
+        result += `File: ${testFileName}\n\n`;
+        result += `\`\`\`python\n`;
+        result += `import pytest\n`;
+        result += `from ${require("path").basename(input.fixed_file, ".py")} import *\n\n`;
+        result += `def test_regression_${input.bug_description.toLowerCase().replace(/\s+/g, "_").slice(0, 40)}():\n`;
+        result += `    """\n`;
+        result += `    Regression test for bug:\n`;
+        result += `    ${input.bug_description}\n`;
+        result += `    \n`;
+        result += `    This test ensures the bug does not reoccur.\n`;
+        result += `    """\n`;
+        result += `    # Setup: Create the exact scenario that triggered the bug\n`;
+        result += `    # TODO: Implement setup\n\n`;
+        result += `    # Action: Execute the code that was previously failing\n`;
+        result += `    # TODO: Implement action\n\n`;
+        result += `    # Assert: Verify the fix works\n`;
+        result += `    # TODO: Add assertions\n`;
+        result += `    pass\n`;
+        result += `\`\`\`\n\n`;
+      } else if (input.language === "java") {
+        const testFileName = input.fixed_file.replace(".java", "Test.java");
+        result += `--- Suggested Test ---\n\n`;
+        result += `File: ${testFileName}\n\n`;
+        result += `\`\`\`java\n`;
+        result += `import org.junit.jupiter.api.Test;\n`;
+        result += `import org.junit.jupiter.api.DisplayName;\n`;
+        result += `import static org.junit.jupiter.api.Assertions.*;\n\n`;
+        result += `@Test\n`;
+        result += `@DisplayName("Regression: ${input.bug_description.slice(0, 60)}")\n`;
+        result += `public void testRegression${input.bug_description.replace(/\s+/g, "_").slice(0, 40)}() {\n`;
+        result += `    // Regression test for: ${input.bug_description}\n`;
+        result += `    // This test ensures the bug does not reoccur.\n\n`;
+        result += `    // Setup: Create scenario that triggered the bug\n`;
+        result += `    // TODO: Implement setup\n\n`;
+        result += `    // Action: Execute code that was previously failing\n`;
+        result += `    // TODO: Implement action\n\n`;
+        result += `    // Assert: Verify the fix works\n`;
+        result += `    // TODO: Add assertions\n`;
+        result += `}\n`;
+        result += `\`\`\`\n\n`;
+      }
+
+      result += `--- Next Steps ---\n`;
+      result += `1. Use write_file to create the regression test\n`;
+      result += `2. Fill in the TODO sections with:\n`;
+      result += `   - Setup code that reproduces the bug scenario\n`;
+      result += `   - Action code that triggers the previously buggy behavior\n`;
+      result += `   - Assertions that verify the fix\n`;
+      result += `3. Run the test to ensure it passes\n`;
+      result += `4. Mark the test with @pytest.mark.regression (Python) or @Tag("regression") (Java)\n`;
+
+      return result;
+    } catch (error) {
+      throw new Error(`Failed to generate regression test: ${error}`);
+    }
+  },
+};
+
 // Main function
 async function main() {
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -2112,6 +3178,13 @@ async function main() {
     scaffoldProjectDefinition,
     patchFileDefinition,
     runCommandDefinition,
+    runTestsDefinition,
+    analyzeTestFailuresDefinition,
+    getCoverageDefinition,
+    detectChangedFilesDefinition,
+    generateTestsDefinition,
+    analyzeCoverageGapsDefinition,
+    generateRegressionTestDefinition,
   ];
 
   const agent = new AIAgent(apiKey, tools);

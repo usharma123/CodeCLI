@@ -1,0 +1,18 @@
+# Python testing dependencies for CodeCLI
+
+# Core testing framework
+pytest>=7.4.3
+pytest-cov>=4.1.0
+pytest-xdist>=3.5.0
+pytest-timeout>=2.2.0
+pytest-json-report>=1.5.0
+
+# Code coverage
+coverage>=7.3.4
+
+# Test utilities
+pytest-mock>=3.12.0
+pytest-asyncio>=0.21.1
+
+# Code quality
+pytest-pylint>=0.21.0
