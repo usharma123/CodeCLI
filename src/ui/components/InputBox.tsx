@@ -1,6 +1,6 @@
-import React from 'react';
-import { Box, Text } from 'ink';
-import { TextInput } from '@inkjs/ui';
+import React from "react";
+import { Box, Text } from "ink";
+import { TextInput } from "@inkjs/ui";
 
 interface InputBoxProps {
   onSubmit: (value: string) => void;
@@ -8,14 +8,14 @@ interface InputBoxProps {
   sessionNum: number;
 }
 
-export function InputBox({ onSubmit, isDisabled = false, sessionNum }: InputBoxProps) {
+export function InputBox({
+  onSubmit,
+  isDisabled = false,
+  sessionNum,
+}: InputBoxProps) {
   return (
     <Box flexDirection="column">
-      <Box 
-        borderStyle="round" 
-        borderColor="cyan" 
-        paddingX={1}
-      >
+      <Box borderStyle="round" borderColor="cyan" paddingX={1}>
         <Text color="gray">→ </Text>
         <TextInput
           placeholder="Plan, search, build anything"
