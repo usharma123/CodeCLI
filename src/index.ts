@@ -5,6 +5,10 @@ import * as readline from "readline/promises";
 import { stdin as input, stdout as output } from "process";
 import { spawn } from "child_process";
 import dotenv from "dotenv";
+import React from "react";
+import { render } from "ink";
+import { App } from "./components/App.js";
+import { Confirm } from "./components/Confirm.js";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -748,10 +752,60 @@ Please analyze the error and retry with corrected parameters. Common issues:
   close(): void {
     this.rl.close();
   }
+
+  // Public method for processing user input from external UI (Ink)
+  async processUserInput(userInput: string): Promise<void> {
+    if (!userInput.trim()) return;
+
+    // Reset retry count on new user input
+    this.retryCount = 0;
+
+    // Add user message to history
+    this.messages.push({
+      role: "user",
+      content: userInput,
+    });
+
+    await this.processMessage();
+  }
 }
 
 // Store reference to the agent instance for tool confirmations
 let agentInstance: AIAgent | null = null;
+
+// Flag to track if we're using Ink UI mode
+let useInkConfirmations = false;
+
+// Ink-based confirmation function
+const confirmWithInk = (message: string): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const { unmount } = render(
+      React.createElement(Confirm, {
+        message,
+        onConfirm: () => {
+          unmount();
+          resolve(true);
+        },
+        onCancel: () => {
+          unmount();
+          resolve(false);
+        },
+      })
+    );
+  });
+};
+
+// Unified confirmation function - uses Ink when in TTY mode, readline otherwise
+const confirmAction = async (message: string): Promise<boolean> => {
+  if (useInkConfirmations) {
+    return confirmWithInk(message);
+  } else {
+    // Fallback to readline
+    const rl = getConfirmInterface();
+    const answer = await rl.question(`${message} (y/n): `);
+    return answer.toLowerCase() === "y" || answer.toLowerCase() === "yes";
+  }
+};
 
 const getConfirmInterface = () => {
   if (!agentInstance) {
@@ -873,7 +927,6 @@ const writeFileDefinition: ToolDefinition = {
     if (!agentInstance) {
       throw new Error("Agent not initialized");
     }
-    const rl = agentInstance.rl;
 
     try {
       // Validate input eagerly so the model gets actionable feedback
@@ -927,12 +980,10 @@ const writeFileDefinition: ToolDefinition = {
         console.log(`    ${colors.gray}     ... (${totalLines - previewCount} more lines)${colors.reset}`);
       }
 
-      // Ask for confirmation
-      const question = `\n${colors.yellow}Apply changes? (y/n): ${colors.reset}`;
+      // Ask for confirmation using Ink
+      const confirmed = await confirmAction("Apply changes?");
 
-      const answer = await rl.question(question);
-
-      if (answer.toLowerCase() === "y" || answer.toLowerCase() === "yes") {
+      if (confirmed) {
         // Create directory if it doesn't exist
         const dir = path.dirname(input.path);
         if (dir !== ".") {
@@ -985,7 +1036,6 @@ const editFileDefinition: ToolDefinition = {
     if (!agentInstance) {
       throw new Error("Agent not initialized");
     }
-    const rl = agentInstance.rl;
 
     try {
       let currentContent: string = "";
@@ -1065,11 +1115,10 @@ const editFileDefinition: ToolDefinition = {
         console.log(`    ${colors.gray}     ... (${newLines.length - maxPreview} more additions)${colors.reset}`);
       }
 
-      // Ask for confirmation
-      const question = `\n${colors.yellow}Apply changes? (y/n): ${colors.reset}`;
-      const answer = await rl.question(question);
+      // Ask for confirmation using Ink
+      const confirmed = await confirmAction("Apply changes?");
 
-      if (answer.toLowerCase() === "y" || answer.toLowerCase() === "yes") {
+      if (confirmed) {
         if (!fileExists) {
           const dir = path.dirname(input.path);
           if (dir !== ".") {
@@ -1677,15 +1726,12 @@ const scaffoldProjectDefinition: ToolDefinition = {
   },
   function: async (input: ScaffoldProjectInput) => {
     const { baseDir, files, description } = buildTemplateFiles(input);
-    const rl = getConfirmInterface();
 
     console.log(`  ${colors.gray}└ ${description} -> ${colors.bold}${baseDir}${colors.reset}${colors.gray} (${files.length} files)${colors.reset}`);
 
-    const answer = await rl.question(
-      `\n${colors.yellow}Scaffold project? (y/n): ${colors.reset}`
-    );
+    const confirmed = await confirmAction("Scaffold project?");
 
-    if (!["y", "yes"].includes(answer.toLowerCase())) {
+    if (!confirmed) {
       return "Scaffold cancelled by user";
     }
 
@@ -1726,7 +1772,6 @@ const patchFileDefinition: ToolDefinition = {
     if (!agentInstance) {
       throw new Error("Agent not initialized");
     }
-    const rl = agentInstance.rl;
 
     try {
       // Read current file content
@@ -1858,11 +1903,10 @@ const patchFileDefinition: ToolDefinition = {
         console.log(`    ${colors.gray}     ... (${addedLines.length - maxPreview} more additions)${colors.reset}`);
       }
 
-      // Ask for confirmation
-      const question = `\n${colors.yellow}Apply patch? (y/n): ${colors.reset}`;
-      const answer = await rl.question(question);
+      // Ask for confirmation using Ink
+      const confirmed = await confirmAction("Apply patch?");
 
-      if (answer.toLowerCase() === "y" || answer.toLowerCase() === "yes") {
+      if (confirmed) {
         await fs.writeFile(input.path, newContent, "utf-8");
         return "Patch successfully applied to file";
       } else {
@@ -1926,13 +1970,13 @@ const runShellCommand = (
 };
 
 // Helper to install Java via Homebrew
-const installJavaWithHomebrew = async (rl: readline.Interface): Promise<{ success: boolean; javaHome?: string }> => {
+const installJavaWithHomebrew = async (): Promise<{ success: boolean; javaHome?: string }> => {
   console.log(`\n${colors.yellow}Java is not installed on this system.${colors.reset}`);
   console.log(`${colors.cyan}Would you like to install Java via Homebrew?${colors.reset}`);
   
-  const answer = await rl.question(`\n${colors.yellow}Install Java? (y/n): ${colors.reset}`);
+  const confirmed = await confirmAction("Install Java?");
   
-  if (answer.toLowerCase() !== "y" && answer.toLowerCase() !== "yes") {
+  if (!confirmed) {
     return { success: false };
   }
 
@@ -2007,7 +2051,6 @@ const runCommandDefinition: ToolDefinition = {
     if (!agentInstance) {
       throw new Error("Agent not initialized");
     }
-    const rl = agentInstance.rl;
 
     // Validate and set timeout (default 60s, max 300s)
     const timeoutSeconds = Math.min(
@@ -2025,12 +2068,10 @@ const runCommandDefinition: ToolDefinition = {
       console.log(`    ${colors.gray}cwd: ${workingDir}${colors.reset}`);
     }
 
-    // Ask for confirmation
-    const answer = await rl.question(
-      `\n${colors.yellow}Run command? (y/n): ${colors.reset}`
-    );
+    // Ask for confirmation using Ink
+    const confirmed = await confirmAction("Run command?");
 
-    if (answer.toLowerCase() !== "y" && answer.toLowerCase() !== "yes") {
+    if (!confirmed) {
       return "Command cancelled by user";
     }
 
@@ -2058,17 +2099,15 @@ const runCommandDefinition: ToolDefinition = {
 
     if (javaNotInstalled && !sessionJavaHome) {
       // Offer to install Java
-      const installResult = await installJavaWithHomebrew(rl);
+      const installResult = await installJavaWithHomebrew();
       
       if (installResult.success && installResult.javaHome) {
         sessionJavaHome = installResult.javaHome;
         
         // Ask if user wants to retry the command
-        const retryAnswer = await rl.question(
-          `\n${colors.yellow}Retry the original command with Java? (y/n): ${colors.reset}`
-        );
+        const retryConfirmed = await confirmAction("Retry the original command with Java?");
         
-        if (retryAnswer.toLowerCase() === "y" || retryAnswer.toLowerCase() === "yes") {
+        if (retryConfirmed) {
           console.log(`\n${colors.cyan}Retrying command with Java...${colors.reset}\n`);
           
           // Build new environment with Java
@@ -3190,12 +3229,83 @@ async function main() {
   const agent = new AIAgent(apiKey, tools);
   agentInstance = agent; // Set global reference for tool confirmations
 
-  try {
-    await agent.run();
-  } catch (error) {
-    console.error(`${colors.red}Fatal error: ${error}${colors.reset}`);
+  // Check if running in interactive terminal (TTY)
+  if (process.stdin.isTTY) {
+    // Enable Ink-based confirmations
+    useInkConfirmations = true;
+    
+    // Print static header once
+    console.log(`${colors.cyan}
+   █████╗ ██╗     █████╗  ██████╗ ███████╗███╗   ██╗████████╗
+  ██╔══██╗██║    ██╔══██╗██╔════╝ ██╔════╝████╗  ██║╚══██╔══╝
+  ███████║██║    ███████║██║  ███╗█████╗  ██╔██╗ ██║   ██║
+  ██╔══██║██║    ██╔══██║██║   ██║██╔══╝  ██║╚██╗██║   ██║
+  ██║  ██║██║    ██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║
+  ╚═╝  ╚═╝╚═╝    ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝
+${colors.reset}`);
+    console.log(`${colors.gray}Safe mode enabled (ctrl+c to quit)${colors.reset}`);
+    console.log(`${colors.gray}File changes require your approval before being applied${colors.reset}`);
+    console.log(`${colors.gray}Using Claude Sonnet 4.5 via OpenRouter${colors.reset}\n`);
+
+    let sessionNum = 1;
+    let shouldExit = false;
+
+    process.on("SIGINT", () => {
+      console.log("\n\nGoodbye!");
+      shouldExit = true;
+      agent.close();
+      process.exit(0);
+    });
+
+    // Import InputBox for standalone input
+    const { InputBox } = await import("./components/InputBox.js");
+
+    // Main loop with Ink input UI
+    while (!shouldExit) {
+      try {
+        // Show Ink input UI and wait for submission
+        const userInput = await new Promise<string>((resolve) => {
+          const { unmount } = render(
+            React.createElement(InputBox, {
+              onSubmit: (value: string) => {
+                unmount();
+                resolve(value);
+              },
+              isDisabled: false,
+              sessionNum: sessionNum,
+            })
+          );
+        });
+
+        if (!userInput.trim()) continue;
+
+        // Process with normal console output (Ink is unmounted now)
+        console.log(`\n${colors.gray}> ${userInput}${colors.reset}\n`);
+        
+        try {
+          await agent.processUserInput(userInput);
+        } catch (error) {
+          console.error(`${colors.red}Error: ${error}${colors.reset}`);
+        }
+
+        sessionNum++;
+        console.log(''); // Add spacing before next input
+      } catch (error) {
+        console.error(`${colors.red}Error in main loop: ${error}${colors.reset}`);
+      }
+    }
+
     agent.close();
-    process.exit(1);
+  } else {
+    // Fall back to original readline approach for non-TTY
+    console.error(`${colors.yellow}Warning: Non-interactive mode. Please run in a terminal.${colors.reset}`);
+    try {
+      await agent.run();
+    } catch (error) {
+      console.error(`${colors.red}Fatal error: ${error}${colors.reset}`);
+      agent.close();
+      process.exit(1);
+    }
   }
 }
 
