@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect 4 - Monochrome Edition</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            text-align: center;
+        }
+
+        h1 {
+            color: #ffffff;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            letter-spacing: 8px;
+            font-weight: 200;
+            text-transform: uppercase;
+            opacity: 0.9;
+        }
+
+        .game-info {
+            background: linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%);
+            padding: 30px;
+            border-radius: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            border: 1px solid #e0e0e0;
+        }
+
+        .current-player {
+            font-size: 1.5em;
+            font-weight: 500;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            color: #2d2d2d;
+        }
+
+        .player-indicator {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+            border: 2px solid #e0e0e0;
+        }
+
+        .player1-color {
+            background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+        }
+
+        .player2-color {
+            background: linear-gradient(135deg, #ffdd00 0%, #ffaa00 100%);
+            border: 2px solid #cc8800;
+        }
+
+        .board {
+            background: linear-gradient(135deg, #3a3a3a 0%, #4a4a4a 100%);
+            padding: 25px;
+            border-radius: 25px;
+            display: inline-block;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            border: 3px solid #5a5a5a;
+        }
+
+        .column {
+            display: inline-block;
+            vertical-align: top;
+            margin: 0 4px;
+        }
+
+        .cell {
+            width: 70px;
+            height: 70px;
+            background: linear-gradient(135deg, #2a2a2a 0%, #1f1f1f 100%);
+            border-radius: 50%;
+            margin: 8px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            box-shadow: inset 0 3px 10px rgba(0, 0, 0, 0.5);
+            border: 2px solid #3a3a3a;
+        }
+
+        .cell:hover {
+            background: linear-gradient(135deg, #3a3a3a 0%, #2f2f2f 100%);
+            transform: scale(1.05);
+            border-color: #5a5a5a;
+        }
+
+        .cell.filled {
+            cursor: not-allowed;
+        }
+
+        .cell.filled:hover {
+            transform: scale(1);
+        }
+
+        .disc {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            animation: dropDisc 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        @keyframes dropDisc {
+            0% {
+                transform: translateY(-500px);
+                opacity: 0;
+            }
+            70% {
+                transform: translateY(3px);
+            }
+            85% {
+                transform: translateY(-2px);
+            }
+            100% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .disc.player1 {
+            background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+            border: 3px solid #990000;
+        }
+
+        .disc.player2 {
+            background: linear-gradient(135deg, #ffdd00 0%, #ffaa00 100%);
+            border: 3px solid #cc8800;
+        }
+
+        .winning-disc {
+            animation: pulse 0.8s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+            }
+            50% {
+                transform: scale(1.15);
+                box-shadow: 0 0 30px rgba(255, 255, 255, 0.9), 0 0 50px rgba(255, 255, 255, 0.6);
+            }
+        }
+
+        .controls {
+            margin-top: 30px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%);
+            color: #1a1a1a;
+            border: 2px solid #e0e0e0;
+            padding: 16px 45px;
+            font-size: 1.1em;
+            font-weight: 600;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: #ffffff;
+            border-color: #3a3a3a;
+        }
+
+        button:active {
+            transform: translateY(-1px);
+        }
+
+        .winner-message {
+            font-size: 1.8em;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-top: 15px;
+            animation: fadeIn 0.5s ease-in;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+            gap: 25px;
+        }
+
+        .stat-item {
+            flex: 1;
+            padding: 15px;
+            background: linear-gradient(135deg, #f8f8f8 0%, #ffffff 100%);
+            border-radius: 12px;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-label {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 500;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: 700;
+            color: #1a1a1a;
+        }
+
+        .stat-value.player1-stat {
+            color: #cc0000;
+        }
+
+        .stat-value.player2-stat {
+            color: #cc8800;
+        }
+
+        .stat-value.draw-stat {
+            color: #888;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2em;
+                letter-spacing: 2px;
+            }
+
+            .cell {
+                width: 45px;
+                height: 45px;
+                margin: 5px;
+            }
+
+            .board {
+                padding: 15px;
+            }
+
+            button {
+                padding: 12px 30px;
+                font-size: 1em;
+            }
+
+            .game-info {
+                padding: 20px;
+            }
+
+            .stats {
+                gap: 15px;
+            }
+
+            .stat-value {
+                font-size: 1.5em;
+            }
+        }
+
+        /* Subtle pattern overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                repeating-linear-gradient(
+                    45deg,
+                    transparent,
+                    transparent 10px,
+                    rgba(255, 255, 255, 0.02) 10px,
+                    rgba(255, 255, 255, 0.02) 20px
+                );
+            pointer-events: none;
+            z-index: -1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Connect 4</h1>
+        
+        <div class="game-info">
+            <div class="current-player">
+                <span id="playerText">Current Player:</span>
+                <span class="player-indicator" id="playerIndicator"></span>
+                <span id="playerName">Player 1</span>
+            </div>
+            
+            <div id="winnerMessage" class="winner-message"></div>
+            
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-label">Player 1</div>
+                    <div class="stat-value player1-stat" id="player1Wins">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Draws</div>
+                    <div class="stat-value draw-stat" id="draws">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Player 2</div>
+                    <div class="stat-value player2-stat" id="player2Wins">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="board" id="board"></div>
+        
+        <div class="controls">
+            <button onclick="resetGame()">New Game</button>
+        </div>
+    </div>
+
+    <script>
+        const ROWS = 6;
+        const COLS = 7;
+        let board = [];
+        let currentPlayer = 1;
+        let gameOver = false;
+        let stats = {
+            player1Wins: 0,
+            player2Wins: 0,
+            draws: 0
+        };
+
+        // Load stats from localStorage
+        function loadStats() {
+            const savedStats = localStorage.getItem('connect4Stats');
+            if (savedStats) {
+                stats = JSON.parse(savedStats);
+                updateStatsDisplay();
+            }
+        }
+
+        // Save stats to localStorage
+        function saveStats() {
+            localStorage.setItem('connect4Stats', JSON.stringify(stats));
+        }
+
+        // Update stats display
+        function updateStatsDisplay() {
+            document.getElementById('player1Wins').textContent = stats.player1Wins;
+            document.getElementById('player2Wins').textContent = stats.player2Wins;
+            document.getElementById('draws').textContent = stats.draws;
+        }
+
+        // Initialize the game
+        function initGame() {
+            board = Array(ROWS).fill(null).map(() => Array(COLS).fill(0));
+            currentPlayer = 1;
+            gameOver = false;
+            document.getElementById('winnerMessage').textContent = '';
+            updatePlayerDisplay();
+            createBoard();
+        }
+
+        // Create the visual board
+        function createBoard() {
+            const boardElement = document.getElementById('board');
+            boardElement.innerHTML = '';
+
+            for (let col = 0; col < COLS; col++) {
+                const columnDiv = document.createElement('div');
+                columnDiv.className = 'column';
+
+                for (let row = 0; row < ROWS; row++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    cell.onclick = () => dropDisc(col);
+                    columnDiv.appendChild(cell);
+                }
+
+                boardElement.appendChild(columnDiv);
+            }
+        }
+
+        // Update player display
+        function updatePlayerDisplay() {
+            const playerIndicator = document.getElementById('playerIndicator');
+            const playerName = document.getElementById('playerName');
+            
+            if (currentPlayer === 1) {
+                playerIndicator.className = 'player-indicator player1-color';
+                playerName.textContent = 'Player 1';
+            } else {
+                playerIndicator.className = 'player-indicator player2-color';
+                playerName.textContent = 'Player 2';
+            }
+        }
+
+        // Drop a disc in the selected column
+        function dropDisc(col) {
+            if (gameOver) return;
+
+            // Find the lowest empty row in this column
+            let row = -1;
+            for (let r = ROWS - 1; r >= 0; r--) {
+                if (board[r][col] === 0) {
+                    row = r;
+                    break;
+                }
+            }
+
+            // Column is full
+            if (row === -1) return;
+
+            // Place the disc
+            board[row][col] = currentPlayer;
+
+            // Update the visual board
+            const cells = document.querySelectorAll(`[data-col="${col}"]`);
+            const cell = cells[row];
+            const disc = document.createElement('div');
+            disc.className = `disc player${currentPlayer}`;
+            cell.appendChild(disc);
+            cell.classList.add('filled');
+
+            // Check for winner
+            if (checkWinner(row, col)) {
+                gameOver = true;
+                const winnerMessage = document.getElementById('winnerMessage');
+                winnerMessage.textContent = `Player ${currentPlayer} Wins!`;
+                
+                // Update stats
+                if (currentPlayer === 1) {
+                    stats.player1Wins++;
+                } else {
+                    stats.player2Wins++;
+                }
+                saveStats();
+                updateStatsDisplay();
+                return;
+            }
+
+            // Check for draw
+            if (checkDraw()) {
+                gameOver = true;
+                const winnerMessage = document.getElementById('winnerMessage');
+                winnerMessage.textContent = 'It\'s a Draw!';
+                stats.draws++;
+                saveStats();
+                updateStatsDisplay();
+                return;
+            }
+
+            // Switch player
+            currentPlayer = currentPlayer === 1 ? 2 : 1;
+            updatePlayerDisplay();
+        }
+
+        // Check if current move is a winning move
+        function checkWinner(row, col) {
+            const directions = [
+                [[0, 1], [0, -1]],   // Horizontal
+                [[1, 0], [-1, 0]],   // Vertical
+                [[1, 1], [-1, -1]],  // Diagonal /
+                [[1, -1], [-1, 1]]   // Diagonal \
+            ];
+
+            for (let dir of directions) {
+                let count = 1;
+                const winningCells = [[row, col]];
+
+                // Check both directions
+                for (let [dr, dc] of dir) {
+                    let r = row + dr;
+                    let c = col + dc;
+
+                    while (r >= 0 && r < ROWS && c >= 0 && c < COLS && board[r][c] === currentPlayer) {
+                        count++;
+                        winningCells.push([r, c]);
+                        r += dr;
+                        c += dc;
+                    }
+                }
+
+                if (count >= 4) {
+                    highlightWinningCells(winningCells);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // Highlight winning cells
+        function highlightWinningCells(cells) {
+            cells.forEach(([row, col]) => {
+                const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                const disc = cell.querySelector('.disc');
+                if (disc) {
+                    disc.classList.add('winning-disc');
+                }
+            });
+        }
+
+        // Check if the board is full (draw)
+        function checkDraw() {
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    if (board[row][col] === 0) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        // Reset the game
+        function resetGame() {
+            initGame();
+        }
+
+        // Initialize the game on page load
+        loadStats();
+        initGame();
+    </script>
+</body>
+</html>

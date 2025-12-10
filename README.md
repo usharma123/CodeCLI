@@ -37,15 +37,21 @@ On launch, the agent:
 - Handles malformed tool arguments with retries, validation, and truncation detection for large `write_file` payloads.
 
 ## Running Tests via the Agent
-- Use `run_command` to execute tests (confirmation required):
-  - Python: create venv (`python3 -m venv venv`), install deps (`venv/bin/pip install pytest`), run tests (`venv/bin/pytest tests/`).
-  - Node: install deps (`npm install` or `bun install`), run tests (`npm test` or `bun test`).
-- The agent streams stdout/stderr and returns exit code; rerun after fixes with `run_command`.
+- Prefer the built-in tools instead of ad-hoc commands:
+  - `run_tests({ language: "python" | "java" | "all", mode: "smoke" | "sanity" | "full", coverage?: boolean, report?: boolean })`
+  - `analyze_test_failures({ test_output, language })` for AI-assisted root-cause hints
+  - `get_coverage({ language })` to parse coverage reports (coverage.py or JaCoCo)
+- The tools wrap the unified runner, parse results, and surface report locations.
 
 ## Notes
 - Token budget raised to 16384 for tool calls to allow full `write_file` payloads (prevents truncation).
 - Safe-mode confirmations apply to file writes, patches, and shell commands.
 - Known limitation: the agent can sometimes prefer overwriting an entire file instead of issuing a targeted edit/patch, which wastes tokens and can increase cost; guide the agent toward `edit_file`/`patch_file` for small changes.
+
+## Automated Testing Framework (Phase 1)
+- Unified runner: `bash scripts/test-runner.sh --language python|java|all --mode smoke|sanity|full [--coverage] [--report]`.
+- Reporting: `bash scripts/generate-report.sh` outputs `TEST_REPORT.md` plus coverage links (JaCoCo/coverage.py).
+- Status: Phase 1 complete—Python and Java suites pass with coverage enabled; see `TESTING_IMPLEMENTATION.md` for details and `TESTING_PHASE2.md` for the roadmap.
 
 ## Future Steps
 - Add automated tests for tool flows and confirmation prompts.
