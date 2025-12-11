@@ -2,6 +2,97 @@
 
 All notable changes to CodeCLI are documented in this file.
 
+## [Latest Updates] - December 2024
+
+### Added - Spring Boot Code Review Improvements ✨
+
+#### Phase 1: Critical Fixes (Completed)
+Based on comprehensive code review feedback, implemented critical improvements to Spring Boot testing:
+
+1. **Gradle Support** 🎯
+   - Added `build-tool-detector.ts` utility for Maven/Gradle detection
+   - Supports both `build.gradle` (Groovy) and `build.gradle.kts` (Kotlin DSL)
+   - Detects Spring Boot Gradle plugin: `id 'org.springframework.boot'`
+   - Parses Gradle dependencies with pattern matching
+
+2. **Abstract Path Resolution** 🛤️
+   - Created `path-resolver.ts` for build-tool and language-aware path resolution
+   - Replaces hard-coded `.replace("/src/main/", "/src/test/")` logic
+   - Supports multiple conventions:
+     - Maven Java: `src/main/java` → `src/test/java`
+     - Maven Kotlin: `src/main/kotlin` → `src/test/kotlin`
+     - Gradle Java: `src/main/java` → `src/test/java`
+     - Gradle Kotlin: `src/main/kotlin` → `src/test/kotlin`
+   - Handles file extensions: `.java` → `Test.java`, `.kt` → `Test.kt`
+
+3. **Enhanced Spring Boot Detection** 🔍
+   - Updated `springboot-detector.ts` to work with both Maven and Gradle
+   - Accepts `BuildConfig` parameter for flexible project detection
+   - Improved dependency parsing for both build tools
+
+4. **Verification Script** ✅
+   - Added `verify-phase1.ts` to validate improvements
+   - Tests Maven and Gradle Spring Boot projects
+   - Verifies path resolution for both build tools
+   - Automated testing for critical functionality
+
+#### Test Projects
+- **Gradle Example**: `tests/java/springboot-gradle/`
+  - Simple Spring Boot REST controller
+  - Demonstrates Gradle build tool support
+  - Validates path resolution for Gradle projects
+
+#### Documentation
+- **Code Review Summary**: `docs/SPRINGBOOT_TESTING_REVIEW.md`
+  - Comprehensive review findings
+  - Phase 1-3 recommendations
+  - Implementation roadmap
+
+### Fixed - Spring Boot Testing Issues
+
+#### Build Tool Support
+- ✅ Fixed: Maven-only assumption - now supports Gradle
+- ✅ Fixed: Hard-coded path logic - now uses abstract resolver
+- ✅ Fixed: Missing Gradle dependency parsing
+
+#### Path Resolution
+- ✅ Fixed: Brittle project layout assumptions
+- ✅ Fixed: Invalid target paths for non-standard layouts
+- ✅ Fixed: No support for Kotlin source directories
+
+#### Detection Accuracy
+- ✅ Fixed: Narrow detection coverage (Maven-only)
+- ✅ Fixed: Missing Gradle Spring Boot projects
+
+### Changed - Code Quality Improvements
+
+#### Refactored Utilities
+- Extracted build tool detection into dedicated module
+- Extracted path resolution into dedicated module
+- Improved separation of concerns
+- Added in-memory caching for build configurations
+
+#### Updated Dependencies
+- Spring Boot Currency Converter example updated
+- Application properties refined
+- POM dependencies optimized
+
+### Known Limitations (Future Work)
+
+#### Phase 2: Feature Enhancements (Planned)
+- Kotlin language support (templates, syntax)
+- Reactive stack support (WebFlux, WebTestClient)
+- NoSQL repository templates (MongoDB, Redis)
+- Messaging integration tests (Kafka, RabbitMQ)
+
+#### Phase 3: Quality Improvements (Planned)
+- Multi-module Maven support
+- Security test templates
+- Smart test configuration detection
+- Testcontainers recommendations
+
+---
+
 ## [Recent Updates] - December 2024
 
 ### Added - Spring Boot Testing Support 🎉
@@ -125,6 +216,31 @@ All notable changes to CodeCLI are documented in this file.
    - Added new tool files (advanced-testing.ts, prd-testing.ts, springboot-templates.ts)
    - Added Spring Boot test projects
    - Added docs directory structure
+
+## Summary of Latest Changes (December 2024)
+
+### Files Added (Latest)
+- `src/utils/build-tool-detector.ts` - Maven/Gradle detection utility
+- `src/utils/path-resolver.ts` - Build-tool and language-aware path resolution
+- `verify-phase1.ts` - Verification script for Phase 1 improvements
+- `tests/java/springboot-gradle/` - Gradle Spring Boot example project
+- `docs/SPRINGBOOT_TESTING_REVIEW.md` - Comprehensive code review findings
+
+### Files Modified (Latest)
+- `src/utils/springboot-detector.ts` - Enhanced to support both Maven and Gradle
+- `src/core/tools/generation.ts` - Uses new path resolver instead of hard-coded logic
+- `src/core/types.ts` - Added BuildTool and BuildConfig types
+- `tests/java/spring-currencyconverter/` - Updated dependencies and configuration
+- `.gitignore` - Improved to exclude Gradle build artifacts
+
+### Key Improvements (Latest)
+- ✅ Gradle build tool support (Groovy and Kotlin DSL)
+- ✅ Abstract path resolution (no more hard-coded paths)
+- ✅ Enhanced Spring Boot detection (Maven + Gradle)
+- ✅ Verification testing for critical functionality
+- ✅ Better separation of concerns (dedicated utility modules)
+
+---
 
 ## Summary of Changes
 
