@@ -63,7 +63,7 @@ const runCommandDefinition: ToolDefinition = {
       throw new Error("Missing command");
     }
 
-    getAgentInstance();
+    const agent = getAgentInstance();
 
     // Validate and set timeout (default 60s, max 300s)
     const timeoutSeconds = Math.min(
@@ -96,7 +96,8 @@ const runCommandDefinition: ToolDefinition = {
       input.command,
       workingDir,
       timeoutMs,
-      commandEnv
+      commandEnv,
+      agent.streamCommandOutput
     );
 
     const combinedOutput = stdout + stderr;
@@ -122,7 +123,8 @@ const runCommandDefinition: ToolDefinition = {
             input.command,
             workingDir,
             timeoutMs,
-            javaEnv
+            javaEnv,
+            agent.streamCommandOutput
           );
 
           console.log("\n");

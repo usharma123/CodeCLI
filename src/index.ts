@@ -11,6 +11,10 @@ dotenv.config();
 
 async function main() {
   const apiKey = process.env.OPENROUTER_API_KEY;
+  const argv = process.argv.slice(2);
+  const verboseTools =
+    argv.includes("--verbose-tools") ||
+    process.env.TOOLS_VERBOSE === "1";
 
   if (!apiKey) {
     console.error(
@@ -22,7 +26,12 @@ async function main() {
     process.exit(1);
   }
 
-  const agent = new AIAgent(apiKey, toolDefinitions);
+  const agent = new AIAgent(apiKey, toolDefinitions, true, {
+    verboseTools,
+    // Disable streaming by default for Ink stability.
+    streamAssistantResponses: false,
+    streamCommandOutput: false,
+  });
   setAgentInstance(agent);
 
   setReadlineConfirm(async (message: string) => {

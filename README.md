@@ -3,6 +3,7 @@
 ## What It Does
 - **CLI coding agent** that reads/writes files directly using tools (read, write, edit, patch, scaffold, list, run_command).
 - **Safe mode**: Previews and asks for confirmation before writes/patches/commands.
+- **Terminal Markdown rendering**: Assistant summaries render Markdown (headings, lists, code, emphasis) with ANSI styling and file‑path highlighting.
 - Uses **OpenRouter** with **Claude Sonnet 4.5** (low-temp, deterministic) and retries with validation on malformed tool args.
 - Includes **scaffolding templates** (API, chatbot, static, React) to bootstrap new projects quickly.
 - Can execute shell commands (e.g., `pytest`, `npm test`) via `run_command`, streaming output and honoring timeouts.
@@ -69,6 +70,7 @@ On launch, the agent:
 - Loads tools for file ops, scaffolding, testing, and `run_command`.
 - Uses interactive CLI prompts; exit with `ctrl-c`.
 - Shows previews and requires `y/yes` before writes/patches/commands.
+- Streams tool execution output (commands/tests) to the terminal and shows truncated results by default; pass `--verbose-tools` (or `TOOLS_VERBOSE=1`) for full tool outputs.
 - Handles malformed tool arguments with retries, validation, and truncation detection for large `write_file` payloads.
 
 ## Core Tools
