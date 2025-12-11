@@ -30,3 +30,4 @@ public class ConversionController {
         return new ConversionResponse(from.toUpperCase(), to.toUpperCase(), amount, converted, rate);
     }
 }
+

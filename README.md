@@ -6,7 +6,29 @@
 - Uses **OpenRouter** with **Claude Sonnet 4.5** (low-temp, deterministic) and retries with validation on malformed tool args.
 - Includes **scaffolding templates** (API, chatbot, static, React) to bootstrap new projects quickly.
 - Can execute shell commands (e.g., `pytest`, `npm test`) via `run_command`, streaming output and honoring timeouts.
-- **AI-powered testing framework** with intelligent test execution, automated test generation, and coverage analysis.
+- **AI-powered testing framework** with 16 specialized tools covering unit, integration, E2E, API, performance, and PRD-driven testing.
+- **Spring Boot testing support** with automatic component detection and intelligent test generation.
+
+## Recent Updates 🎉
+
+### Spring Boot Testing (New!)
+- ✅ Automatic Spring Boot project detection
+- ✅ Component-aware test generation (@Controller, @Service, @Repository)
+- ✅ Test slicing with @WebMvcTest, @DataJpaTest for fast tests
+- ✅ Mode-based testing (smoke/sanity/full)
+- ✅ 48 Spring Boot tests passing across 2 example projects
+
+### Phase 3 & 4 Testing Tools (Complete!)
+- ✅ **Integration Testing**: `generate_integration_test` for multi-component testing
+- ✅ **E2E Testing**: `generate_e2e_test` with Playwright/Selenium/Cypress support
+- ✅ **API Testing**: `generate_api_test` with schema validation and contract testing
+- ✅ **PRD Testing**: `parse_prd` and `generate_tests_from_prd` for requirements-driven testing
+- ✅ **Performance Testing**: `generate_performance_test` with k6/JMeter/Locust support
+
+### Documentation Improvements
+- ✅ Comprehensive Spring Boot testing guide ([docs/SPRINGBOOT_TESTING.md](docs/SPRINGBOOT_TESTING.md))
+- ✅ Organized documentation in `docs/` directory
+- ✅ Updated test counts: 125+ tests passing
 
 ## Tech Stack
 - **Runtime**: Bun
@@ -59,9 +81,29 @@ On launch, the agent:
 ### Command Execution
 - **`run_command`**: Execute shell commands with timeout and output capture
 
-## Testing Framework (Phase 1 & 2 Complete ✅)
+## Testing Framework (All Phases Complete ✅)
 
-The agent includes a comprehensive AI-powered testing framework with 7 specialized tools:
+The agent includes a comprehensive AI-powered testing framework with 16 specialized tools across 4 phases:
+
+### Quick Reference: All Testing Tools
+
+| Tool | Phase | Purpose | Key Use Case |
+|------|-------|---------|--------------|
+| `run_tests` | 1 | Execute tests with structured output | Run smoke/sanity/full test suites |
+| `analyze_test_failures` | 1 | AI-powered failure analysis | Get fix suggestions for failing tests |
+| `get_coverage` | 1 | Generate coverage reports | Track code coverage metrics |
+| `detect_changed_files` | 2 | Find changed files via git | Run only affected tests |
+| `generate_tests` | 2 | Auto-generate test scaffolds | Add tests for uncovered code |
+| `analyze_coverage_gaps` | 2 | Identify low-coverage files | Find critical missing tests |
+| `generate_regression_test` | 2 | Create tests for fixed bugs | Prevent bug regressions |
+| `generate_integration_test` | 3 | Multi-component testing | Test component interactions |
+| `generate_e2e_test` | 3 | End-to-end user journeys | Test complete user flows |
+| `generate_api_test` | 3 | API endpoint testing | Validate REST/GraphQL APIs |
+| `parse_prd` | 4 | Extract requirements from PRDs | Convert PRDs to test cases |
+| `generate_tests_from_prd` | 4 | PRD to executable tests | Generate tests from requirements |
+| `generate_performance_test` | 4 | Load/stress testing | Test system performance |
+
+**Plus**: Spring Boot auto-detection and component-aware test generation!
 
 ### Phase 1: Foundation Tools
 
@@ -275,6 +317,286 @@ generate_regression_test({
 
 **Benefits**: Automated protection against regressions, tests document known bugs, confidence in fixes
 
+### Workflow 4: API Testing
+```bash
+# Generate comprehensive API tests
+> generate_api_test
+    endpoints=["/api/users", "/api/users/{id}", "/api/login"]
+    language=python
+    api_spec="openapi.yaml"
+
+# Run API tests
+> run_tests language=python
+
+# Check coverage
+> get_coverage language=python
+```
+
+**Benefits**: Complete API validation, schema compliance, contract testing, error handling verification
+
+### Workflow 5: E2E Testing for Web Apps
+```bash
+# Generate end-to-end test
+> generate_e2e_test
+    user_journey="User logs in, searches for product, adds to cart, checks out"
+    app_type=web
+    framework=playwright
+
+# Run E2E tests
+> run_command command="npx playwright test"
+```
+
+**Benefits**: Real user flow validation, cross-browser testing, UI regression detection
+
+### Workflow 6: PRD-Driven Testing
+```bash
+# Fix the bug
+> (AI fixes the code)
+
+# Generate regression test
+> generate_regression_test
+    bug_description="EUR to GBP conversion used wrong rate"
+    fixed_file="CurrencyConverter.java"
+    language=java
+
+# Run test to verify fix
+> run_tests language=java
+```
+
+```bash
+# Parse PRD document
+> parse_prd prd_file="docs/user-management-prd.md" output_format=json
+
+# Generate tests from PRD
+> generate_tests_from_prd
+    test_cases_file="test-cases.json"
+    language=java
+    test_suite=integration
+
+# Run generated tests
+> run_tests language=java mode=full
+```
+
+**Benefits**: Requirements traceability, automated test planning, UAT test generation
+
+### Workflow 7: Performance Testing
+```bash
+# Generate load test
+> generate_performance_test
+    target_url="https://api.example.com/users"
+    test_type=load
+    tool=k6
+
+# Run performance test
+> run_command command="k6 run load-test.js"
+```
+
+**Benefits**: Scalability validation, capacity planning, performance benchmarking
+
+### Workflow 8: Spring Boot Testing
+```bash
+# Generate tests for Spring Boot controller
+> generate_tests
+    file_path="src/main/java/com/example/UserController.java"
+    language=java
+
+# Run smoke tests (fast unit tests)
+> run_tests language=java mode=smoke
+
+# Run sanity tests (slice tests)
+> run_tests language=java mode=sanity
+
+# Run full suite with coverage
+> run_tests language=java mode=full coverage=true
+```
+
+**Benefits**: Fast feedback with test slicing, component-aware testing, Spring Boot best practices
+
+### Phase 3: Advanced Testing Tools
+
+#### 8. `generate_integration_test` - Component Integration Testing
+Generate tests that verify interactions between multiple components.
+
+**Usage:**
+```typescript
+generate_integration_test({
+  components: ["UserController.java", "UserService.java", "UserRepository.java"],
+  language: "java" | "python" | "javascript",
+  test_scenario: "User registration flow with validation and persistence"
+})
+```
+
+**Features:**
+- Analyzes dependencies between components
+- Creates tests with proper mocks/stubs
+- Tests component interactions and data flow
+- Follows integration testing best practices
+
+**Use Cases:**
+- Multi-layer application testing (controller → service → repository)
+- API integration with external services
+- Microservice communication testing
+- Database integration verification
+
+#### 9. `generate_e2e_test` - End-to-End Testing
+Generate complete user journey tests for web applications.
+
+**Usage:**
+```typescript
+generate_e2e_test({
+  user_journey: "User logs in, adds item to cart, and completes checkout",
+  app_type: "web" | "api" | "cli",
+  framework: "playwright" | "selenium" | "cypress" | "puppeteer"  // optional
+})
+```
+
+**Features:**
+- Simulates real user interactions
+- Supports multiple E2E frameworks
+- Generates page object patterns
+- Includes assertions and waits
+
+**Use Cases:**
+- Critical user flow validation
+- Cross-browser testing
+- UI regression testing
+- Acceptance testing
+
+#### 10. `generate_api_test` - API Testing Suite
+Generate comprehensive API test suites with schema validation.
+
+**Usage:**
+```typescript
+generate_api_test({
+  endpoints: ["/api/users", "/api/users/{id}", "/api/login"],
+  language: "javascript" | "python" | "java",
+  api_spec: "path/to/openapi.yaml"  // optional
+})
+```
+
+**Features:**
+- Endpoint testing (GET, POST, PUT, DELETE)
+- Schema validation
+- Contract testing
+- Authentication testing
+- Error response validation
+
+**Use Cases:**
+- REST API testing
+- GraphQL API testing
+- API contract verification
+- Backend service testing
+
+### Phase 4: PRD-Driven Testing & Performance
+
+#### 11. `parse_prd` - Extract Testable Requirements
+Parse Product Requirements Documents to extract structured test cases.
+
+**Usage:**
+```typescript
+parse_prd({
+  prd_file: "docs/product-requirements.md",
+  output_format: "markdown" | "json"  // default: "markdown"
+})
+```
+
+**Features:**
+- Supports markdown, text, and PDF files
+- Extracts functional and non-functional requirements
+- Converts to structured test cases
+- Identifies acceptance criteria
+
+**Use Cases:**
+- Requirements-based testing
+- Test planning from PRDs
+- Traceability matrix creation
+- QA test case generation
+
+#### 12. `generate_tests_from_prd` - PRD to Executable Tests
+Convert PRD test cases into executable test code.
+
+**Usage:**
+```typescript
+generate_tests_from_prd({
+  test_cases_file: "test-cases.json",
+  language: "python" | "java" | "javascript",
+  test_suite: "unit" | "integration" | "system" | "uat"
+})
+```
+
+**Features:**
+- Converts structured test cases to code
+- Generates appropriate test types
+- Includes setup/teardown logic
+- Maps requirements to test methods
+
+**Use Cases:**
+- Automated test generation from requirements
+- UAT test creation
+- System test generation
+- Acceptance test automation
+
+#### 13. `generate_performance_test` - Load & Performance Testing
+Generate performance and load test scripts.
+
+**Usage:**
+```typescript
+generate_performance_test({
+  target_url: "https://api.example.com/users",
+  test_type: "load" | "stress" | "spike" | "endurance",
+  tool: "k6" | "jmeter" | "locust" | "artillery"  // optional
+})
+```
+
+**Features:**
+- Multiple test types (load, stress, spike, endurance)
+- Configurable load patterns
+- Supports popular performance tools
+- Includes metrics and thresholds
+
+**Use Cases:**
+- API performance testing
+- Load capacity planning
+- Stress testing
+- Scalability verification
+
+## Spring Boot Testing Support (New! 🎉)
+
+CodeCLI now includes comprehensive Spring Boot testing support with automatic component detection and intelligent test generation.
+
+### Features
+
+- **Auto-Detection**: Automatically identifies Spring Boot projects via `pom.xml` and annotations
+- **Component-Aware**: Generates appropriate tests based on `@Controller`, `@Service`, `@Repository` annotations
+- **Test Slicing**: Uses Spring Boot test slices (`@WebMvcTest`, `@DataJpaTest`) for fast, focused tests
+- **Mode Mapping**: 
+  - `smoke` → Unit tests with Mockito (no Spring context)
+  - `sanity` → Slice tests (web/data layers with partial context)
+  - `full` → Integration tests with full Spring context
+- **Coverage Integration**: Works seamlessly with JaCoCo
+
+### Quick Start
+
+```bash
+# Generate tests for a Spring Boot controller
+generate_tests file_path=src/main/java/com/example/UserController.java language=java
+
+# Run smoke tests (fast unit tests)
+run_tests language=java mode=smoke
+
+# Run all tests with coverage
+run_tests language=java mode=full coverage=true
+```
+
+### Test Types Generated
+
+1. **Service Tests** (`@ExtendWith(MockitoExtension.class)`) - Fast unit tests with mocked dependencies
+2. **Controller Tests** (`@WebMvcTest`) - Web layer slice tests with MockMvc
+3. **Repository Tests** (`@DataJpaTest`) - Data layer tests with H2 in-memory database
+4. **Integration Tests** (`@SpringBootTest`) - Full application context tests
+
+See [docs/SPRINGBOOT_TESTING.md](docs/SPRINGBOOT_TESTING.md) for complete guide.
+
 ## Manual Test Execution
 
 You can also run tests manually using the unified test runner:
@@ -301,11 +623,29 @@ bash scripts/test-runner.sh --report
 ### Current Status
 - ✅ **Python Tests**: 35/35 passing (test_agent.py)
 - ✅ **Java Tests**: 42/42 passing (CurrencyConverterTest: 30, SudokuTest: 12)
-- ✅ **Total**: 77 tests passing
+- ✅ **Spring Boot Tests**: 
+  - Currency Converter: 30/30 passing (Controller: 9, Service: 9, Model: 6, Integration: 6)
+  - User Management: 18/18 passing (Controller: 6, Service: 6, Repository: 3, Integration: 3)
+- ✅ **Total**: 125+ tests passing
 
 ### Coverage Reports
 - **Python**: `tests/python/htmlcov/index.html`
 - **Java**: `tests/java/target/site/jacoco/index.html`
+- **Spring Boot Projects**:
+  - Currency Converter: `tests/java/spring-currencyconverter/target/site/jacoco/index.html`
+  - User Management: `tests/java/springboot/target/site/jacoco/index.html`
+
+## Documentation
+
+Comprehensive guides are available in the `docs/` directory:
+
+- **[SPRINGBOOT_TESTING.md](docs/SPRINGBOOT_TESTING.md)** - Complete Spring Boot testing guide
+- **[TESTING_IMPLEMENTATION.md](docs/TESTING_IMPLEMENTATION.md)** - Phase 1 testing implementation details
+- **[TESTING_PHASE2.md](docs/TESTING_PHASE2.md)** - Phase 2 AI-powered testing features
+- **[SETUP.md](docs/SETUP.md)** - Detailed setup instructions
+- **[QUICKSTART.md](docs/QUICKSTART.md)** - Quick start guide
+- **[FEATURES.md](docs/FEATURES.md)** - Feature documentation
+- **[plan.md](docs/plan.md)** - Development roadmap
 
 ## Project Structure
 
@@ -323,9 +663,13 @@ CodeCLI/
 │   │       ├── scaffold.ts     # Project scaffolding
 │   │       ├── commands.ts     # Command execution
 │   │       ├── tests.ts        # Phase 1 testing tools
-│   │       └── generation.ts   # Phase 2 AI testing tools
+│   │       ├── generation.ts   # Phase 2 AI testing tools
+│   │       ├── advanced-testing.ts  # Phase 3 testing tools
+│   │       ├── prd-testing.ts  # Phase 4 PRD & performance testing
+│   │       └── springboot-templates.ts  # Spring Boot support
 │   └── utils/
-│       └── colors.ts           # Terminal color utilities
+│       ├── colors.ts           # Terminal color utilities
+│       └── springboot-detector.ts  # Spring Boot detection
 ├── scripts/
 │   ├── test-runner.sh          # Unified test runner
 │   └── generate-report.sh      # Report generator
@@ -437,17 +781,39 @@ Example prompts:
 
 The AI will use the appropriate tools automatically to test, analyze, and improve your code! 🎉
 
+## Completed Features
+
+### ✅ Phase 1: Foundation Testing Tools (Complete)
+- **run_tests**: Execute tests with structured output (smoke/sanity/full modes)
+- **analyze_test_failures**: AI-powered failure analysis with fix suggestions
+- **get_coverage**: Coverage report generation and analysis
+
+### ✅ Phase 2: AI-Powered Testing (Complete)
+- **detect_changed_files**: Smart test selection based on git changes
+- **generate_tests**: Automated test generation for uncovered code
+- **analyze_coverage_gaps**: Identify files below coverage threshold
+- **generate_regression_test**: Create tests for fixed bugs
+
+### ✅ Phase 3: Advanced Testing & Quality Assurance (Complete)
+- **generate_integration_test**: Multi-component integration testing
+- **generate_e2e_test**: End-to-end user journey tests (Playwright, Selenium, Cypress)
+- **generate_api_test**: Comprehensive API testing with schema validation
+
+### ✅ Phase 4: PRD-Driven Testing & Performance (Complete)
+- **parse_prd**: Extract testable requirements from PRD documents
+- **generate_tests_from_prd**: Convert PRD requirements to executable tests
+- **generate_performance_test**: Load, stress, spike, and endurance testing (k6, JMeter, Locust)
+
+### ✅ Spring Boot Testing Support (Complete)
+- Auto-detection of Spring Boot projects
+- Component-aware test generation (@Controller, @Service, @Repository)
+- Test slicing with @WebMvcTest, @DataJpaTest
+- Mode-based testing (smoke/sanity/full)
+- JaCoCo coverage integration
+
 ## Future Plans
 
-### Phase 3: Advanced Testing & Quality Assurance
-- **Mutation Testing**: Automatically inject bugs to verify test effectiveness
-- **Flaky Test Detection**: Identify and analyze non-deterministic test failures
-- **Test Performance Profiling**: Find slow tests and suggest optimizations
-- **Visual Regression Testing**: Screenshot comparison for UI components
-- **Contract Testing**: API contract validation between services
-- **Property-Based Testing**: Generate random test inputs to find edge cases
-
-### Phase 4: Multi-Language Expansion
+### Phase 5: Multi-Language Expansion
 - **JavaScript/TypeScript Support**: Jest, Vitest, Mocha integration
 - **Go Testing**: Native Go test framework support
 - **Rust Testing**: Cargo test integration with coverage
@@ -455,7 +821,7 @@ The AI will use the appropriate tools automatically to test, analyze, and improv
 - **Ruby Support**: RSpec and Minitest integration
 - **PHP Support**: PHPUnit integration
 
-### Phase 5: CI/CD Integration
+### Phase 6: CI/CD Integration
 - **GitHub Actions Integration**: Auto-generate workflow files
 - **GitLab CI Support**: Pipeline configuration generation
 - **Jenkins Integration**: Jenkinsfile generation and optimization
@@ -464,7 +830,7 @@ The AI will use the appropriate tools automatically to test, analyze, and improv
 - **PR Comments**: Automated test results in pull request comments
 - **Slack/Discord Notifications**: Test failure alerts
 
-### Phase 6: AI-Powered Code Analysis
+### Phase 7: AI-Powered Code Analysis
 - **Code Review Assistant**: Automated code review with suggestions
 - **Security Vulnerability Scanning**: Detect common security issues
 - **Performance Analysis**: Identify performance bottlenecks
@@ -472,7 +838,7 @@ The AI will use the appropriate tools automatically to test, analyze, and improv
 - **Dependency Analysis**: Detect outdated or vulnerable dependencies
 - **Documentation Generation**: Auto-generate API docs from code
 
-### Phase 7: Enhanced Developer Experience
+### Phase 8: Enhanced Developer Experience
 - **Interactive Test Debugging**: Step-through test failures with AI guidance
 - **Test Data Generation**: Smart test fixture and mock data creation
 - **Snapshot Testing**: Automatic snapshot creation and comparison
@@ -480,7 +846,7 @@ The AI will use the appropriate tools automatically to test, analyze, and improv
 - **Test Metrics Dashboard**: Track test health over time
 - **IDE Integration**: VSCode/IntelliJ plugins for in-editor testing
 
-### Phase 8: Collaboration & Team Features
+### Phase 9: Collaboration & Team Features
 - **Team Test Analytics**: Aggregate test metrics across team members
 - **Test Ownership Tracking**: Identify test maintainers
 - **Test Documentation Hub**: Centralized test documentation
@@ -488,7 +854,7 @@ The AI will use the appropriate tools automatically to test, analyze, and improv
 - **Test Review Workflows**: Peer review for test quality
 - **Knowledge Base**: AI-powered test pattern recommendations
 
-### Phase 9: Advanced Scaffolding
+### Phase 10: Advanced Scaffolding
 - **Microservices Templates**: Multi-service project scaffolds
 - **Database Integration**: Pre-configured DB setups (PostgreSQL, MongoDB, Redis)
 - **Authentication Scaffolds**: OAuth, JWT, session-based auth templates
@@ -497,7 +863,7 @@ The AI will use the appropriate tools automatically to test, analyze, and improv
 - **Desktop App Templates**: Electron, Tauri scaffolds
 - **Monorepo Support**: Nx, Turborepo, Lerna configurations
 
-### Phase 10: Intelligent Automation
+### Phase 11: Intelligent Automation
 - **Auto-Fix Suggestions**: One-click fixes for common test failures
 - **Predictive Test Selection**: ML-based test prioritization
 - **Adaptive Test Generation**: Learn from existing tests to improve generation
