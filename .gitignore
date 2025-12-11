@@ -5,6 +5,8 @@ venv
 tests/java/currency/junit-platform-console-standalone.jar
 tests/java/sudoku/junit-platform-console-standalone.jar
 target/
+.gradle/
+**/.gradle/
 .pytest_cache/
 .coverage
 *.class
