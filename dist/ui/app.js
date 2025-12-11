@@ -31,9 +31,7 @@ export function App({ onSubmit, onConfirmRequest }) {
     }, [onConfirmRequest]);
     React.useEffect(() => {
         const unsubscribe = onStatus((s) => {
-            if (s.message) {
-                setStatusMessage(s.message);
-            }
+            setStatusMessage(s.message);
         });
         return unsubscribe;
     }, []);
@@ -54,7 +52,7 @@ export function App({ onSubmit, onConfirmRequest }) {
             console.log("\n\nGoodbye!");
             exit();
         }
-    }, { isActive: !isProcessing && !confirmState && (process.stdin.isTTY ?? false) });
+    }, { isActive: process.stdin.isTTY ?? false });
     const handleSubmit = async (value) => {
         if (!value.trim() || isProcessing)
             return;

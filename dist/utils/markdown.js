@@ -108,56 +108,56 @@ export function renderMarkdownToAnsi(markdown) {
     return output.join("\n");
 }
 function renderInline(text) {
-    return renderTokens(parseInline(text), "");
+    return renderTokens(parseInline(text), []);
 }
-function renderTokens(tokens, activeStyle) {
+function renderTokens(tokens, styleStack) {
     let output = "";
     for (const token of tokens) {
         switch (token.type) {
             case "text":
-                output += highlightPaths(token.content, activeStyle);
+                output += highlightPaths(token.content, styleStack.join(""));
                 break;
             case "code": {
-                const codeStyle = activeStyle + colors.cyan;
-                output += codeStyle;
-                output += highlightPaths(token.content, codeStyle);
-                output += colors.reset + activeStyle;
+                const newStack = [...styleStack, colors.cyan];
+                output += colors.cyan;
+                output += highlightPaths(token.content, newStack.join(""));
+                output += colors.reset + styleStack.join("");
                 break;
             }
             case "bold": {
-                const style = activeStyle + colors.bold;
-                output += style;
-                output += renderTokens(token.children, style);
-                output += colors.reset + activeStyle;
+                const newStack = [...styleStack, colors.bold];
+                output += colors.bold;
+                output += renderTokens(token.children, newStack);
+                output += colors.reset + styleStack.join("");
                 break;
             }
             case "italic": {
-                const style = activeStyle + colors.italic;
-                output += style;
-                output += renderTokens(token.children, style);
-                output += colors.reset + activeStyle;
+                const newStack = [...styleStack, colors.italic];
+                output += colors.italic;
+                output += renderTokens(token.children, newStack);
+                output += colors.reset + styleStack.join("");
                 break;
             }
             case "boldItalic": {
-                const style = activeStyle + colors.bold + colors.italic;
-                output += style;
-                output += renderTokens(token.children, style);
-                output += colors.reset + activeStyle;
+                const newStack = [...styleStack, colors.bold, colors.italic];
+                output += colors.bold + colors.italic;
+                output += renderTokens(token.children, newStack);
+                output += colors.reset + styleStack.join("");
                 break;
             }
             case "strike": {
-                const style = activeStyle + colors.gray;
-                output += style;
-                output += renderTokens(token.children, style);
-                output += colors.reset + activeStyle;
+                const newStack = [...styleStack, colors.gray];
+                output += colors.gray;
+                output += renderTokens(token.children, newStack);
+                output += colors.reset + styleStack.join("");
                 break;
             }
             case "link": {
-                const linkStyle = activeStyle + colors.blue + colors.underline;
-                output += linkStyle;
-                output += renderTokens(token.children, linkStyle);
-                output += colors.reset + activeStyle;
-                output += `${colors.gray} (${token.url})${colors.reset}${activeStyle}`;
+                const newStack = [...styleStack, colors.blue, colors.underline];
+                output += colors.blue + colors.underline;
+                output += renderTokens(token.children, newStack);
+                output += colors.reset + styleStack.join("");
+                output += `${colors.gray} (${token.url})${colors.reset}${styleStack.join("")}`;
                 break;
             }
             default:
@@ -244,7 +244,9 @@ function parseInline(text) {
         if (ch === "*" || ch === "_") {
             const prev = text[i - 1];
             const next = text[i + 1];
-            const looksLikeWordBoundary = !isWordChar(prev) && !isWordChar(next) && next !== " ";
+            // Check for a word boundary: transition between word and non-word character
+            const looksLikeWordBoundary = (isWordChar(prev) && !isWordChar(next)) ||
+                (!isWordChar(prev) && isWordChar(next));
             if (looksLikeWordBoundary) {
                 const end = findDelimiter(text, i + 1, ch);
                 if (end !== -1) {

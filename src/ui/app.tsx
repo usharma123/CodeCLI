@@ -70,7 +70,7 @@ export function App({ onSubmit, onConfirmRequest }: AppProps) {
         exit();
       }
     },
-    { isActive: !isProcessing && !confirmState && (process.stdin.isTTY ?? false) }
+    { isActive: process.stdin.isTTY ?? false }
   );
 
   const handleSubmit = async (value: string) => {

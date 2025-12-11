@@ -11,8 +11,7 @@ async function main() {
     const apiKey = process.env.OPENROUTER_API_KEY;
     const argv = process.argv.slice(2);
     const verboseTools = argv.includes("--verbose-tools") ||
-        process.env.TOOLS_VERBOSE === "1" ||
-        process.env.VERBOSE_TOOLS === "1";
+        process.env.TOOLS_VERBOSE === "1";
     if (!apiKey) {
         console.error(`${colors.red}Error: OPENROUTER_API_KEY environment variable is not set${colors.reset}`);
         console.error("Get your API key from: https://openrouter.ai/keys");
@@ -38,7 +37,6 @@ async function main() {
     });
     if (process.stdin.isTTY) {
         // Use Ink-based confirmations integrated with the main app
-        let inkConfirmHandler = null;
         const inkApp = render(React.createElement(App, {
             onSubmit: async (userInput) => {
                 if (!userInput.trim())
@@ -53,17 +51,12 @@ async function main() {
                 console.log("");
             },
             onConfirmRequest: (handler) => {
-                inkConfirmHandler = handler;
+                // Set handler HERE, inside callback when Ink UI is ready
+                setReadlineConfirm(async (message) => {
+                    return await handler(message);
+                });
             },
         }));
-        // Set up Ink confirmation handler
-        setReadlineConfirm(async (message) => {
-            if (inkConfirmHandler) {
-                return await inkConfirmHandler(message);
-            }
-            // Fallback to auto-approve if handler not ready
-            return true;
-        });
         await inkApp.waitUntilExit();
         agent.close();
     }

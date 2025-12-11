@@ -46,8 +46,6 @@ async function main() {
 
   if (process.stdin.isTTY) {
     // Use Ink-based confirmations integrated with the main app
-    let inkConfirmHandler: ((message: string) => Promise<boolean>) | null = null;
-
     const inkApp = render(
       React.createElement(App, {
         onSubmit: async (userInput: string) => {
@@ -62,19 +60,13 @@ async function main() {
           console.log("");
         },
         onConfirmRequest: (handler) => {
-          inkConfirmHandler = handler;
+          // Set handler HERE, inside callback when Ink UI is ready
+          setReadlineConfirm(async (message: string) => {
+            return await handler(message);
+          });
         },
       })
     );
-
-    // Set up Ink confirmation handler
-    setReadlineConfirm(async (message: string) => {
-      if (inkConfirmHandler) {
-        return await inkConfirmHandler(message);
-      }
-      // Fallback to auto-approve if handler not ready
-      return true;
-    });
 
     await inkApp.waitUntilExit();
     agent.close();
