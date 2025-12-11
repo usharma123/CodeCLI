@@ -4,7 +4,8 @@ export const runShellCommand = (
   command: string,
   workingDir: string,
   timeoutMs: number,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  streamOutput: boolean = false
 ): Promise<{ stdout: string; stderr: string; exitCode: number; timedOut: boolean }> => {
   return new Promise((resolve) => {
     let stdout = "";
@@ -23,11 +24,19 @@ export const runShellCommand = (
     }, timeoutMs);
 
     proc.stdout.on("data", (data) => {
-      stdout += data.toString();
+      const chunk = data.toString();
+      stdout += chunk;
+      if (streamOutput) {
+        process.stdout.write(chunk);
+      }
     });
 
     proc.stderr.on("data", (data) => {
-      stderr += data.toString();
+      const chunk = data.toString();
+      stderr += chunk;
+      if (streamOutput) {
+        process.stderr.write(chunk);
+      }
     });
 
     proc.on("close", (exitCode) => {

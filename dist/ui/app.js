@@ -4,6 +4,7 @@ import { Box, Text, Static, useApp, useInput } from "ink";
 import { Spinner } from "@inkjs/ui";
 import { InputBox } from "./components/InputBox.js";
 import { Confirm } from "./components/Confirm.js";
+import { onStatus, getStatus } from "../core/status.js";
 const HEADER = `
    █████╗ ██╗     █████╗  ██████╗ ███████╗███╗   ██╗████████╗
   ██╔══██╗██║    ██╔══██╗██╔════╝ ██╔════╝████╗  ██║╚══██╔══╝
@@ -16,6 +17,7 @@ export function App({ onSubmit, onConfirmRequest }) {
     const { exit } = useApp();
     const [isProcessing, setIsProcessing] = useState(false);
     const [sessionNum] = useState(1);
+    const [statusMessage, setStatusMessage] = useState(getStatus().message || "Thinking...");
     const [confirmState, setConfirmState] = useState(null);
     // Register confirmation handler
     React.useEffect(() => {
@@ -27,6 +29,14 @@ export function App({ onSubmit, onConfirmRequest }) {
             });
         }
     }, [onConfirmRequest]);
+    React.useEffect(() => {
+        const unsubscribe = onStatus((s) => {
+            if (s.message) {
+                setStatusMessage(s.message);
+            }
+        });
+        return unsubscribe;
+    }, []);
     const handleConfirm = () => {
         if (confirmState) {
             confirmState.resolver(true);
@@ -56,5 +66,5 @@ export function App({ onSubmit, onConfirmRequest }) {
             setIsProcessing(false);
         }
     };
-    return (_jsxs(Box, { flexDirection: "column", children: [_jsx(Static, { items: ["header"], children: () => (_jsxs(Box, { flexDirection: "column", children: [_jsx(Text, { color: "cyan", children: HEADER }), _jsx(Text, { dimColor: true, children: "Safe mode enabled (ctrl+c to quit)" }), _jsx(Text, { dimColor: true, children: "File changes require your approval before being applied" }), _jsx(Text, { dimColor: true, children: "Using Claude Sonnet 4.5 via OpenRouter" }), _jsx(Text, { children: " " })] }, "header")) }), isProcessing && (_jsx(Box, { marginBottom: 1, children: _jsx(Spinner, { label: "Thinking..." }) })), confirmState && (_jsx(Box, { marginBottom: 1, children: _jsx(Confirm, { message: confirmState.message, onConfirm: handleConfirm, onCancel: handleCancel }) })), _jsx(InputBox, { onSubmit: handleSubmit, isDisabled: isProcessing || !!confirmState, sessionNum: sessionNum })] }));
+    return (_jsxs(Box, { flexDirection: "column", children: [_jsx(Static, { items: ["header"], children: () => (_jsxs(Box, { flexDirection: "column", children: [_jsx(Text, { color: "cyan", children: HEADER }), _jsx(Text, { dimColor: true, children: "Safe mode enabled (ctrl+c to quit)" }), _jsx(Text, { dimColor: true, children: "File changes require your approval before being applied" }), _jsx(Text, { dimColor: true, children: "Using Claude Sonnet 4.5 via OpenRouter" }), _jsx(Text, { children: " " })] }, "header")) }), isProcessing && (_jsx(Box, { marginBottom: 1, children: _jsx(Spinner, { label: statusMessage || "Thinking..." }) })), confirmState && (_jsx(Box, { marginBottom: 1, children: _jsx(Confirm, { message: confirmState.message, onConfirm: handleConfirm, onCancel: handleCancel }) })), _jsx(InputBox, { onSubmit: handleSubmit, isDisabled: isProcessing || !!confirmState, sessionNum: sessionNum })] }));
 }

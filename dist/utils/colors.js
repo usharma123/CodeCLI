@@ -8,5 +8,7 @@ export const colors = {
     magenta: "\u001b[95m",
     gray: "\u001b[90m",
     bold: "\u001b[1m",
+    italic: "\u001b[3m",
+    underline: "\u001b[4m",
     white: "\u001b[97m",
 };

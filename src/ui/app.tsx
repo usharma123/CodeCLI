@@ -3,6 +3,7 @@ import { Box, Text, Static, useApp, useInput } from "ink";
 import { Spinner } from "@inkjs/ui";
 import { InputBox } from "./components/InputBox.js";
 import { Confirm } from "./components/Confirm.js";
+import { onStatus, getStatus } from "../core/status.js";
 
 const HEADER = `
    █████╗ ██╗     █████╗  ██████╗ ███████╗███╗   ██╗████████╗
@@ -22,6 +23,9 @@ export function App({ onSubmit, onConfirmRequest }: AppProps) {
   const { exit } = useApp();
   const [isProcessing, setIsProcessing] = useState(false);
   const [sessionNum] = useState(1);
+  const [statusMessage, setStatusMessage] = useState<string>(
+    getStatus().message || "Thinking..."
+  );
   const [confirmState, setConfirmState] = useState<{
     message: string;
     resolver: (value: boolean) => void;
@@ -37,6 +41,15 @@ export function App({ onSubmit, onConfirmRequest }: AppProps) {
       });
     }
   }, [onConfirmRequest]);
+
+  React.useEffect(() => {
+    const unsubscribe = onStatus((s) => {
+      if (s.message) {
+        setStatusMessage(s.message);
+      }
+    });
+    return unsubscribe;
+  }, []);
 
   const handleConfirm = () => {
     if (confirmState) {
@@ -88,7 +101,7 @@ export function App({ onSubmit, onConfirmRequest }: AppProps) {
 
       {isProcessing && (
         <Box marginBottom={1}>
-          <Spinner label="Thinking..." />
+          <Spinner label={statusMessage || "Thinking..."} />
         </Box>
       )}
 

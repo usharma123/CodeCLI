@@ -9,6 +9,10 @@ import { colors } from "./utils/colors.js";
 dotenv.config();
 async function main() {
     const apiKey = process.env.OPENROUTER_API_KEY;
+    const argv = process.argv.slice(2);
+    const verboseTools = argv.includes("--verbose-tools") ||
+        process.env.TOOLS_VERBOSE === "1" ||
+        process.env.VERBOSE_TOOLS === "1";
     if (!apiKey) {
         console.error(`${colors.red}Error: OPENROUTER_API_KEY environment variable is not set${colors.reset}`);
         console.error("Get your API key from: https://openrouter.ai/keys");
@@ -16,7 +20,12 @@ async function main() {
         console.error("OPENROUTER_API_KEY=sk-or-v1-your-api-key-here");
         process.exit(1);
     }
-    const agent = new AIAgent(apiKey, toolDefinitions);
+    const agent = new AIAgent(apiKey, toolDefinitions, true, {
+        verboseTools,
+        // Disable streaming by default for Ink stability.
+        streamAssistantResponses: false,
+        streamCommandOutput: false,
+    });
     setAgentInstance(agent);
     setReadlineConfirm(async (message) => {
         if (!agent.rl) {

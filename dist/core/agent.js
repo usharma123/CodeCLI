@@ -2,6 +2,8 @@ import OpenAI from "openai";
 import * as readline from "readline/promises";
 import { stdin as input, stdout as output } from "process";
 import { colors } from "../utils/colors.js";
+import { renderMarkdownToAnsi } from "../utils/markdown.js";
+import { emitStatus } from "./status.js";
 // Format tool name for display (e.g., "read_file" -> "Read")
 const formatToolName = (name) => {
     const nameMap = {
@@ -133,11 +135,16 @@ class AIAgent {
     messages = [];
     retryCount = 0;
     maxRetries = 3;
+    verboseTools = false;
+    maxToolOutputChars = 6000;
+    // Streaming can conflict with Ink rendering; default to off.
+    streamCommandOutput = false;
+    streamAssistantResponses = false;
     // Track repeated validation failures to prevent retry storms
     validationFailureCounts = new Map();
     maxMessagesInHistory = 40; // Keep last 40 messages (20 exchanges) plus system prompt
     maxTokenEstimate = 12000; // Leave buffer below 16384 max_tokens
-    constructor(apiKey, tools, createReadline = true) {
+    constructor(apiKey, tools, createReadline = true, options = {}) {
         // Configure OpenAI client to use OpenRouter's API
         this.client = new OpenAI({
             apiKey: apiKey,
@@ -152,6 +159,19 @@ class AIAgent {
         // Only create readline interface if in TTY mode
         if (createReadline && process.stdin.isTTY) {
             this.rl = readline.createInterface({ input, output });
+        }
+        // Apply runtime options
+        if (typeof options.verboseTools === "boolean") {
+            this.verboseTools = options.verboseTools;
+        }
+        if (typeof options.maxToolOutputChars === "number") {
+            this.maxToolOutputChars = options.maxToolOutputChars;
+        }
+        if (typeof options.streamCommandOutput === "boolean") {
+            this.streamCommandOutput = options.streamCommandOutput;
+        }
+        if (typeof options.streamAssistantResponses === "boolean") {
+            this.streamAssistantResponses = options.streamAssistantResponses;
         }
         // Add system prompt to encourage tool usage
         this.messages.push({
@@ -179,6 +199,9 @@ Tool selection guide:
 - For COMPLEX multi-hunk patches: Use patch_file (only if you can generate perfect unified diff format)
 - For RUNNING tests: Use run_command with pytest, npm test, etc.
 - For BUILDING/LINTING: Use run_command
+
+User-visible progress notes:
+- When you are NOT about to call tools, start your response with 1–3 short bullets describing what you did for the user (high-level, no internal reasoning).
 
 IMPORTANT: Always use these tools directly. Never tell the user to manually create files or run commands. You have the power to do it yourself!
 
@@ -358,50 +381,48 @@ ${colors.reset}`);
                     parameters: tool.parameters,
                 },
             }));
-            // Show processing indicator
-            process.stdout.write(`${colors.yellow}*${colors.reset} ${colors.gray}Thinking...${colors.reset}`);
-            const startTime = Date.now();
-            // Call OpenRouter API with Claude Sonnet 4.5 model
-            const completion = await this.client.chat.completions.create({
-                model: "anthropic/claude-sonnet-4.5", // Using Claude Sonnet 4.5 for reliable tool calling
+            emitStatus({ phase: "thinking", message: "Thinking…" });
+            const { message, elapsedSeconds, streamedContent } = await this.createCompletion({
+                model: "anthropic/claude-sonnet-4.5",
                 messages: this.messages,
                 tools: openAITools,
                 tool_choice: "auto",
-                temperature: 0.3, // Lower temperature for consistent tool calling
-                max_tokens: 16384, // Large enough for write_file with full content
+                temperature: 0.3,
+                max_tokens: 16384,
             });
-            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-            const message = completion.choices[0].message;
-            // Clear the "Thinking..." line and show completion
-            process.stdout.write(`\r${colors.green}●${colors.reset} ${colors.gray}Response (${elapsed}s)${colors.reset}\n`);
+            const elapsed = elapsedSeconds.toFixed(1);
+            if (!this.streamAssistantResponses) {
+                console.log(`${colors.green}●${colors.reset} ${colors.gray}Response (${elapsed}s)${colors.reset}`);
+            }
             // Safety net: Check if model should have called tools but didn't
             // (This is rare with Claude Sonnet 4.5 but kept as a precaution)
             if (!message.tool_calls && message.content) {
                 const mentionsTools = message.content.match(/\b(read_file|write_file|edit_file|list_files|patch_file)\b/i);
                 if (mentionsTools) {
                     console.log(`  ${colors.gray}└ Retrying with tool enforcement...${colors.reset}`);
-                    process.stdout.write(`${colors.yellow}*${colors.reset} ${colors.gray}Thinking...${colors.reset}`);
-                    const retryStart = Date.now();
-                    // Retry the same request with Sonnet as fallback
-                    const fallbackCompletion = await this.client.chat.completions.create({
+                    emitStatus({ phase: "thinking", message: "Thinking (retry)…" });
+                    const { message: fallbackMessage, streamedContent: fallbackStreamed } = await this.createCompletion({
                         model: "anthropic/claude-sonnet-4.5",
                         messages: this.messages,
                         tools: openAITools,
                         tool_choice: "auto",
-                        temperature: 0.3, // Sonnet works well with lower temp
+                        temperature: 0.3,
                         max_tokens: 16384,
                     });
-                    const retryElapsed = ((Date.now() - retryStart) / 1000).toFixed(1);
-                    const fallbackMessage = fallbackCompletion.choices[0].message;
-                    process.stdout.write(`\r${colors.green}●${colors.reset} ${colors.gray}Response (${retryElapsed}s)${colors.reset}\n`);
                     this.messages.push(fallbackMessage);
                     // Continue with fallback response
                     if (fallbackMessage.tool_calls && fallbackMessage.tool_calls.length > 0) {
+                        emitStatus({ phase: "running_tools", message: "Running tools…" });
                         await this.handleToolCalls(fallbackMessage.tool_calls);
                         return;
                     }
                     else if (fallbackMessage.content) {
-                        console.log(`\n${fallbackMessage.content}\n`);
+                        if (this.streamAssistantResponses) {
+                            this.maybePrintFormattedAfterStream(fallbackStreamed);
+                        }
+                        else {
+                            console.log(`\n${renderMarkdownToAnsi(fallbackMessage.content)}\n`);
+                        }
                         return;
                     }
                 }
@@ -410,11 +431,18 @@ ${colors.reset}`);
             this.messages.push(message);
             // Handle proper tool calls
             if (message.tool_calls && message.tool_calls.length > 0) {
+                emitStatus({ phase: "running_tools", message: "Running tools…" });
                 await this.handleToolCalls(message.tool_calls);
             }
             else if (message.content) {
                 // Regular text response
-                console.log(`\n${message.content}\n`);
+                if (this.streamAssistantResponses) {
+                    this.maybePrintFormattedAfterStream(streamedContent);
+                }
+                else {
+                    console.log(`\n${renderMarkdownToAnsi(message.content)}\n`);
+                }
+                emitStatus({ phase: "idle", message: "" });
             }
         }
         catch (error) {
@@ -586,6 +614,7 @@ Please retry the ${functionName} tool call with properly formatted JSON. Make su
                     const result = await tool.function(functionArgs);
                     const summary = formatResultSummary(functionName, result);
                     console.log(`  ${colors.gray}└ ${summary}${colors.reset}\n`);
+                    this.printToolOutput(functionName, result);
                     toolCallResults.push({
                         tool_call_id: toolCall.id,
                         role: "tool",
@@ -638,24 +667,31 @@ Please analyze the error and retry with corrected parameters. Common issues:
                 },
             }));
             // Get follow-up response after tool execution (with tools enabled for continuation)
-            const followUp = await this.client.chat.completions.create({
+            emitStatus({ phase: "summarizing", message: "Summarizing…" });
+            const { message: followUpMessage, streamedContent } = await this.createCompletion({
                 model: "anthropic/claude-sonnet-4.5",
                 messages: this.messages,
                 tools: openAITools,
                 tool_choice: "auto",
                 temperature: 0.3,
-                max_tokens: 16384, // Large enough for write_file with full content
+                max_tokens: 16384,
             });
-            const followUpMessage = followUp.choices[0].message;
             this.messages.push(followUpMessage);
             // Check if the model wants to call more tools
             if (followUpMessage.tool_calls && followUpMessage.tool_calls.length > 0) {
                 // Continue the tool calling loop
+                emitStatus({ phase: "running_tools", message: "Running tools…" });
                 await this.handleToolCalls(followUpMessage.tool_calls);
             }
             else if (followUpMessage.content) {
                 // Task is complete, show final response
-                console.log(`\n${followUpMessage.content}\n`);
+                if (this.streamAssistantResponses) {
+                    this.maybePrintFormattedAfterStream(streamedContent);
+                }
+                else {
+                    console.log(`\n${renderMarkdownToAnsi(followUpMessage.content)}\n`);
+                }
+                emitStatus({ phase: "idle", message: "" });
             }
         }
         catch (followUpError) {
@@ -693,6 +729,123 @@ Please analyze the error and retry with corrected parameters. Common issues:
             content: userInput,
         });
         await this.processMessage();
+    }
+    async createCompletion(request) {
+        const start = Date.now();
+        if (!this.streamAssistantResponses) {
+            const completion = await this.client.chat.completions.create(request);
+            const message = completion.choices[0].message;
+            const content = message.content ?? "";
+            return {
+                message,
+                elapsedSeconds: (Date.now() - start) / 1000,
+                streamedContent: content,
+            };
+        }
+        const stream = await this.client.chat.completions.create({
+            ...request,
+            stream: true,
+        });
+        let content = "";
+        const toolCallsByIndex = [];
+        for await (const chunk of stream) {
+            const delta = chunk.choices?.[0]?.delta;
+            if (!delta)
+                continue;
+            if (delta.content) {
+                content += delta.content;
+                process.stdout.write(delta.content);
+            }
+            if (delta.tool_calls) {
+                for (const call of delta.tool_calls) {
+                    const index = call.index ?? 0;
+                    if (!toolCallsByIndex[index]) {
+                        toolCallsByIndex[index] = {
+                            id: call.id,
+                            type: call.type ?? "function",
+                            function: { name: "", arguments: "" },
+                        };
+                    }
+                    if (call.id)
+                        toolCallsByIndex[index].id = call.id;
+                    if (call.function?.name) {
+                        toolCallsByIndex[index].function.name = call.function.name;
+                    }
+                    if (call.function?.arguments) {
+                        toolCallsByIndex[index].function.arguments += call.function.arguments;
+                    }
+                }
+            }
+        }
+        process.stdout.write("\n");
+        const message = { role: "assistant" };
+        if (content)
+            message.content = content;
+        const toolCalls = toolCallsByIndex.filter(Boolean);
+        if (toolCalls.length > 0) {
+            message.tool_calls = toolCalls;
+        }
+        return {
+            message,
+            elapsedSeconds: (Date.now() - start) / 1000,
+            streamedContent: content,
+        };
+    }
+    maybePrintFormattedAfterStream(content) {
+        if (!content)
+            return;
+        const hasMarkdown = /(\*\*|__|`{1,3}|^#{1,6}\s|^\s*[-+*]\s|\d+\.\s)/m.test(content);
+        if (!hasMarkdown || content.length > 2000) {
+            return;
+        }
+        console.log(`\n${colors.gray}--- Formatted ---${colors.reset}\n${renderMarkdownToAnsi(content)}\n`);
+    }
+    printToolOutput(functionName, result) {
+        const defaultOutputTools = new Set([
+            "run_command",
+            "run_tests",
+            "analyze_test_failures",
+            "get_coverage",
+            "detect_changed_files",
+            "generate_tests",
+            "analyze_coverage_gaps",
+            "generate_regression_test",
+            "generate_integration_test",
+            "generate_e2e_test",
+            "generate_api_test",
+            "generate_performance_test",
+            "parse_prd",
+            "generate_tests_from_prd",
+            "scaffold_project",
+        ]);
+        if (!this.verboseTools && !defaultOutputTools.has(functionName)) {
+            return;
+        }
+        let outputText = result || "";
+        if (!this.verboseTools) {
+            // Avoid duplicating already-streamed outputs from long-running tools.
+            if (functionName === "run_command" || functionName === "run_tests") {
+                const splitIndex = outputText.search(/^\s*--- (STDOUT|OUTPUT|ERRORS) ---/m);
+                if (splitIndex !== -1) {
+                    outputText = outputText.slice(0, splitIndex).trimEnd();
+                }
+            }
+            outputText = this.truncateText(outputText, this.maxToolOutputChars);
+        }
+        if (!outputText.trim())
+            return;
+        const rendered = outputText.length < 30000
+            ? renderMarkdownToAnsi(outputText)
+            : outputText;
+        console.log(`${colors.gray}  └ Output (${this.verboseTools ? "full" : "truncated"}):${colors.reset}\n${rendered}\n${this.verboseTools
+            ? ""
+            : `${colors.gray}(use --verbose-tools for full tool output)${colors.reset}\n`}`);
+    }
+    truncateText(text, maxChars) {
+        if (text.length <= maxChars)
+            return text;
+        return (text.substring(0, maxChars) +
+            `\n... (truncated, ${text.length - maxChars} chars more)`);
     }
 }
 export { AIAgent };

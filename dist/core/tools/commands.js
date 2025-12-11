@@ -49,7 +49,7 @@ const runCommandDefinition = {
         if (!input.command) {
             throw new Error("Missing command");
         }
-        getAgentInstance();
+        const agent = getAgentInstance();
         // Validate and set timeout (default 60s, max 300s)
         const timeoutSeconds = Math.min(Math.max(input.timeout_seconds || 60, 1), 300);
         const timeoutMs = timeoutSeconds * 1000;
@@ -68,7 +68,7 @@ const runCommandDefinition = {
             commandEnv.JAVA_HOME = sessionJavaHome;
             commandEnv.PATH = `${sessionJavaHome}/bin:${process.env.PATH}`;
         }
-        const { stdout, stderr, exitCode, timedOut } = await runShellCommand(input.command, workingDir, timeoutMs, commandEnv);
+        const { stdout, stderr, exitCode, timedOut } = await runShellCommand(input.command, workingDir, timeoutMs, commandEnv, agent.streamCommandOutput);
         const combinedOutput = stdout + stderr;
         const javaNotInstalled = combinedOutput.includes("Unable to locate a Java Runtime") ||
             combinedOutput.includes("No Java runtime present");
@@ -82,7 +82,7 @@ const runCommandDefinition = {
                     const javaEnv = { ...process.env };
                     javaEnv.JAVA_HOME = sessionJavaHome;
                     javaEnv.PATH = `${sessionJavaHome}/bin:${process.env.PATH}`;
-                    const retryResult = await runShellCommand(input.command, workingDir, timeoutMs, javaEnv);
+                    const retryResult = await runShellCommand(input.command, workingDir, timeoutMs, javaEnv, agent.streamCommandOutput);
                     console.log("\n");
                     if (retryResult.timedOut) {
                         console.log(`  ${colors.gray}└ ${colors.yellow}Timed out after ${timeoutSeconds}s${colors.reset}\n`);

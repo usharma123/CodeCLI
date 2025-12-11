@@ -1,5 +1,5 @@
 import { spawn } from "child_process";
-export const runShellCommand = (command, workingDir, timeoutMs, env = process.env) => {
+export const runShellCommand = (command, workingDir, timeoutMs, env = process.env, streamOutput = false) => {
     return new Promise((resolve) => {
         let stdout = "";
         let stderr = "";
@@ -14,10 +14,18 @@ export const runShellCommand = (command, workingDir, timeoutMs, env = process.en
             proc.kill("SIGKILL");
         }, timeoutMs);
         proc.stdout.on("data", (data) => {
-            stdout += data.toString();
+            const chunk = data.toString();
+            stdout += chunk;
+            if (streamOutput) {
+                process.stdout.write(chunk);
+            }
         });
         proc.stderr.on("data", (data) => {
-            stderr += data.toString();
+            const chunk = data.toString();
+            stderr += chunk;
+            if (streamOutput) {
+                process.stderr.write(chunk);
+            }
         });
         proc.on("close", (exitCode) => {
             clearTimeout(timer);

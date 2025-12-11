@@ -5,6 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tic Tac Toe</title>
     <style>
+        :root {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: white;
+            --text-primary: #333;
+            --text-secondary: #666;
+            --border-color: #ddd;
+            --border-hover: #999;
+            --cell-hover: #f9f9f9;
+            --btn-bg: #333;
+            --btn-hover: #555;
+            --shadow: rgba(0, 0, 0, 0.1);
+        }
+
+        body.dark-mode {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --text-primary: #e0e0e0;
+            --text-secondary: #b0b0b0;
+            --border-color: #444;
+            --border-hover: #666;
+            --cell-hover: #3a3a3a;
+            --btn-bg: #4a4a4a;
+            --btn-hover: #5a5a5a;
+            --shadow: rgba(0, 0, 0, 0.3);
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -13,35 +39,62 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f5f5f5;
+            background: var(--bg-primary);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
             padding: 20px;
+            transition: background 0.3s ease;
         }
 
         .container {
             text-align: center;
-            background: white;
+            background: var(--bg-secondary);
             padding: 40px;
             border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 10px var(--shadow);
             max-width: 500px;
             width: 100%;
+            transition: background 0.3s ease, box-shadow 0.3s ease;
+            position: relative;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: var(--btn-bg);
+            color: var(--text-primary);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .theme-toggle:hover {
+            background: var(--btn-hover);
+            transform: scale(1.05);
         }
 
         h1 {
-            color: #333;
+            color: var(--text-primary);
             margin-bottom: 30px;
             font-size: 2em;
+            transition: color 0.3s ease;
         }
 
         .status {
             font-size: 1.2em;
             margin-bottom: 20px;
             height: 30px;
-            color: #666;
+            color: var(--text-secondary);
+            transition: color 0.3s ease;
         }
 
         .board {
@@ -54,8 +107,8 @@
         }
 
         .cell {
-            background: white;
-            border: 2px solid #ddd;
+            background: var(--bg-secondary);
+            border: 2px solid var(--border-color);
             border-radius: 5px;
             font-size: 3em;
             font-weight: bold;
@@ -64,12 +117,12 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #333;
+            color: var(--text-primary);
         }
 
         .cell:hover:not(.taken) {
-            background: #f9f9f9;
-            border-color: #999;
+            background: var(--cell-hover);
+            border-color: var(--border-hover);
         }
 
         .cell.taken {
@@ -83,7 +136,7 @@
         }
 
         .reset-btn {
-            background: #333;
+            background: var(--btn-bg);
             color: white;
             border: none;
             padding: 12px 30px;
@@ -94,7 +147,7 @@
         }
 
         .reset-btn:hover {
-            background: #555;
+            background: var(--btn-hover);
         }
 
         .score-board {
@@ -102,7 +155,8 @@
             justify-content: space-around;
             margin-top: 30px;
             padding-top: 20px;
-            border-top: 1px solid #ddd;
+            border-top: 1px solid var(--border-color);
+            transition: border-color 0.3s ease;
         }
 
         .score {
@@ -111,19 +165,26 @@
 
         .score-label {
             font-size: 0.9em;
-            color: #666;
+            color: var(--text-secondary);
             margin-bottom: 5px;
+            transition: color 0.3s ease;
         }
 
         .score-value {
             font-size: 1.8em;
             font-weight: bold;
-            color: #333;
+            color: var(--text-primary);
+            transition: color 0.3s ease;
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <button class="theme-toggle" id="themeToggle">
+            <span id="themeIcon">🌙</span>
+            <span id="themeText">Dark</span>
+        </button>
+        
         <h1>Tic Tac Toe</h1>
         
         <div class="status" id="status">Player X's Turn</div>
@@ -165,11 +226,39 @@
         const scoreXElement = document.getElementById('scoreX');
         const scoreOElement = document.getElementById('scoreO');
         const scoreDrawElement = document.getElementById('scoreDraw');
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const themeText = document.getElementById('themeText');
 
         let currentPlayer = 'X';
         let gameBoard = ['', '', '', '', '', '', '', '', ''];
         let gameActive = true;
         let scores = { X: 0, O: 0, draw: 0 };
+
+        // Dark mode functionality
+        function toggleTheme() {
+            document.body.classList.toggle('dark-mode');
+            const isDark = document.body.classList.contains('dark-mode');
+            
+            themeIcon.textContent = isDark ? '☀️' : '🌙';
+            themeText.textContent = isDark ? 'Light' : 'Dark';
+            
+            // Save preference to localStorage
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        }
+
+        // Load saved theme preference
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark-mode');
+                themeIcon.textContent = '☀️';
+                themeText.textContent = 'Light';
+            }
+        }
+
+        // Load theme on page load
+        loadTheme();
 
         const winningConditions = [
             [0, 1, 2],
@@ -263,6 +352,7 @@
         });
 
         resetBtn.addEventListener('click', resetGame);
+        themeToggle.addEventListener('click', toggleTheme);
     </script>
 </body>
 </html>
