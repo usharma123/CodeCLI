@@ -5,6 +5,15 @@ import {
   GenerateRegressionTestInput,
 } from "../types.js";
 import { colors } from "../../utils/colors.js";
+import * as path from "path";
+import * as fs from "fs";
+import {
+  isSpringBootProject,
+  detectComponentType,
+  extractClassName,
+  extractPackageName,
+} from "../../utils/springboot-detector.js";
+import { generateSpringBootTest } from "./springboot-templates.js";
 
 const generateTestsDefinition: ToolDefinition = {
   name: "generate_tests",
@@ -105,73 +114,133 @@ const generateTestsDefinition: ToolDefinition = {
 
         result += `\`\`\`\n\n`;
       } else if (input.language === "java") {
-        result += `--- Java Code Analysis ---\n\n`;
+        // Check if this is a Spring Boot project
+        const projectPath = path.dirname(input.file_path);
+        const isSpringBoot = await isSpringBootProject(projectPath);
+        const componentType = detectComponentType(sourceCode);
 
-        const classPattern = /class\\s+(\\w+)/g;
-        const methodPattern =
-          /(?:public|private|protected)\\s+\\w+\\s+(\\w+)\\s*\\([^)]*\\)/g;
+        if (isSpringBoot && componentType) {
+          // Generate Spring Boot-specific test
+          result += `--- Spring Boot Test Generation ---\n\n`;
+          result += `${colors.green}Spring Boot project detected!${colors.reset}\n`;
+          result += `Component type: ${colors.bold}${componentType}${colors.reset}\n\n`;
 
-        const classes: string[] = [];
-        const methods: string[] = [];
+          const className = extractClassName(sourceCode);
+          const packageName = extractPackageName(sourceCode);
 
-        let match;
-        while ((match = classPattern.exec(sourceCode)) !== null) {
-          classes.push(match[1]);
-        }
-        while ((match = methodPattern.exec(sourceCode)) !== null) {
-          methods.push(match[1]);
-        }
+          if (!className || !packageName) {
+            result += `${colors.red}Error: Could not extract class name or package${colors.reset}\n`;
+            return result;
+          }
 
-        result += `Found ${classes.length} class(es) and ${methods.length} method(s)\n\n`;
+          const testFilePath = input.file_path
+            .replace("/src/main/", "/src/test/")
+            .replace(".java", "Test.java");
 
-        if (classes.length > 0) {
-          result += `Classes:\n`;
-          classes.forEach((cls, idx) => {
-            result += `${idx + 1}. ${cls}\n`;
-          });
-        }
+          result += `Test file will be created at: ${testFilePath}\n\n`;
 
-        result += `\nMethods:\n`;
-        methods.forEach((method, idx) => {
-          result += `${idx + 1}. ${method}()\n`;
-        });
+          // Generate component-specific guidance
+          const componentGuidance: Record<string, string> = {
+            controller:
+              "Uses @WebMvcTest for fast slice testing with MockMvc. Mocks service dependencies. Perfect for testing HTTP endpoints in isolation.",
+            service:
+              "Pure unit test with Mockito. No Spring context loaded (fastest). Mocks repository dependencies to test business logic.",
+            repository:
+              "Uses @DataJpaTest with embedded H2 database. Tests custom queries and JPA operations. Automatically rolls back after each test.",
+            configuration:
+              "Tests Spring configuration beans and their initialization.",
+            component:
+              "Generic component test. Adjust based on component's specific role.",
+          };
 
-        result += `\n--- Suggested Test Structure ---\n`;
-        result += `For each method, create tests for:\n`;
-        result += `1. Valid inputs (expected behavior)\n`;
-        result += `2. Edge cases (null, empty, boundary values)\n`;
-        result += `3. Error conditions (exceptions, invalid inputs)\n\n`;
+          result += `Test Strategy: ${componentGuidance[componentType]}\n\n`;
+          result += `Test Mode Mapping:\n`;
+          result += `- ${colors.green}smoke${colors.reset}: Unit/service tests (fastest, no Spring context)\n`;
+          result += `- ${colors.yellow}sanity${colors.reset}: Web/repository slice tests (medium, partial context)\n`;
+          result += `- ${colors.blue}full${colors.reset}: Integration tests (comprehensive, full context)\n\n`;
 
-        result += `--- Suggested Test Skeleton ---\n\n`;
-        const testFileName = input.file_path.replace(".java", "Test.java");
-        result += `File: ${testFileName}\n\n`;
+          result += `--- Generated Spring Boot Test ---\n\n`;
+          result += `\`\`\`java\n`;
+          result += generateSpringBootTest(componentType, className, packageName);
+          result += `\`\`\`\n\n`;
 
-        result += `\`\`\`java\n`;
-        result += `import org.junit.jupiter.api.Test;\n`;
-        result += `import static org.junit.jupiter.api.Assertions.*;\n\n`;
+          result += `--- Next Steps ---\n`;
+          result += `1. Review the generated test file above\n`;
+          result += `2. Implement the TODO sections with actual test logic\n`;
+          result += `3. Run tests: run_tests --language java --mode ${componentType === "service" ? "smoke" : "sanity"}\n`;
+          result += `4. Add more edge cases and error handling tests\n`;
+          result += `5. Run with coverage: run_tests --language java --coverage true\n\n`;
 
-        if (classes.length > 0) {
-          const className = classes[0];
-          result += `class ${className}Test {\n`;
-          methods.forEach((method) => {
-            result += `    @Test\n`;
-            result += `    void test${method.charAt(0).toUpperCase() + method.slice(1)}() {\n`;
-            result += `        // TODO: Implement test for ${method}\n`;
-            result += `    }\n\n`;
-          });
-          result += `}\n`;
         } else {
-          result += `public class GeneratedTests {\n`;
-          methods.forEach((method) => {
-            result += `    @Test\n`;
-            result += `    void test${method.charAt(0).toUpperCase() + method.slice(1)}() {\n`;
-            result += `        // TODO: Implement test for ${method}\n`;
-            result += `    }\n\n`;
-          });
-          result += `}\n`;
-        }
+          // Standard Java test generation (existing logic)
+          result += `--- Java Code Analysis ---\n\n`;
 
-        result += `\`\`\`\n\n`;
+          const classPattern = /class\\s+(\\w+)/g;
+          const methodPattern =
+            /(?:public|private|protected)\\s+\\w+\\s+(\\w+)\\s*\\([^)]*\\)/g;
+
+          const classes: string[] = [];
+          const methods: string[] = [];
+
+          let match;
+          while ((match = classPattern.exec(sourceCode)) !== null) {
+            classes.push(match[1]);
+          }
+          while ((match = methodPattern.exec(sourceCode)) !== null) {
+            methods.push(match[1]);
+          }
+
+          result += `Found ${classes.length} class(es) and ${methods.length} method(s)\n\n`;
+
+          if (classes.length > 0) {
+            result += `Classes:\n`;
+            classes.forEach((cls, idx) => {
+              result += `${idx + 1}. ${cls}\n`;
+            });
+          }
+
+          result += `\nMethods:\n`;
+          methods.forEach((method, idx) => {
+            result += `${idx + 1}. ${method}()\n`;
+          });
+
+          result += `\n--- Suggested Test Structure ---\n`;
+          result += `For each method, create tests for:\n`;
+          result += `1. Valid inputs (expected behavior)\n`;
+          result += `2. Edge cases (null, empty, boundary values)\n`;
+          result += `3. Error conditions (exceptions, invalid inputs)\n\n`;
+
+          result += `--- Suggested Test Skeleton ---\n\n`;
+          const testFileName = input.file_path.replace(".java", "Test.java");
+          result += `File: ${testFileName}\n\n`;
+
+          result += `\`\`\`java\n`;
+          result += `import org.junit.jupiter.api.Test;\n`;
+          result += `import static org.junit.jupiter.api.Assertions.*;\n\n`;
+
+          if (classes.length > 0) {
+            const className = classes[0];
+            result += `class ${className}Test {\n`;
+            methods.forEach((method) => {
+              result += `    @Test\n`;
+              result += `    void test${method.charAt(0).toUpperCase() + method.slice(1)}() {\n`;
+              result += `        // TODO: Implement test for ${method}\n`;
+              result += `    }\n\n`;
+            });
+            result += `}\n`;
+          } else {
+            result += `public class GeneratedTests {\n`;
+            methods.forEach((method) => {
+              result += `    @Test\n`;
+              result += `    void test${method.charAt(0).toUpperCase() + method.slice(1)}() {\n`;
+              result += `        // TODO: Implement test for ${method}\n`;
+              result += `    }\n\n`;
+            });
+            result += `}\n`;
+          }
+
+          result += `\`\`\`\n\n`;
+        }
       }
 
       if (input.coverage_data) {

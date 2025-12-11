@@ -1,0 +1,38 @@
+# Spring Boot Test Configuration
+# This configuration is used when @ActiveProfiles("test") is present
+
+spring:
+  # H2 In-Memory Database Configuration
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  # JPA/Hibernate Configuration for Tests
+  jpa:
+    hibernate:
+      ddl-auto: create-drop  # Auto-create schema, drop after tests
+    show-sql: true  # Log SQL statements (helpful for debugging)
+    properties:
+      hibernate:
+        format_sql: true  # Pretty-print SQL
+        dialect: org.hibernate.dialect.H2Dialect
+
+  # H2 Console (useful for debugging tests)
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+# Random port for integration tests (avoids conflicts)
+server:
+  port: 0
+
+# Reduce log noise during tests
+logging:
+  level:
+    root: WARN
+    com.example: DEBUG
+    org.springframework.web: INFO
+    org.hibernate: INFO

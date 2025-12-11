@@ -7,6 +7,8 @@ import {
 import { colors } from "../../utils/colors.js";
 import * as fs from "fs/promises";
 import * as path from "path";
+import { isSpringBootProject } from "../../utils/springboot-detector.js";
+import { generateIntegrationTest } from "./springboot-templates.js";
 
 const generateIntegrationTestDefinition: ToolDefinition = {
   name: "generate_integration_test",
@@ -89,36 +91,69 @@ const generateIntegrationTestDefinition: ToolDefinition = {
         result += `        pass\n`;
         result += `\`\`\`\n\n`;
       } else if (input.language === "java") {
-        result += `--- Java Integration Test Structure ---\n\n`;
-        result += `\`\`\`java\n`;
-        result += `import org.junit.jupiter.api.*;\n`;
-        result += `import org.mockito.*;\n`;
-        result += `import static org.junit.jupiter.api.Assertions.*;\n`;
-        result += `import static org.mockito.Mockito.*;\n\n`;
-        result += `@Tag("integration")\n`;
-        result += `class ${input.test_scenario.replace(/\\s+/g, "")}IntegrationTest {\n\n`;
-        result += `    @BeforeEach\n`;
-        result += `    void setUp() {\n`;
-        result += `        // Initialize components for integration testing\n`;
-        result += `        // TODO: Set up components\n`;
-        result += `    }\n\n`;
-        result += `    @Test\n`;
-        result += `    @DisplayName("${input.test_scenario}")\n`;
-        result += `    void testIntegrationFlow() {\n`;
-        result += `        // Arrange: Prepare test data\n`;
-        result += `        // TODO: Set up test inputs\n\n`;
-        result += `        // Act: Execute integration scenario\n`;
-        result += `        // TODO: Call components in sequence\n\n`;
-        result += `        // Assert: Verify integration\n`;
-        result += `        // TODO: Add assertions\n`;
-        result += `    }\n\n`;
-        result += `    @Test\n`;
-        result += `    void testErrorPropagation() {\n`;
-        result += `        // Test error handling across components\n`;
-        result += `        // TODO: Implement error scenario\n`;
-        result += `    }\n`;
-        result += `}\n`;
-        result += `\`\`\`\n\n`;
+        // Check if this is a Spring Boot project
+        const workingDir = process.cwd();
+        const isSpringBoot = await isSpringBootProject(workingDir);
+
+        if (isSpringBoot) {
+          result += `--- Spring Boot Integration Test Structure ---\n\n`;
+          result += `${colors.green}Spring Boot project detected!${colors.reset}\n`;
+          result += `Generating @SpringBootTest integration test with full application context.\n\n`;
+          result += `Components to integrate: ${input.components.join(", ")}\n`;
+          result += `Test scenario: ${input.test_scenario}\n\n`;
+
+          result += `\`\`\`java\n`;
+          result += generateIntegrationTest("Application", "com.example");
+          result += `\`\`\`\n\n`;
+
+          result += `--- Spring Boot Integration Testing Notes ---\n\n`;
+          result += `@SpringBootTest loads the full application context:\n`;
+          result += `- All beans are initialized (controllers, services, repositories)\n`;
+          result += `- Embedded server starts on random port (avoids conflicts)\n`;
+          result += `- TestRestTemplate for making real HTTP requests\n`;
+          result += `- Transactions rolled back after each test\n\n`;
+
+          result += `Test Types:\n`;
+          result += `1. ${colors.bold}CRUD Workflow${colors.reset}: Complete create/read/update/delete cycle\n`;
+          result += `2. ${colors.bold}Component Integration${colors.reset}: Test multiple layers working together\n`;
+          result += `3. ${colors.bold}Error Handling${colors.reset}: Verify errors propagate correctly\n`;
+          result += `4. ${colors.bold}Security${colors.reset}: Test authentication/authorization if enabled\n\n`;
+
+          result += `Performance Note: Integration tests are slow (~3-5s startup). Use @Tag("integration") so they only run in full mode.\n\n`;
+
+        } else {
+          // Standard Java integration test
+          result += `--- Java Integration Test Structure ---\n\n`;
+          result += `\`\`\`java\n`;
+          result += `import org.junit.jupiter.api.*;\n`;
+          result += `import org.mockito.*;\n`;
+          result += `import static org.junit.jupiter.api.Assertions.*;\n`;
+          result += `import static org.mockito.Mockito.*;\n\n`;
+          result += `@Tag("integration")\n`;
+          result += `class ${input.test_scenario.replace(/\\s+/g, "")}IntegrationTest {\n\n`;
+          result += `    @BeforeEach\n`;
+          result += `    void setUp() {\n`;
+          result += `        // Initialize components for integration testing\n`;
+          result += `        // TODO: Set up components\n`;
+          result += `    }\n\n`;
+          result += `    @Test\n`;
+          result += `    @DisplayName("${input.test_scenario}")\n`;
+          result += `    void testIntegrationFlow() {\n`;
+          result += `        // Arrange: Prepare test data\n`;
+          result += `        // TODO: Set up test inputs\n\n`;
+          result += `        // Act: Execute integration scenario\n`;
+          result += `        // TODO: Call components in sequence\n\n`;
+          result += `        // Assert: Verify integration\n`;
+          result += `        // TODO: Add assertions\n`;
+          result += `    }\n\n`;
+          result += `    @Test\n`;
+          result += `    void testErrorPropagation() {\n`;
+          result += `        // Test error handling across components\n`;
+          result += `        // TODO: Implement error scenario\n`;
+          result += `    }\n`;
+          result += `}\n`;
+          result += `\`\`\`\n\n`;
+        }
       } else if (input.language === "javascript") {
         result += `--- JavaScript Integration Test Structure ---\n\n`;
         result += `\`\`\`javascript\n`;

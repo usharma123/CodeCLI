@@ -56,10 +56,18 @@ export interface DetectChangedFilesInput {
   since?: string;
   language?: "python" | "java" | "all";
 }
+export type SpringBootComponentType =
+  | "controller"
+  | "service"
+  | "repository"
+  | "configuration"
+  | "component";
+
 export interface GenerateTestsInput {
   file_path: string;
   language: "python" | "java";
   coverage_data?: string;
+  spring_boot_component?: SpringBootComponentType;
 }
 export interface AnalyzeCoverageGapsInput {
   language: "python" | "java" | "all";
