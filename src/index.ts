@@ -14,8 +14,7 @@ async function main() {
   const argv = process.argv.slice(2);
   const verboseTools =
     argv.includes("--verbose-tools") ||
-    process.env.TOOLS_VERBOSE === "1" ||
-    process.env.VERBOSE_TOOLS === "1";
+    process.env.TOOLS_VERBOSE === "1";
 
   if (!apiKey) {
     console.error(
