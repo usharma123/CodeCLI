@@ -128,14 +128,16 @@ const formatResultSummary = (name, result) => {
 // AI Coding Agent Class
 class AIAgent {
     client;
-    rl; // Public so tools can access for confirmations
+    rl = null; // Public so tools can access for confirmations
     tools;
     messages = [];
     retryCount = 0;
     maxRetries = 3;
     // Track repeated validation failures to prevent retry storms
     validationFailureCounts = new Map();
-    constructor(apiKey, tools) {
+    maxMessagesInHistory = 40; // Keep last 40 messages (20 exchanges) plus system prompt
+    maxTokenEstimate = 12000; // Leave buffer below 16384 max_tokens
+    constructor(apiKey, tools, createReadline = true) {
         // Configure OpenAI client to use OpenRouter's API
         this.client = new OpenAI({
             apiKey: apiKey,
@@ -144,9 +146,13 @@ class AIAgent {
                 "HTTP-Referer": "https://github.com/yourusername/ai-coding-agent",
                 "X-Title": "AI Coding Agent",
             },
+            timeout: 120000, // 2 minute timeout for API calls
         });
         this.tools = tools;
-        this.rl = readline.createInterface({ input, output });
+        // Only create readline interface if in TTY mode
+        if (createReadline && process.stdin.isTTY) {
+            this.rl = readline.createInterface({ input, output });
+        }
         // Add system prompt to encourage tool usage
         this.messages.push({
             role: "system",
@@ -239,7 +245,55 @@ Smart testing workflow:
 5. When fixing bugs, use generate_regression_test to prevent regressions`,
         });
     }
+    // Estimate token count (rough approximation: 1 token ≈ 4 characters)
+    estimateTokens(messages) {
+        let totalChars = 0;
+        for (const msg of messages) {
+            if (msg.content) {
+                totalChars += msg.content.length;
+            }
+            if (msg.tool_calls) {
+                totalChars += JSON.stringify(msg.tool_calls).length;
+            }
+        }
+        return Math.ceil(totalChars / 4);
+    }
+    // Manage context window to prevent exceeding token limits
+    trimContextWindow() {
+        if (this.messages.length <= 1)
+            return; // Keep at least system prompt
+        // Check if we need to trim by message count
+        if (this.messages.length > this.maxMessagesInHistory + 1) {
+            // Keep system prompt (first message) and last N messages
+            const systemPrompt = this.messages[0];
+            const recentMessages = this.messages.slice(-(this.maxMessagesInHistory));
+            this.messages = [systemPrompt, ...recentMessages];
+            console.log(`${colors.gray}  (Trimmed conversation history to last ${this.maxMessagesInHistory} messages)${colors.reset}`);
+        }
+        // Check if we need to trim by token count
+        const estimatedTokens = this.estimateTokens(this.messages);
+        if (estimatedTokens > this.maxTokenEstimate) {
+            // More aggressive trimming - keep system prompt and last 20 messages
+            const systemPrompt = this.messages[0];
+            const recentMessages = this.messages.slice(-20);
+            this.messages = [systemPrompt, ...recentMessages];
+            console.log(`${colors.gray}  (Trimmed conversation history due to token limit)${colors.reset}`);
+        }
+        // Clean up validation failure counts to prevent memory leak
+        // Keep only the last 20 entries (most recent failures)
+        if (this.validationFailureCounts.size > 20) {
+            const entries = Array.from(this.validationFailureCounts.entries());
+            this.validationFailureCounts.clear();
+            // Keep the last 20 entries
+            entries.slice(-20).forEach(([key, value]) => {
+                this.validationFailureCounts.set(key, value);
+            });
+        }
+    }
     async run() {
+        if (!this.rl) {
+            throw new Error("Cannot run in non-interactive mode. Readline interface not initialized.");
+        }
         // ASCII Art header
         console.log(`${colors.cyan}
    █████╗ ██╗     █████╗  ██████╗ ███████╗███╗   ██╗████████╗
@@ -254,7 +308,9 @@ ${colors.reset}`);
         console.log(`${colors.gray}Using Claude Sonnet 4.5 via OpenRouter${colors.reset}\n`);
         process.on("SIGINT", () => {
             console.log("\n\nGoodbye!");
-            this.rl.close();
+            if (this.rl) {
+                this.rl.close();
+            }
             process.exit(0);
         });
         while (true) {
@@ -291,6 +347,8 @@ ${colors.reset}`);
     }
     async processMessage() {
         try {
+            // Trim context window before making API call
+            this.trimContextWindow();
             // Prepare tools for OpenAI format
             const openAITools = this.tools.map((tool) => ({
                 type: "function",
@@ -326,7 +384,7 @@ ${colors.reset}`);
                     const retryStart = Date.now();
                     // Retry the same request with Sonnet as fallback
                     const fallbackCompletion = await this.client.chat.completions.create({
-                        model: "anthropic/claude-4.5-sonnet",
+                        model: "anthropic/claude-sonnet-4.5",
                         messages: this.messages,
                         tools: openAITools,
                         tool_choice: "auto",
@@ -360,19 +418,17 @@ ${colors.reset}`);
             }
         }
         catch (error) {
-            if (error?.status === 400 && this.retryCount < this.maxRetries) {
-                console.log(`  ${colors.gray}└ ${colors.yellow}Retrying (${this.retryCount + 1}/${this.maxRetries})...${colors.reset}`);
+            // Retry on rate limits (429) and server errors (500, 502, 503, 504)
+            const retryableStatuses = [429, 500, 502, 503, 504];
+            const shouldRetry = error?.status && retryableStatuses.includes(error.status) && this.retryCount < this.maxRetries;
+            if (shouldRetry) {
                 this.retryCount++;
-                // Remove the last message and try again
-                if (this.messages.length > 0) {
-                    this.messages.pop();
-                }
-                // Add a clarification message
-                this.messages.push({
-                    role: "user",
-                    content: "Please proceed with the task",
-                });
-                // Retry
+                const statusMsg = error.status === 429 ? "Rate limited" : "Server error";
+                console.log(`  ${colors.gray}└ ${colors.yellow}${statusMsg}, retrying (${this.retryCount}/${this.maxRetries})...${colors.reset}`);
+                // Wait before retrying (exponential backoff)
+                const waitTime = Math.min(1000 * Math.pow(2, this.retryCount - 1), 10000); // Max 10 seconds
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+                // Retry without modifying messages
                 await this.processMessage();
             }
             else {
@@ -603,11 +659,27 @@ Please analyze the error and retry with corrected parameters. Common issues:
             }
         }
         catch (followUpError) {
-            // Silent fail - tools were executed
+            // Log the error but don't fail the entire operation since tools were already executed
+            const errorMsg = followUpError?.message || String(followUpError);
+            const statusCode = followUpError?.status || 'unknown';
+            console.log(`${colors.yellow}Warning: Follow-up response failed (status: ${statusCode})${colors.reset}`);
+            console.log(`${colors.gray}Tools were executed successfully, but the model could not generate a summary.${colors.reset}`);
+            // Log detailed error for debugging
+            if (followUpError?.status && followUpError.status >= 500) {
+                console.log(`${colors.gray}Server error: ${errorMsg}${colors.reset}`);
+            }
+            else if (followUpError?.status === 429) {
+                console.log(`${colors.gray}Rate limit exceeded. Consider waiting before the next request.${colors.reset}`);
+            }
+            else {
+                console.log(`${colors.gray}Error: ${errorMsg}${colors.reset}`);
+            }
         }
     }
     close() {
-        this.rl.close();
+        if (this.rl) {
+            this.rl.close();
+        }
     }
     // Public method for processing user input from external UI (Ink)
     async processUserInput(userInput) {

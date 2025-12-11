@@ -26,6 +26,11 @@ async function main() {
   setAgentInstance(agent);
 
   setReadlineConfirm(async (message: string) => {
+    if (!agent.rl) {
+      // If readline is not available, auto-approve (should not happen in normal usage)
+      console.log(`${colors.yellow}Warning: Readline not available, auto-approving operation${colors.reset}`);
+      return true;
+    }
     const answer = await agent.rl.question(`${message} (y/n): `);
     return answer.toLowerCase() === "y" || answer.toLowerCase() === "yes";
   });
@@ -66,15 +71,17 @@ async function main() {
     agent.close();
   } else {
     console.error(
-      `${colors.yellow}Warning: Non-interactive mode. Please run in a terminal.${colors.reset}`
+      `${colors.red}Error: Non-interactive mode is not supported.${colors.reset}`
     );
-    try {
-      await agent.run();
-    } catch (error) {
-      console.error(`${colors.red}Fatal error: ${error}${colors.reset}`);
-      agent.close();
-      process.exit(1);
-    }
+    console.error(
+      `${colors.yellow}This agent requires a TTY (terminal) to function.${colors.reset}`
+    );
+    console.error("\nPlease run this agent in an interactive terminal environment.");
+    console.error("Examples:");
+    console.error("  - Run directly: bun start");
+    console.error("  - Not supported: echo 'command' | bun start");
+    console.error("  - Not supported: CI/CD pipelines without TTY");
+    process.exit(1);
   }
 }
 
