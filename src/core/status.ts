@@ -13,6 +13,7 @@ export interface AgentStatus {
 }
 
 const emitter = new EventEmitter();
+emitter.setMaxListeners(20); // Set a reasonable limit to avoid memory leak warnings
 let currentStatus: AgentStatus = { phase: "idle", message: "" };
 
 export function emitStatus(status: AgentStatus | string): void {
