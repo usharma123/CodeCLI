@@ -63,6 +63,16 @@ export type SpringBootComponentType =
   | "configuration"
   | "component";
 
+export type BuildTool = "maven" | "gradle" | "unknown";
+export type Language = "java" | "kotlin" | "unknown";
+
+export interface BuildConfig {
+  tool: BuildTool;
+  mainSourceDir: string; // e.g., "src/main/java"
+  testSourceDir: string; // e.g., "src/test/java"
+  buildFile: string | null; // e.g., "pom.xml" or "build.gradle"
+}
+
 export interface GenerateTestsInput {
   file_path: string;
   language: "python" | "java";

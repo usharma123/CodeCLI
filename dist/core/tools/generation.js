@@ -2,6 +2,8 @@ import { colors } from "../../utils/colors.js";
 import * as path from "path";
 import { isSpringBootProject, detectComponentType, extractClassName, extractPackageName, } from "../../utils/springboot-detector.js";
 import { generateSpringBootTest } from "./springboot-templates.js";
+import { detectBuildTool } from "../../utils/build-tool-detector.js";
+import { detectLanguage, resolveTestPath, } from "../../utils/path-resolver.js";
 const generateTestsDefinition = {
     name: "generate_tests",
     description: "Analyze a source file and suggest test cases for it. Provide the file path and language. Optionally include coverage data to target gaps.",
@@ -82,14 +84,19 @@ const generateTestsDefinition = {
                 result += `\`\`\`\n\n`;
             }
             else if (input.language === "java") {
-                // Check if this is a Spring Boot project
+                // Detect build tool and language
                 const projectPath = path.dirname(input.file_path);
-                const isSpringBoot = await isSpringBootProject(projectPath);
+                const buildConfig = await detectBuildTool(projectPath);
+                const language = detectLanguage(input.file_path);
+                // Check if this is a Spring Boot project
+                const isSpringBoot = await isSpringBootProject(projectPath, buildConfig);
                 const componentType = detectComponentType(sourceCode);
                 if (isSpringBoot && componentType) {
                     // Generate Spring Boot-specific test
                     result += `--- Spring Boot Test Generation ---\n\n`;
                     result += `${colors.green}Spring Boot project detected!${colors.reset}\n`;
+                    result += `Build tool: ${colors.bold}${buildConfig.tool}${colors.reset}\n`;
+                    result += `Language: ${colors.bold}${language}${colors.reset}\n`;
                     result += `Component type: ${colors.bold}${componentType}${colors.reset}\n\n`;
                     const className = extractClassName(sourceCode);
                     const packageName = extractPackageName(sourceCode);
@@ -97,9 +104,14 @@ const generateTestsDefinition = {
                         result += `${colors.red}Error: Could not extract class name or package${colors.reset}\n`;
                         return result;
                     }
-                    const testFilePath = input.file_path
-                        .replace("/src/main/", "/src/test/")
-                        .replace(".java", "Test.java");
+                    // Use robust path resolution
+                    const testFilePath = resolveTestPath(input.file_path, buildConfig, language);
+                    if (!testFilePath) {
+                        result += `${colors.red}Error: Could not resolve test file path${colors.reset}\n`;
+                        result += `Source path: ${input.file_path}\n`;
+                        result += `Expected source dir: ${buildConfig.mainSourceDir}\n`;
+                        return result;
+                    }
                     result += `Test file will be created at: ${testFilePath}\n\n`;
                     // Generate component-specific guidance
                     const componentGuidance = {

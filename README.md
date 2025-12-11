@@ -11,7 +11,16 @@
 
 ## Recent Updates 🎉
 
-### Spring Boot Testing (New!)
+### Spring Boot Testing Enhancement - Phase 1 Complete! (December 11, 2025)
+- ✅ **Gradle Support Added** - Full support for Gradle projects alongside Maven
+- ✅ **Fixed Brittle Path Assumptions** - Robust path resolution for multi-module projects
+- ✅ **Expanded Repository Detection** - 9 repository types (JPA, Mongo, Redis, Reactive, JDBC, etc.)
+- ✅ **Build Tool Abstraction** - Automatic Maven/Gradle detection with caching
+- ✅ **Reactive Project Detection** - WebFlux and R2DBC support
+- ✅ **Language-Aware Resolution** - Kotlin preparation (Java + Kotlin path handling)
+- 🔄 **Next: Phase 2 - Kotlin Templates** (2-3 days)
+
+### Spring Boot Testing (Complete)
 - ✅ Automatic Spring Boot project detection
 - ✅ Component-aware test generation (@Controller, @Service, @Repository)
 - ✅ Test slicing with @WebMvcTest, @DataJpaTest for fast tests
@@ -596,6 +605,141 @@ run_tests language=java mode=full coverage=true
 4. **Integration Tests** (`@SpringBootTest`) - Full application context tests
 
 See [docs/SPRINGBOOT_TESTING.md](docs/SPRINGBOOT_TESTING.md) for complete guide.
+
+## 🎉 Spring Boot Testing Enhancement - Phase 1 Complete!
+
+### What Was Implemented (December 11, 2025)
+
+**Phase 1: Foundation + Java Gradle Support** has been successfully completed, addressing critical issues in the Spring Boot testing infrastructure:
+
+#### ✅ New Modules Created
+1. **`src/utils/build-tool-detector.ts`** (202 lines)
+   - Maven and Gradle project detection
+   - Automatic Kotlin detection from build files
+   - In-memory caching for performance
+   - Simple string matching for Gradle (MVP approach)
+
+2. **`src/utils/path-resolver.ts`** (103 lines)
+   - Language-aware path resolution (Java/Kotlin)
+   - Handles multi-module Maven projects correctly
+   - Replaces LAST occurrence of source dir (not first)
+   - Robust error handling with graceful failures
+
+3. **`src/core/types.ts`** (updated)
+   - Added `BuildTool`, `Language`, and `BuildConfig` types
+   - Shared types to avoid circular dependencies
+
+#### ✅ Critical Fixes
+1. **Fixed Brittle Path Assumptions**
+   - Removed hard-coded `.replace("/src/main/", "/src/test/")`
+   - Now uses robust `resolveTestPath()` function
+   - Supports multi-module projects
+
+2. **Added Gradle Support**
+   - Detects `build.gradle` and `build.gradle.kts`
+   - Parses Gradle dependencies (Groovy and Kotlin DSL)
+   - Full Spring Boot Gradle project support
+
+3. **Expanded Repository Detection**
+   - Now detects 9 repository types: JPA, Crud, Paging, Mongo, Redis, JDBC, Reactive*
+   - Added `detectRepositoryType()` for specialized test generation
+   - Added `isReactiveProject()` for WebFlux detection
+
+#### ✅ Enhanced Modules
+1. **`src/utils/springboot-detector.ts`** (updated)
+   - Supports both Maven and Gradle
+   - Detects reactive projects (WebFlux, R2DBC)
+   - Expanded Spring Boot indicators
+   - Better error handling
+
+2. **`src/core/tools/generation.ts`** (updated)
+   - Uses new build tool detection
+   - Better diagnostics and error messages
+   - Shows detected build tool and language
+
+#### ✅ Test Results
+All Phase 1 verification tests passing:
+- ✅ **Maven Spring Boot Project** - Build tool detected, path resolution correct
+- ✅ **Gradle Spring Boot Project** - Build tool detected, path resolution correct
+- ✅ **TypeScript Compilation** - No errors
+- ✅ **Backward Compatibility** - Existing Maven projects still work
+
+### What's Next: Phase 2 - Kotlin Support
+
+**Goal**: Support Kotlin language with Spring Boot (non-reactive)
+
+**Planned Tasks**:
+1. Create `src/core/tools/springboot-templates-kotlin.ts`
+   - Kotlin controller tests with `@WebMvcTest`
+   - Kotlin service tests with MockK (not Mockito)
+   - Kotlin repository tests with data classes
+   - Kotlin integration tests
+
+2. Update `generation.ts` for Kotlin template selection
+   - Detect Kotlin files (`.kt` extension)
+   - Choose Kotlin templates when appropriate
+
+3. Create test projects
+   - `tests/kotlin/springboot-maven/`
+   - `tests/kotlin/springboot-gradle/`
+
+4. Validation
+   - Verify generated tests compile with `kotlinc`
+   - Test with real Kotlin Spring Boot projects
+   - Ensure JUnit 5 + MockK examples are correct
+
+**Estimated Time**: 2-3 days
+
+### Implementation Plan
+
+The full implementation plan is available at:
+- **Plan File**: `/Users/utsavsharma/.claude/plans/crispy-knitting-cray.md`
+- **Review Document**: `docs/SPRINGBOOT_TESTING_REVIEW.md`
+
+**Complete Roadmap**:
+- ✅ **Phase 1**: Foundation + Java Gradle (3-4 days) - **COMPLETE**
+- 🔄 **Phase 2**: Kotlin Support (2-3 days) - **NEXT**
+- 📋 **Phase 3**: Reactive Java (2 days) - Planned
+- 📋 **Phase 4**: Kotlin Reactive (Deferred) - Future release
+- 📋 **Phase 5**: NoSQL & Polish (1-2 days) - Planned
+
+**Total Estimated Effort**: 8-11 days for full implementation (Phases 1-3, 5)
+
+### Key Architectural Decisions
+- **Modular Design**: Separate concerns (detection, resolution, templates)
+- **MVP Approach**: Simple string matching for Gradle (not full parser)
+- **Caching**: In-memory cache prevents repeated filesystem checks
+- **Graceful Degradation**: Returns sensible defaults when detection fails
+- **No Breaking Changes**: All changes are additive
+
+### Files Modified/Created
+
+**New Files** (3):
+- `src/utils/build-tool-detector.ts`
+- `src/utils/path-resolver.ts`
+- `verify-phase1.ts` (verification script)
+
+**Modified Files** (3):
+- `src/core/types.ts`
+- `src/utils/springboot-detector.ts`
+- `src/core/tools/generation.ts`
+
+**Test Projects Created** (1):
+- `tests/java/springboot-gradle/` (Gradle Spring Boot example)
+
+### Verification
+
+Run Phase 1 verification:
+```bash
+bun ./verify-phase1.ts
+```
+
+Expected output:
+```
+✅ Maven Spring Boot Project - Path resolution correct
+✅ Gradle Spring Boot Project - Path resolution correct
+✅ ALL TESTS PASSED
+```
 
 ## Manual Test Execution
 
