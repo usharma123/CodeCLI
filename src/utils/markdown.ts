@@ -295,8 +295,10 @@ function parseInline(text: string): InlineToken[] {
     if (ch === "*" || ch === "_") {
       const prev = text[i - 1];
       const next = text[i + 1];
+      // Check for a word boundary: transition between word and non-word character
       const looksLikeWordBoundary =
-        !isWordChar(prev) && !isWordChar(next) && next !== " ";
+        (isWordChar(prev) && !isWordChar(next)) ||
+        (!isWordChar(prev) && isWordChar(next));
 
       if (looksLikeWordBoundary) {
         const end = findDelimiter(text, i + 1, ch);
