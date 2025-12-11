@@ -44,9 +44,7 @@ export function App({ onSubmit, onConfirmRequest }: AppProps) {
 
   React.useEffect(() => {
     const unsubscribe = onStatus((s) => {
-      if (s.message) {
-        setStatusMessage(s.message);
-      }
+      setStatusMessage(s.message);
     });
     return unsubscribe;
   }, []);
