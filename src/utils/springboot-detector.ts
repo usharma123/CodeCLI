@@ -319,24 +319,26 @@ export function extractSpringAnnotations(sourceCode: string): string[] {
 }
 
 /**
- * Extracts the class name from Java source code
- * @param sourceCode - Java source code content
+ * Extracts the class name from Java or Kotlin source code
+ * @param sourceCode - Java or Kotlin source code content
  * @returns The class name or null if not found
  */
 export function extractClassName(sourceCode: string): string | null {
+  // Match Java/Kotlin class declarations (including 'data class', 'object', etc.)
   const classMatch = sourceCode.match(
-    /(?:public\s+)?(?:class|interface)\s+(\w+)/
+    /(?:public\s+)?(?:data\s+class|sealed\s+class|class|interface|object)\s+(\w+)/
   );
   return classMatch ? classMatch[1] : null;
 }
 
 /**
- * Extracts the package name from Java source code
- * @param sourceCode - Java source code content
+ * Extracts the package name from Java or Kotlin source code
+ * @param sourceCode - Java or Kotlin source code content
  * @returns The package name or null if not found
  */
 export function extractPackageName(sourceCode: string): string | null {
-  const packageMatch = sourceCode.match(/package\s+([\w.]+);/);
+  // Match both Java (with semicolon) and Kotlin (without semicolon)
+  const packageMatch = sourceCode.match(/package\s+([\w.]+);?/);
   return packageMatch ? packageMatch[1] : null;
 }
 

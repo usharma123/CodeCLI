@@ -181,8 +181,8 @@ const generateTestsDefinition: ToolDefinition = {
           result += `- ${colors.blue}full${colors.reset}: Integration tests (comprehensive, full context)\n\n`;
 
           result += `--- Generated Spring Boot Test ---\n\n`;
-          result += `\`\`\`java\n`;
-          result += generateSpringBootTest(componentType, className, packageName);
+          result += `\`\`\`${language}\n`;
+          result += generateSpringBootTest(componentType, className, packageName, language);
           result += `\`\`\`\n\n`;
 
           result += `--- Next Steps ---\n`;
