@@ -55,6 +55,10 @@ const runTestsDefinition = {
                     stderr += output;
                     process.stderr.write(output);
                 });
+                proc.on("error", (error) => {
+                    clearTimeout(timer);
+                    reject(new Error(`Failed to spawn test process: ${error.message}`));
+                });
                 proc.on("close", (exitCode) => {
                     clearTimeout(timer);
                     let result = `Test Execution Results\n`;
@@ -240,6 +244,9 @@ const getCoverageDefinition = {
                         stderr += data.toString();
                         process.stderr.write(data);
                     });
+                    proc.on("error", (error) => {
+                        reject(new Error(`Failed to spawn coverage process: ${error.message}`));
+                    });
                     proc.on("close", (exitCode) => {
                         resolve({ stdout, stderr, exitCode });
                     });
@@ -271,6 +278,9 @@ const getCoverageDefinition = {
                     proc.stderr.on("data", (data) => {
                         stderr += data.toString();
                         process.stderr.write(data);
+                    });
+                    proc.on("error", (error) => {
+                        reject(new Error(`Failed to spawn coverage process: ${error.message}`));
                     });
                     proc.on("close", (exitCode) => {
                         resolve({ stdout, stderr, exitCode });
@@ -354,7 +364,12 @@ const detectChangedFilesDefinition = {
             proc.stderr.on("data", (data) => {
                 stderr += data.toString();
             });
-            await new Promise((resolve) => proc.on("close", () => resolve(undefined)));
+            await new Promise((resolve, reject) => {
+                proc.on("error", (error) => {
+                    reject(new Error(`Failed to spawn git process: ${error.message}`));
+                });
+                proc.on("close", () => resolve());
+            });
             if (stderr) {
                 throw new Error(`Git error: ${stderr}`);
             }

@@ -76,6 +76,11 @@ const runTestsDefinition: ToolDefinition = {
           process.stderr.write(output);
         });
 
+        proc.on("error", (error: Error) => {
+          clearTimeout(timer);
+          reject(new Error(`Failed to spawn test process: ${error.message}`));
+        });
+
         proc.on("close", (exitCode: number | null) => {
           clearTimeout(timer);
 
@@ -303,6 +308,10 @@ const getCoverageDefinition: ToolDefinition = {
             process.stderr.write(data);
           });
 
+          proc.on("error", (error: Error) => {
+            reject(new Error(`Failed to spawn coverage process: ${error.message}`));
+          });
+
           proc.on("close", (exitCode: number | null) => {
             resolve({ stdout, stderr, exitCode });
           });
@@ -343,6 +352,10 @@ const getCoverageDefinition: ToolDefinition = {
           proc.stderr.on("data", (data: Buffer) => {
             stderr += data.toString();
             process.stderr.write(data);
+          });
+
+          proc.on("error", (error: Error) => {
+            reject(new Error(`Failed to spawn coverage process: ${error.message}`));
           });
 
           proc.on("close", (exitCode: number | null) => {
@@ -448,7 +461,12 @@ const detectChangedFilesDefinition: ToolDefinition = {
         stderr += data.toString();
       });
 
-      await new Promise((resolve) => proc.on("close", () => resolve(undefined)));
+      await new Promise<void>((resolve, reject) => {
+        proc.on("error", (error: Error) => {
+          reject(new Error(`Failed to spawn git process: ${error.message}`));
+        });
+        proc.on("close", () => resolve());
+      });
 
       if (stderr) {
         throw new Error(`Git error: ${stderr}`);

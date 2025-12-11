@@ -4,7 +4,7 @@ import { render } from "ink";
 import { App } from "./ui/app.js";
 import { AIAgent } from "./core/agent.js";
 import { toolDefinitions, setAgentInstance } from "./core/tools/index.js";
-import { enableInkConfirmations, setReadlineConfirm } from "./core/confirm.js";
+import { enableInkConfirmations, setReadlineConfirm, enableAutoApprove } from "./core/confirm.js";
 import { colors } from "./utils/colors.js";
 
 dotenv.config();
@@ -31,7 +31,8 @@ async function main() {
   });
 
   if (process.stdin.isTTY) {
-    enableInkConfirmations();
+    // Use Ink-based confirmations integrated with the main app
+    let inkConfirmHandler: ((message: string) => Promise<boolean>) | null = null;
 
     const inkApp = render(
       React.createElement(App, {
@@ -46,8 +47,20 @@ async function main() {
           }
           console.log("");
         },
+        onConfirmRequest: (handler) => {
+          inkConfirmHandler = handler;
+        },
       })
     );
+
+    // Set up Ink confirmation handler
+    setReadlineConfirm(async (message: string) => {
+      if (inkConfirmHandler) {
+        return await inkConfirmHandler(message);
+      }
+      // Fallback to auto-approve if handler not ready
+      return true;
+    });
 
     await inkApp.waitUntilExit();
     agent.close();

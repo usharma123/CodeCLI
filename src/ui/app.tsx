@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Box, Text, Static, useApp, useInput } from "ink";
 import { Spinner } from "@inkjs/ui";
 import { InputBox } from "./components/InputBox.js";
+import { Confirm } from "./components/Confirm.js";
 
 const HEADER = `
    █████╗ ██╗     █████╗  ██████╗ ███████╗███╗   ██╗████████╗
@@ -14,12 +15,42 @@ const HEADER = `
 
 interface AppProps {
   onSubmit: (input: string) => Promise<void>;
+  onConfirmRequest?: (handler: (message: string) => Promise<boolean>) => void;
 }
 
-export function App({ onSubmit }: AppProps) {
+export function App({ onSubmit, onConfirmRequest }: AppProps) {
   const { exit } = useApp();
   const [isProcessing, setIsProcessing] = useState(false);
   const [sessionNum] = useState(1);
+  const [confirmState, setConfirmState] = useState<{
+    message: string;
+    resolver: (value: boolean) => void;
+  } | null>(null);
+
+  // Register confirmation handler
+  React.useEffect(() => {
+    if (onConfirmRequest) {
+      onConfirmRequest(async (message: string) => {
+        return new Promise<boolean>((resolve) => {
+          setConfirmState({ message, resolver: resolve });
+        });
+      });
+    }
+  }, [onConfirmRequest]);
+
+  const handleConfirm = () => {
+    if (confirmState) {
+      confirmState.resolver(true);
+      setConfirmState(null);
+    }
+  };
+
+  const handleCancel = () => {
+    if (confirmState) {
+      confirmState.resolver(false);
+      setConfirmState(null);
+    }
+  };
 
   useInput(
     (input, key) => {
@@ -28,7 +59,7 @@ export function App({ onSubmit }: AppProps) {
         exit();
       }
     },
-    { isActive: !isProcessing && (process.stdin.isTTY ?? false) }
+    { isActive: !isProcessing && !confirmState && (process.stdin.isTTY ?? false) }
   );
 
   const handleSubmit = async (value: string) => {
@@ -61,7 +92,21 @@ export function App({ onSubmit }: AppProps) {
         </Box>
       )}
 
-      <InputBox onSubmit={handleSubmit} isDisabled={isProcessing} sessionNum={sessionNum} />
+      {confirmState && (
+        <Box marginBottom={1}>
+          <Confirm
+            message={confirmState.message}
+            onConfirm={handleConfirm}
+            onCancel={handleCancel}
+          />
+        </Box>
+      )}
+
+      <InputBox
+        onSubmit={handleSubmit}
+        isDisabled={isProcessing || !!confirmState}
+        sessionNum={sessionNum}
+      />
     </Box>
   );
 }

@@ -70,3 +70,32 @@ export interface GenerateRegressionTestInput {
   fixed_file: string;
   language: "python" | "java";
 }
+export interface GenerateIntegrationTestInput {
+  components: string[];
+  language: "python" | "java" | "javascript";
+  test_scenario: string;
+}
+export interface GenerateE2ETestInput {
+  user_journey: string;
+  app_type: "web" | "api" | "cli";
+  framework?: "playwright" | "selenium" | "cypress" | "puppeteer";
+}
+export interface GenerateAPITestInput {
+  api_spec?: string;
+  endpoints: string[];
+  language: "javascript" | "python" | "java";
+}
+export interface ParsePRDInput {
+  prd_file: string;
+  output_format?: "markdown" | "json";
+}
+export interface GenerateTestsFromPRDInput {
+  test_cases_file: string;
+  language: "python" | "java" | "javascript";
+  test_suite: "unit" | "integration" | "system" | "uat";
+}
+export interface GeneratePerformanceTestInput {
+  target_url: string;
+  test_type: "load" | "stress" | "spike" | "endurance";
+  tool?: "k6" | "jmeter" | "locust" | "artillery";
+}
