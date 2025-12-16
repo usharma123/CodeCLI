@@ -117,3 +117,27 @@ export interface GeneratePerformanceTestInput {
   test_type: "load" | "stress" | "spike" | "endurance";
   tool?: "k6" | "jmeter" | "locust" | "artillery";
 }
+
+// Todo list interfaces
+export interface TodoItem {
+  id?: string;
+  content: string;
+  activeForm: string;
+  status: "pending" | "in_progress" | "completed";
+  createdAt?: number;
+}
+
+export interface TodoState {
+  todos: TodoItem[];
+  lastUpdated: number;
+}
+
+export interface TodoWriteInput {
+  todos: TodoItem[];
+}
+
+export interface ReasoningCheckpoint {
+  phase: "analysis" | "execution" | "completion";
+  reasoning: string;
+  timestamp: number;
+}

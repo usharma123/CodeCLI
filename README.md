@@ -12,6 +12,18 @@
 
 ## Recent Updates 🎉
 
+### Todo List Management & Intermediate Reasoning 🎯 (December 2024)
+- ✅ **Todo List System** - New `todo_write` tool for managing task progress
+  - Create and update todo lists for complex tasks (3+ steps)
+  - Visual progress display with color-coded status indicators
+  - Real-time UI updates as agent works
+- ✅ **Intermediate Reasoning** - Agent explains its approach before executing tools
+  - Pre-tool reasoning: 1-sentence explanations of what's about to happen
+  - Mid-execution status: Progress updates between tool calls
+  - Reasoning checkpoints: Internal tracking of decision-making process
+- ✅ **Enhanced UI** - New TodoList component integrated with Ink terminal UI
+- ✅ **Configuration** - `enableIntermediateReasoning` option (default: true)
+
 ### Spring Boot Testing Enhancement - Phase 1 Complete! (December 11, 2025)
 - ✅ **Gradle Support Added** - Full support for Gradle projects alongside Maven
 - ✅ **Fixed Brittle Path Assumptions** - Robust path resolution for multi-module projects
@@ -91,6 +103,13 @@ On launch, the agent:
 
 ### Command Execution
 - **`run_command`**: Execute shell commands with timeout and output capture
+
+### Task Management
+- **`todo_write`**: Manage task progress with structured todo lists
+  - Create initial todo lists for complex tasks (3+ steps)
+  - Update todo status as work progresses (pending → in_progress → completed)
+  - Visual progress display with color-coded indicators
+  - Enforces single in-progress task at a time
 
 ## Testing Framework (All Phases Complete ✅)
 

@@ -11,6 +11,7 @@ interface AgentOptions {
   maxToolOutputChars?: number;
   streamCommandOutput?: boolean;
   streamAssistantResponses?: boolean;
+  enableIntermediateReasoning?: boolean;
 }
 
 // Format tool name for display (e.g., "read_file" -> "Read")
@@ -147,6 +148,10 @@ class AIAgent {
   private validationFailureCounts: Map<string, number> = new Map();
   private maxMessagesInHistory: number = 40; // Keep last 40 messages (20 exchanges) plus system prompt
   private maxTokenEstimate: number = 12000; // Leave buffer below 16384 max_tokens
+  // Todo list and reasoning state
+  private currentTodos: import("./types.js").TodoState = { todos: [], lastUpdated: 0 };
+  private reasoningCheckpoints: import("./types.js").ReasoningCheckpoint[] = [];
+  private enableIntermediateReasoning: boolean = true;
 
   constructor(
     apiKey: string,
@@ -185,6 +190,9 @@ class AIAgent {
     if (typeof options.streamAssistantResponses === "boolean") {
       this.streamAssistantResponses = options.streamAssistantResponses;
     }
+    if (typeof options.enableIntermediateReasoning === "boolean") {
+      this.enableIntermediateReasoning = options.enableIntermediateReasoning;
+    }
 
     // Add system prompt to encourage tool usage
     this.messages.push({
@@ -212,6 +220,34 @@ Tool selection guide:
 - For COMPLEX multi-hunk patches: Use patch_file (only if you can generate perfect unified diff format)
 - For RUNNING tests: Use run_command with pytest, npm test, etc.
 - For BUILDING/LINTING: Use run_command
+
+Todo List Usage:
+- When starting a task with 3+ steps, call todo_write to create a plan
+- Update todos as you progress through work
+- Only ONE todo should be "in_progress" at a time
+- Mark todos "completed" immediately after finishing each task
+- Add new todos if you discover additional work needed
+
+Example todo_write call:
+{
+  "todos": [
+    {
+      "content": "Create user model",
+      "activeForm": "Creating user model",
+      "status": "completed"
+    },
+    {
+      "content": "Implement auth endpoints",
+      "activeForm": "Implementing auth endpoints",
+      "status": "in_progress"
+    },
+    {
+      "content": "Add login form",
+      "activeForm": "Adding login form",
+      "status": "pending"
+    }
+  ]
+}
 
 User-visible progress notes:
 - When you are NOT about to call tools, start your response with 1–3 short bullets describing what you did for the user (high-level, no internal reasoning).
@@ -436,6 +472,56 @@ ${colors.reset}`);
         console.log(
           `${colors.green}●${colors.reset} ${colors.gray}Response (${elapsed}s)${colors.reset}`
         );
+      }
+
+      // Add intermediate reasoning if tools are about to be called
+      if (message.tool_calls && message.tool_calls.length > 0 && this.enableIntermediateReasoning) {
+        this.messages.push(message); // Original assistant message with tool calls
+
+        const reasoningPrompt = {
+          role: "user",
+          content: `In 1 sentence, explain what you're about to do and why. Be direct and concise - no formatting, bullets, or redundant phrases like "What I learned" or "What's next".`
+        };
+        this.messages.push(reasoningPrompt);
+
+        emitStatus({ phase: "thinking", message: "Planning approach…" });
+
+        try {
+          const { message: reasoningMsg } = await this.createCompletion({
+            model: "anthropic/claude-sonnet-4.5",
+            messages: this.messages,
+            tools: [], // No tools for reasoning phase
+            temperature: 0.3,
+            max_tokens: 150
+          });
+
+          if (reasoningMsg.content) {
+            // Display reasoning with styled blockquote and proper markdown rendering
+            const renderedContent = renderMarkdownToAnsi(reasoningMsg.content.trim());
+            const reasoningLines = renderedContent.split('\n');
+            console.log(`\n${colors.cyan}┌─ Reasoning${colors.reset}`);
+            reasoningLines.forEach((line: string) => {
+              console.log(`${colors.cyan}│${colors.reset} ${line}`);
+            });
+            console.log(`${colors.cyan}└─${colors.reset}\n`);
+
+            this.reasoningCheckpoints.push({
+              phase: "analysis",
+              reasoning: reasoningMsg.content,
+              timestamp: Date.now()
+            });
+          }
+        } catch (error) {
+          console.log(`${colors.gray}(Skipping reasoning due to API error)${colors.reset}`);
+        }
+
+        // Remove reasoning prompt from history
+        this.messages.pop();
+
+        // Continue with tool execution
+        emitStatus({ phase: "running_tools", message: "Running tools…" });
+        await this.handleToolCalls(message.tool_calls);
+        return;
       }
 
       // Safety net: Check if model should have called tools but didn't
@@ -743,6 +829,46 @@ Please analyze the error and retry with corrected parameters. Common issues:
       this.messages.push(result);
     }
 
+    // Add mid-execution reasoning if enabled
+    if (this.enableIntermediateReasoning && toolCallResults.length > 0) {
+      const reasoningPrompt = {
+        role: "user",
+        content: `In 1 brief sentence, state what you'll do next ONLY if it's a new/different step. If you're continuing the same task or done, just say "Continuing..." or "Task complete." No formatting or labels.`
+      };
+
+      this.messages.push(reasoningPrompt);
+
+      try {
+        const { message: midReasoning } = await this.createCompletion({
+          model: "anthropic/claude-sonnet-4.5",
+          messages: this.messages,
+          tools: [],
+          temperature: 0.3,
+          max_tokens: 150
+        });
+
+        if (midReasoning.content) {
+          const renderedContent = renderMarkdownToAnsi(midReasoning.content.trim());
+          const statusLines = renderedContent.split('\n');
+          console.log(`\n${colors.yellow}┌─ Status${colors.reset}`);
+          statusLines.forEach((line: string) => {
+            console.log(`${colors.yellow}│${colors.reset} ${line}`);
+          });
+          console.log(`${colors.yellow}└─${colors.reset}\n`);
+
+          this.reasoningCheckpoints.push({
+            phase: "execution",
+            reasoning: midReasoning.content,
+            timestamp: Date.now()
+          });
+        }
+      } catch (error) {
+        console.log(`${colors.gray}(Skipping status update due to API error)${colors.reset}`);
+      }
+
+      this.messages.pop();
+    }
+
     try {
       // Prepare tools for OpenAI format
       const openAITools = this.tools.map((tool) => ({
@@ -819,6 +945,32 @@ Please analyze the error and retry with corrected parameters. Common issues:
     });
 
     await this.processMessage();
+  }
+
+  // Public method to update todos from the TodoWrite tool
+  public updateTodos(todos: import("./types.js").TodoItem[]): void {
+    this.currentTodos = {
+      todos: todos.map((t, i) => ({
+        ...t,
+        id: t.id || `todo_${Date.now()}_${i}`,
+        createdAt: t.createdAt || Date.now()
+      })),
+      lastUpdated: Date.now()
+    };
+
+    // Emit status update for in-progress todo
+    const inProgress = todos.find(t => t.status === "in_progress");
+    if (inProgress) {
+      emitStatus({
+        phase: "running_tools",
+        message: inProgress.activeForm
+      });
+    }
+  }
+
+  // Public method to get current todos for UI display
+  public getTodos(): import("./types.js").TodoState {
+    return this.currentTodos;
   }
 
   private async createCompletion(request: any): Promise<{

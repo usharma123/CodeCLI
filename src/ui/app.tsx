@@ -3,7 +3,9 @@ import { Box, Text, Static, useApp, useInput } from "ink";
 import { Spinner } from "@inkjs/ui";
 import { InputBox } from "./components/InputBox.js";
 import { Confirm } from "./components/Confirm.js";
+import { TodoList } from "./components/TodoList.js";
 import { onStatus, getStatus } from "../core/status.js";
+import type { AIAgent } from "../core/agent.js";
 
 const HEADER = `
    █████╗ ██╗     █████╗  ██████╗ ███████╗███╗   ██╗████████╗
@@ -17,9 +19,10 @@ const HEADER = `
 interface AppProps {
   onSubmit: (input: string) => Promise<void>;
   onConfirmRequest?: (handler: (message: string) => Promise<boolean>) => void;
+  agentRef?: React.RefObject<AIAgent>;
 }
 
-export function App({ onSubmit, onConfirmRequest }: AppProps) {
+export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
   const { exit } = useApp();
   const [isProcessing, setIsProcessing] = useState(false);
   const [sessionNum] = useState(1);
@@ -30,6 +33,7 @@ export function App({ onSubmit, onConfirmRequest }: AppProps) {
     message: string;
     resolver: (value: boolean) => void;
   } | null>(null);
+  const [todos, setTodos] = useState<any[]>([]);
 
   // Register confirmation handler
   React.useEffect(() => {
@@ -48,6 +52,22 @@ export function App({ onSubmit, onConfirmRequest }: AppProps) {
     });
     return unsubscribe;
   }, []);
+
+  // Poll for todo updates
+  React.useEffect(() => {
+    if (!agentRef?.current) return;
+
+    const interval = setInterval(() => {
+      try {
+        const todoState = agentRef.current!.getTodos();
+        setTodos(todoState.todos);
+      } catch (err) {
+        // Silently ignore polling errors
+      }
+    }, 500); // Poll every 500ms
+
+    return () => clearInterval(interval);
+  }, [agentRef]);
 
   const handleConfirm = () => {
     if (confirmState) {
@@ -102,6 +122,8 @@ export function App({ onSubmit, onConfirmRequest }: AppProps) {
           <Spinner label={statusMessage || "Thinking..."} />
         </Box>
       )}
+
+      {todos.length > 0 && <TodoList todos={todos} />}
 
       {confirmState && (
         <Box marginBottom={1}>

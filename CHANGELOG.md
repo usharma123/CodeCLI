@@ -4,6 +4,109 @@ All notable changes to CodeCLI are documented in this file.
 
 ## [Latest Updates] - December 2024
 
+### Added - Todo List Management & Intermediate Reasoning 🎯
+
+#### Todo List System
+- **New `todo_write` Tool**: Manage task progress with structured todo lists
+  - Create initial todo lists for complex tasks (3+ steps)
+  - Update todo status as work progresses
+  - Enforces single in-progress task at a time
+  - Each todo has: content (imperative), activeForm (present continuous), status
+  - Automatic status updates emitted to UI
+
+- **Todo List UI Component**: Visual task progress display (`TodoList.tsx`)
+  - Color-coded status indicators (✓ completed, → in-progress, ○ pending)
+  - Integrated with Ink terminal UI
+  - Real-time updates as agent works
+
+#### Intermediate Reasoning
+- **Pre-Tool Reasoning**: Agent explains what it's about to do before executing tools
+  - 1-sentence concise explanations
+  - Styled cyan blockquote display
+  - Helps users understand agent's approach
+
+- **Mid-Execution Status**: Agent provides progress updates between tool calls
+  - States what's next or if task is complete
+  - Styled yellow blockquote display
+  - Keeps users informed during long-running tasks
+
+- **Reasoning Checkpoints**: Internal tracking of agent's decision-making process
+  - Stores reasoning at analysis and execution phases
+  - Timestamped for debugging and analysis
+  - Accessible via agent instance
+
+#### Configuration
+- **New Agent Option**: `enableIntermediateReasoning` (default: true)
+  - Toggle reasoning display on/off
+  - Configurable via agent constructor
+  - Minimal API overhead when enabled
+
+#### System Prompt Updates
+- Added todo list usage guidelines
+- Example todo_write call structure
+- Emphasizes single in-progress task constraint
+- User-visible progress notes guidance
+
+### Changed - Agent Architecture
+
+#### State Management
+- Added `currentTodos` state tracking
+- Added `reasoningCheckpoints` array for decision history
+- New public methods: `updateTodos()`, `getTodos()`
+- Shared agent instance pattern for tool access
+
+#### Tool Organization
+- New module: `src/core/tools/todos.ts`
+- Exported `todoTools` from main tools index
+- Updated tool type definitions in `types.ts`
+
+#### UI Integration
+- New component: `src/ui/components/TodoList.tsx`
+- Status emission for in-progress todos
+- Real-time UI updates via event system
+
+### Technical Details
+
+#### New Files
+- `src/core/tools/todos.ts` - Todo management tool implementation
+- `src/ui/components/TodoList.tsx` - Todo list UI component
+- `dist/core/tools/todos.js` - Compiled JavaScript
+- `dist/ui/components/TodoList.js` - Compiled JavaScript
+
+#### Modified Files
+- `src/core/agent.ts` - Added reasoning, todo state, new methods
+- `src/core/tools/index.ts` - Exported todoTools
+- `src/core/types.ts` - Added TodoItem, TodoState, ReasoningCheckpoint types
+- `src/index.ts` - Updated with new configuration options
+- `src/ui/app.tsx` - Integrated TodoList component
+- All corresponding `dist/` compiled files
+
+#### Type Definitions
+```typescript
+interface TodoItem {
+  content: string;
+  activeForm: string;
+  status: "pending" | "in_progress" | "completed";
+  id?: string;
+  createdAt?: number;
+}
+
+interface TodoState {
+  todos: TodoItem[];
+  lastUpdated: number;
+}
+
+interface ReasoningCheckpoint {
+  phase: "analysis" | "execution";
+  reasoning: string;
+  timestamp: number;
+}
+```
+
+---
+
+## [Previous Updates] - December 2024
+
 ### Added - Spring Boot Code Review Improvements ✨
 
 #### Phase 1: Critical Fixes (Completed)

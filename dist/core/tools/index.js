@@ -5,6 +5,7 @@ import { testTools } from "./tests.js";
 import { generationTools } from "./generation.js";
 import { advancedTestingTools } from "./advanced-testing.js";
 import { prdTestingTools } from "./prd-testing.js";
+import { todoTools } from "./todos.js";
 import { setAgentInstance } from "./shared.js";
 export const toolDefinitions = [
     ...fileTools,
@@ -14,5 +15,6 @@ export const toolDefinitions = [
     ...generationTools,
     ...advancedTestingTools,
     ...prdTestingTools,
+    ...todoTools,
 ];
 export { setAgentInstance };

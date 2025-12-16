@@ -36,6 +36,8 @@ async function main() {
         return answer.toLowerCase() === "y" || answer.toLowerCase() === "yes";
     });
     if (process.stdin.isTTY) {
+        // Create agent ref to pass to UI
+        const agentRef = React.createRef();
         // Use Ink-based confirmations integrated with the main app
         const inkApp = render(React.createElement(App, {
             onSubmit: async (userInput) => {
@@ -56,7 +58,10 @@ async function main() {
                     return await handler(message);
                 });
             },
+            agentRef: agentRef,
         }));
+        // Set the ref after creating agent
+        agentRef.current = agent;
         await inkApp.waitUntilExit();
         agent.close();
     }

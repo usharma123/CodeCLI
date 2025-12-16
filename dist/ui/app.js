@@ -4,6 +4,7 @@ import { Box, Text, Static, useApp, useInput } from "ink";
 import { Spinner } from "@inkjs/ui";
 import { InputBox } from "./components/InputBox.js";
 import { Confirm } from "./components/Confirm.js";
+import { TodoList } from "./components/TodoList.js";
 import { onStatus, getStatus } from "../core/status.js";
 const HEADER = `
    █████╗ ██╗     █████╗  ██████╗ ███████╗███╗   ██╗████████╗
@@ -13,12 +14,13 @@ const HEADER = `
   ██║  ██║██║    ██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║
   ╚═╝  ╚═╝╚═╝    ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝
 `;
-export function App({ onSubmit, onConfirmRequest }) {
+export function App({ onSubmit, onConfirmRequest, agentRef }) {
     const { exit } = useApp();
     const [isProcessing, setIsProcessing] = useState(false);
     const [sessionNum] = useState(1);
     const [statusMessage, setStatusMessage] = useState(getStatus().message || "Thinking...");
     const [confirmState, setConfirmState] = useState(null);
+    const [todos, setTodos] = useState([]);
     // Register confirmation handler
     React.useEffect(() => {
         if (onConfirmRequest) {
@@ -35,6 +37,21 @@ export function App({ onSubmit, onConfirmRequest }) {
         });
         return unsubscribe;
     }, []);
+    // Poll for todo updates
+    React.useEffect(() => {
+        if (!agentRef?.current)
+            return;
+        const interval = setInterval(() => {
+            try {
+                const todoState = agentRef.current.getTodos();
+                setTodos(todoState.todos);
+            }
+            catch (err) {
+                // Silently ignore polling errors
+            }
+        }, 500); // Poll every 500ms
+        return () => clearInterval(interval);
+    }, [agentRef]);
     const handleConfirm = () => {
         if (confirmState) {
             confirmState.resolver(true);
@@ -64,5 +81,5 @@ export function App({ onSubmit, onConfirmRequest }) {
             setIsProcessing(false);
         }
     };
-    return (_jsxs(Box, { flexDirection: "column", children: [_jsx(Static, { items: ["header"], children: () => (_jsxs(Box, { flexDirection: "column", children: [_jsx(Text, { color: "cyan", children: HEADER }), _jsx(Text, { dimColor: true, children: "Safe mode enabled (ctrl+c to quit)" }), _jsx(Text, { dimColor: true, children: "File changes require your approval before being applied" }), _jsx(Text, { dimColor: true, children: "Using Claude Sonnet 4.5 via OpenRouter" }), _jsx(Text, { children: " " })] }, "header")) }), isProcessing && (_jsx(Box, { marginBottom: 1, children: _jsx(Spinner, { label: statusMessage || "Thinking..." }) })), confirmState && (_jsx(Box, { marginBottom: 1, children: _jsx(Confirm, { message: confirmState.message, onConfirm: handleConfirm, onCancel: handleCancel }) })), _jsx(InputBox, { onSubmit: handleSubmit, isDisabled: isProcessing || !!confirmState, sessionNum: sessionNum })] }));
+    return (_jsxs(Box, { flexDirection: "column", children: [_jsx(Static, { items: ["header"], children: () => (_jsxs(Box, { flexDirection: "column", children: [_jsx(Text, { color: "cyan", children: HEADER }), _jsx(Text, { dimColor: true, children: "Safe mode enabled (ctrl+c to quit)" }), _jsx(Text, { dimColor: true, children: "File changes require your approval before being applied" }), _jsx(Text, { dimColor: true, children: "Using Claude Sonnet 4.5 via OpenRouter" }), _jsx(Text, { children: " " })] }, "header")) }), isProcessing && (_jsx(Box, { marginBottom: 1, children: _jsx(Spinner, { label: statusMessage || "Thinking..." }) })), todos.length > 0 && _jsx(TodoList, { todos: todos }), confirmState && (_jsx(Box, { marginBottom: 1, children: _jsx(Confirm, { message: confirmState.message, onConfirm: handleConfirm, onCancel: handleCancel }) })), _jsx(InputBox, { onSubmit: handleSubmit, isDisabled: isProcessing || !!confirmState, sessionNum: sessionNum })] }));
 }
