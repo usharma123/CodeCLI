@@ -15,22 +15,36 @@
 ### Todo List Management & Intermediate Reasoning 🎯 (December 2024)
 - ✅ **Todo List System** - New `todo_write` tool for managing task progress
   - Create and update todo lists for complex tasks (3+ steps)
-  - Visual progress display with color-coded status indicators
+  - Visual progress display with color-coded status indicators (✓ → ○)
   - Real-time UI updates as agent works
+  - Enforces single in-progress task constraint
+  - Integrated with Ink terminal UI via TodoList component
 - ✅ **Intermediate Reasoning** - Agent explains its approach before executing tools
-  - Pre-tool reasoning: 1-sentence explanations of what's about to happen
-  - Mid-execution status: Progress updates between tool calls
-  - Reasoning checkpoints: Internal tracking of decision-making process
-- ✅ **Enhanced UI** - New TodoList component integrated with Ink terminal UI
+  - Pre-tool reasoning: 1-sentence explanations of what's about to happen (cyan blockquote)
+  - Mid-execution status: Progress updates between tool calls (yellow blockquote)
+  - Reasoning checkpoints: Internal tracking of decision-making process with timestamps
+  - Configurable via `enableIntermediateReasoning` option
+- ✅ **Enhanced UI** - Ink-based React components for terminal interface
+  - TodoList component for task tracking
+  - InputBox component for user input
+  - ToolOutputDisplay for formatted results
+  - Confirm component for safe-mode confirmations
 - ✅ **Configuration** - `enableIntermediateReasoning` option (default: true)
 
 ### Spring Boot Testing Enhancement - Phase 1 Complete! (December 11, 2025)
 - ✅ **Gradle Support Added** - Full support for Gradle projects alongside Maven
+  - Detects `build.gradle` (Groovy) and `build.gradle.kts` (Kotlin DSL)
+  - Parses Spring Boot Gradle plugin and dependencies
 - ✅ **Fixed Brittle Path Assumptions** - Robust path resolution for multi-module projects
+  - New `path-resolver.ts` utility for build-tool and language-aware paths
+  - Supports Maven/Gradle with Java/Kotlin source directories
 - ✅ **Expanded Repository Detection** - 9 repository types (JPA, Mongo, Redis, Reactive, JDBC, etc.)
 - ✅ **Build Tool Abstraction** - Automatic Maven/Gradle detection with caching
+  - New `build-tool-detector.ts` utility
+  - In-memory caching for performance
 - ✅ **Reactive Project Detection** - WebFlux and R2DBC support
 - ✅ **Language-Aware Resolution** - Kotlin preparation (Java + Kotlin path handling)
+  - Handles `.java` → `Test.java` and `.kt` → `Test.kt`
 - 🔄 **Next: Phase 2 - Kotlin Templates** (2-3 days)
 
 ### Spring Boot Testing (Complete)
@@ -51,15 +65,62 @@
 - ✅ Comprehensive Spring Boot testing guide ([docs/SPRINGBOOT_TESTING.md](docs/SPRINGBOOT_TESTING.md))
 - ✅ Organized documentation in `docs/` directory
 - ✅ Updated test counts: 125+ tests passing
+- ✅ Complete documentation suite:
+  - `SETUP.md` - Installation and configuration
+  - `QUICKSTART.md` - Quick start guide
+  - `FEATURES.md` - Feature overview
+  - `TESTING_IMPLEMENTATION.md` - Testing framework details
+  - `TESTING_PHASE2.md` - Advanced testing features
+  - `SPRINGBOOT_TESTING.md` - Spring Boot testing guide
+  - `SPRINGBOOT_TESTING_REVIEW.md` - Code review and improvements
+  - `OPENROUTER.md` - OpenRouter integration guide
+  - `CLAUDE.md` - Claude model configuration
 
 ## Tech Stack
 - **Runtime**: Bun
 - **Language**: TypeScript
+- **UI Framework**: Ink (React for CLIs) with custom components
 - **Model Gateway**: OpenRouter
 - **Default Model**: Claude Sonnet 4.5 (anthropic/claude-sonnet-4.5)
 - **Env/config**: dotenv-loaded `.env`
-- **Testing**: PyTest (Python), JUnit 5 + Maven (Java)
+- **Testing**: PyTest (Python), JUnit 5 + Maven/Gradle (Java)
 - **Coverage**: coverage.py (Python), JaCoCo (Java)
+- **Build Tools**: Automatic Maven/Gradle detection with caching
+
+## Architecture
+
+### UI Components (Ink/React)
+The agent uses **Ink** (React for CLIs) to provide a rich terminal interface:
+
+- **`App.tsx`**: Main application component with input handling and confirmation dialogs
+- **`TodoList.tsx`**: Visual task progress display with color-coded status
+- **`InputBox.tsx`**: User input component with prompt styling
+- **`ToolOutputDisplay.tsx`**: Formatted display of tool execution results
+- **`Confirm.tsx`**: Safe-mode confirmation dialogs for destructive operations
+
+### Utilities
+- **`build-tool-detector.ts`**: Automatic Maven/Gradle detection with dependency parsing
+- **`path-resolver.ts`**: Build-tool and language-aware path resolution for tests
+- **`springboot-detector.ts`**: Spring Boot project detection and component type analysis
+- **`markdown.ts`**: ANSI-styled Markdown rendering for terminal output
+- **`colors.ts`**: Terminal color constants and styling utilities
+
+### Agent Core
+- **Message History Management**: Keeps last 40 messages to stay within token limits (max ~12,000 tokens)
+- **Retry Logic**: Handles malformed tool arguments with validation and retries (max 3 attempts)
+- **Validation Failure Tracking**: Prevents retry storms with per-tool failure counting
+- **Token Estimation**: Monitors message history to avoid context overflow
+- **Reasoning Checkpoints**: Tracks decision-making process with timestamps
+- **Safe Mode**: All destructive operations require explicit confirmation
+- **Error Recovery**: Graceful handling of API timeouts, network errors, and tool failures
+- **Truncation Detection**: Detects and handles large file writes that may be truncated
+
+### Safety Features
+- **Confirmation Dialogs**: All writes, edits, patches, and commands require `y/yes` confirmation
+- **Preview Display**: Shows diffs for edits, content for writes before execution
+- **Timeout Protection**: Commands timeout after configurable duration (default 60s, max 300s)
+- **Validation**: Tool arguments validated before execution with detailed error messages
+- **Rollback Guidance**: Provides undo instructions for destructive operations
 
 ## Setup
 1) Install Bun (https://bun.sh).  
@@ -72,48 +133,92 @@ OPENROUTER_API_KEY=sk-or-v1-...
 bun install
 ```
 
+### Test Environment Setup
+The agent automatically sets up test environments when running tests:
+
+**Python:**
+- Creates virtual environment if not exists: `python3 -m venv venv`
+- Installs dependencies: `venv/bin/pip install -r tests/python/requirements-test.txt`
+- Runs tests: `venv/bin/pytest tests/`
+
+**Java (Maven):**
+- Detects `pom.xml` and uses Maven
+- Compiles: `mvn compile test-compile`
+- Runs tests: `mvn test`
+- Coverage: `mvn jacoco:report`
+
+**Java (Gradle):**
+- Detects `build.gradle` or `build.gradle.kts`
+- Compiles: `gradle compileJava compileTestJava`
+- Runs tests: `gradle test`
+- Coverage: `gradle jacocoTestReport`
+
+### Scripts
+- **`scripts/test-runner.sh`**: Unified test execution script
+  - Supports `--mode` (smoke/sanity/full), `--language` (python/java/all), `--coverage`
+  - Handles environment setup, dependency installation, and test execution
+  - Generates JSON reports for structured output parsing
+- **`scripts/generate-report.sh`**: Coverage report generation
+
 ## Usage
 - **Start the agent (dev)**: `bun run dev`  
 - **Start the agent (prod/start)**: `bun start`
 - **Build TypeScript**: `bun run build`
+- **Verbose mode**: `bun start --verbose-tools` or set `TOOLS_VERBOSE=1`
+
+### Requirements
+- **TTY (Interactive Terminal)**: This agent requires an interactive terminal and will not run in non-TTY environments (pipes, CI/CD without TTY allocation)
+- **Bun Runtime**: Must have Bun installed (https://bun.sh)
+- **OpenRouter API Key**: Required in `.env` file
 
 On launch, the agent:
-- Prints an ASCII banner and safe-mode notice.
-- Loads tools for file ops, scaffolding, testing, and `run_command`.
-- Uses interactive CLI prompts; exit with `ctrl-c`.
-- Shows previews and requires `y/yes` before writes/patches/commands.
-- Streams tool execution output (commands/tests) to the terminal and shows truncated results by default; pass `--verbose-tools` (or `TOOLS_VERBOSE=1`) for full tool outputs.
-- Handles malformed tool arguments with retries, validation, and truncation detection for large `write_file` payloads.
+- Prints an ASCII banner and safe-mode notice
+- Loads 16 specialized tools for file ops, scaffolding, testing, and command execution
+- Uses Ink-based interactive UI with React components
+- Shows previews and requires `y/yes` confirmation before writes/patches/commands
+- Displays tool execution output (truncated by default, full with `--verbose-tools`)
+- Handles malformed tool arguments with retries, validation, and truncation detection
+- Supports intermediate reasoning to explain actions before execution
 
-## Core Tools
+## Core Tools (16 Total)
 
-### File Operations
+### File Operations (5 tools)
 - **`read_file`**: Read file contents (truncates at 10,000 chars)
 - **`write_file`**: Create or overwrite files (shows preview, requires confirmation)
 - **`edit_file`**: Replace specific text in files (shows diff-style preview, requires confirmation)
-- **`patch_file`**: Apply unified diff patches
+- **`patch_file`**: Apply unified diff patches (advanced - requires perfect unified diff format)
 - **`list_files`**: List directory contents (max depth: 3, skips node_modules/.git/hidden files)
 
-### Project Scaffolding
+### Project Scaffolding (1 tool)
 - **`scaffold_project`**: Bootstrap new projects with templates:
-  - `api` - REST API server
-  - `chatbot` - AI chatbot interface
+  - `api` - REST API server (Express/Bun)
+  - `chatbot` - AI chatbot interface (Next.js with optional API)
   - `static` - Static HTML site
-  - `react` - React application (optional API)
+  - `react` - React application (Vite with optional API)
+  - Supports custom project names and target directories
+  - Includes package.json, TypeScript config, and starter code
 
-### Command Execution
+### Command Execution (1 tool)
 - **`run_command`**: Execute shell commands with timeout and output capture
+  - Default timeout: 60s (configurable up to 300s)
+  - Streams output to terminal in real-time
+  - Captures stdout, stderr, and exit codes
+  - Supports working directory specification
+  - Handles timeouts gracefully with SIGKILL
 
-### Task Management
+### Task Management (1 tool)
 - **`todo_write`**: Manage task progress with structured todo lists
   - Create initial todo lists for complex tasks (3+ steps)
   - Update todo status as work progresses (pending → in_progress → completed)
-  - Visual progress display with color-coded indicators
+  - Visual progress display with color-coded indicators (✓ completed, → in-progress, ○ pending)
   - Enforces single in-progress task at a time
+  - Real-time UI updates via Ink TodoList component
+  - Automatic status emission to terminal UI
+  - Each todo requires: content (imperative), activeForm (present continuous), status
 
 ## Testing Framework (All Phases Complete ✅)
 
-The agent includes a comprehensive AI-powered testing framework with 16 specialized tools across 4 phases:
+The agent includes a comprehensive AI-powered testing framework with **8 specialized testing tools** across 4 phases, plus Spring Boot auto-detection:
 
 ### Quick Reference: All Testing Tools
 
@@ -133,7 +238,25 @@ The agent includes a comprehensive AI-powered testing framework with 16 speciali
 | `generate_tests_from_prd` | 4 | PRD to executable tests | Generate tests from requirements |
 | `generate_performance_test` | 4 | Load/stress testing | Test system performance |
 
-**Plus**: Spring Boot auto-detection and component-aware test generation!
+**Plus**: Spring Boot auto-detection with Maven/Gradle support and component-aware test generation!
+
+### Configuration Options
+
+The agent supports several configuration options via the `AgentOptions` interface:
+
+```typescript
+{
+  verboseTools: boolean,              // Show full tool outputs (default: false)
+  maxToolOutputChars: number,         // Max chars in tool output (default: 6000)
+  streamCommandOutput: boolean,       // Stream command output (default: false)
+  streamAssistantResponses: boolean,  // Stream AI responses (default: false)
+  enableIntermediateReasoning: boolean // Show reasoning before actions (default: true)
+}
+```
+
+**Command-line flags:**
+- `--verbose-tools`: Enable verbose tool output
+- Environment variable: `TOOLS_VERBOSE=1`
 
 ### Phase 1: Foundation Tools
 
@@ -151,13 +274,15 @@ run_tests({
 
 **Features:**
 - **Three test modes**:
-  - `smoke`: Fast, critical tests only (fail-fast)
-  - `sanity`: Targeted tests after minor changes
-  - `full`: Complete test suite
+  - `smoke`: Fast, critical tests only (fail-fast) - unit tests, no Spring context
+  - `sanity`: Targeted tests after minor changes - slice tests with partial context
+  - `full`: Complete test suite - integration tests with full context
 - Structured output parsing with pass/fail counts
-- Extracts failure details from JSON reports
+- Extracts failure details from JSON reports (pytest) and XML reports (JUnit)
 - Shows test report locations
-- Supports coverage generation
+- Supports coverage generation (coverage.py for Python, JaCoCo for Java)
+- Uses `scripts/test-runner.sh` for unified test execution
+- 180-second timeout with graceful handling
 
 #### 2. `analyze_test_failures` - AI-Powered Failure Analysis
 Analyze test output to identify failures and suggest fixes.
@@ -815,6 +940,216 @@ The AI will use the appropriate tools automatically to test, analyze, and improv
 - Test slicing with @WebMvcTest, @DataJpaTest
 - Mode-based testing (smoke/sanity/full)
 - JaCoCo coverage integration
+
+## Examples
+
+### File Operations
+```bash
+# Create a new file
+User: "Create an index.html file with a simple page"
+Agent: Uses write_file tool → Shows preview → Asks for confirmation → Creates file
+
+# Update existing file
+User: "Update the README to add a new section about testing"
+Agent: Uses edit_file tool → Shows diff → Asks for confirmation → Applies changes
+
+# Read file contents
+User: "Show me the contents of package.json"
+Agent: Uses read_file tool → Displays file contents (truncated if > 10,000 chars)
+
+# List directory
+User: "What files are in the src directory?"
+Agent: Uses list_files tool → Shows directory tree (max depth 3)
+```
+
+### Testing Workflow
+```bash
+# Run tests and fix failures
+User: "Run the Python tests and fix any failures"
+Agent workflow:
+1. Uses run_tests(language="python", mode="full")
+2. If failures occur, uses analyze_test_failures for detailed analysis
+3. Uses read_file to examine failing test and implementation
+4. Uses edit_file to fix the issues
+5. Re-runs tests to verify fixes
+
+# Generate tests for uncovered code
+User: "Generate tests for the UserService class"
+Agent: Uses generate_tests(file_path="UserService.java", language="java")
+       → Analyzes code → Generates test scaffolds → Creates test file
+
+# Check coverage gaps
+User: "What files need more test coverage?"
+Agent: Uses analyze_coverage_gaps(language="all", min_coverage=80)
+       → Identifies low-coverage files → Suggests specific test cases
+```
+
+### Spring Boot Testing
+```bash
+# Test Spring Boot application
+User: "Test my Spring Boot application"
+Agent workflow:
+1. Detects Spring Boot project (checks pom.xml/build.gradle)
+2. Identifies build tool (Maven or Gradle)
+3. Detects component types (@Controller, @Service, @Repository)
+4. Generates appropriate tests (@WebMvcTest, @DataJpaTest, etc.)
+5. Runs tests with proper test slicing
+6. Generates coverage report with JaCoCo
+
+# Run smoke tests only
+User: "Run smoke tests for the Spring Boot app"
+Agent: Uses run_tests(language="java", mode="smoke")
+       → Runs unit tests only (no Spring context, fastest)
+```
+
+### Project Scaffolding
+```bash
+# Create new chatbot project
+User: "Create a new Next.js chatbot project called 'my-bot'"
+Agent: Uses scaffold_project(template="chatbot", name="my-bot")
+       → Creates project structure → Installs dependencies → Ready to run
+
+# Create API with React frontend
+User: "Scaffold a React app with an API backend"
+Agent: Uses scaffold_project(template="react", name="my-app", include_api=true)
+       → Creates React frontend + Express API → Configured for development
+```
+
+### Advanced Testing
+```bash
+# Integration testing
+User: "Create integration tests for UserController and UserService"
+Agent: Uses generate_integration_test(
+         components=["UserController.java", "UserService.java"],
+         language="java",
+         test_scenario="User registration flow"
+       )
+
+# E2E testing
+User: "Generate E2E tests for the login flow using Playwright"
+Agent: Uses generate_e2e_test(
+         user_journey="User logs in, views dashboard, logs out",
+         app_type="web",
+         framework="playwright"
+       )
+
+# Performance testing
+User: "Create a load test for the /api/users endpoint"
+Agent: Uses generate_performance_test(
+         target_url="http://localhost:8080/api/users",
+         test_type="load",
+         tool="k6"
+       )
+```
+
+## Troubleshooting
+
+### Common Issues
+
+#### 1. "OPENROUTER_API_KEY environment variable is not set"
+**Solution:**
+```bash
+# Create .env file in project root
+echo "OPENROUTER_API_KEY=sk-or-v1-your-key-here" > .env
+
+# Get your API key from: https://openrouter.ai/keys
+```
+
+#### 2. "Non-interactive mode is not supported"
+**Problem:** Agent requires a TTY (interactive terminal)
+
+**Solution:**
+```bash
+# ✅ Correct: Run directly in terminal
+bun start
+
+# ❌ Wrong: Piping input
+echo "create file" | bun start
+
+# ✅ For CI/CD: Use TTY allocation
+docker run -it your-image bun start
+```
+
+#### 3. Test timeout errors
+**Problem:** Tests exceed 180-second timeout
+
+**Solution:**
+```bash
+# Pre-install dependencies to avoid timeout during test run
+# Python:
+venv/bin/pip install -r tests/python/requirements-test.txt
+
+# Java (Maven):
+mvn -f tests/java/pom.xml test-compile
+
+# Java (Gradle):
+gradle -p tests/java compileTestJava
+```
+
+#### 4. "Could not resolve test file path"
+**Problem:** Path resolution fails for non-standard project layouts
+
+**Solution:**
+- Ensure source files are in standard locations:
+  - Maven: `src/main/java` or `src/main/kotlin`
+  - Gradle: `src/main/java` or `src/main/kotlin`
+- Check that build tool is detected correctly (pom.xml or build.gradle exists)
+
+#### 5. Spring Boot tests not detected
+**Problem:** Spring Boot project not recognized
+
+**Solution:**
+```bash
+# Ensure pom.xml contains Spring Boot dependency:
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter</artifactId>
+</dependency>
+
+# Or for Gradle (build.gradle):
+plugins {
+    id 'org.springframework.boot' version '3.x.x'
+}
+```
+
+#### 6. Coverage reports not generated
+**Problem:** Coverage data missing
+
+**Solution:**
+```bash
+# Python: Ensure coverage.py is installed
+venv/bin/pip install coverage pytest-cov
+
+# Java (Maven): Add JaCoCo plugin to pom.xml
+<plugin>
+    <groupId>org.jacoco</groupId>
+    <artifactId>jacoco-maven-plugin</artifactId>
+</plugin>
+
+# Java (Gradle): Add JaCoCo plugin to build.gradle
+plugins {
+    id 'jacoco'
+}
+```
+
+### Debug Mode
+
+Enable verbose output to see full tool execution details:
+
+```bash
+# Command-line flag
+bun start --verbose-tools
+
+# Environment variable
+TOOLS_VERBOSE=1 bun start
+```
+
+### Getting Help
+
+1. **Check Documentation**: See `docs/` directory for detailed guides
+2. **Review Examples**: Check `tests/` directory for working examples
+3. **Enable Reasoning**: Set `enableIntermediateReasoning=true` to see agent's thought process
+4. **Check Logs**: Review terminal output for error messages and stack traces
 
 ## Future Plans
 
