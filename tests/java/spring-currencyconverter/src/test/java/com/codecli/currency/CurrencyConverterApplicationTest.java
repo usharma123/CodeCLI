@@ -1,65 +1,69 @@
 package com.codecli.currency;
 
+import com.codecli.currency.controller.ConversionController;
+import com.codecli.currency.service.ConversionService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.DisplayName;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.SpringApplication;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
-import org.springframework.context.ConfigurableApplicationContext;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
+@DisplayName("CurrencyConverterApplication Tests")
 class CurrencyConverterApplicationTest {
 
     @Autowired
     private ApplicationContext applicationContext;
 
     @Test
+    @DisplayName("Should load application context")
     void contextLoads() {
-        // This test verifies that the Spring application context loads successfully
-        assertNotNull(applicationContext, "Application context should not be null");
+        assertNotNull(applicationContext);
     }
 
     @Test
-    void mainMethodStartsApplication() {
-        // Test that the main method can be invoked and starts the application
-        assertDoesNotThrow(() -> {
-            // Create a separate context to test the main method
-            ConfigurableApplicationContext context = null;
-            try {
-                // Call SpringApplication.run directly (same as what main() does)
-                // Use a different port to avoid conflicts
-                context = SpringApplication.run(
-                    CurrencyConverterApplication.class,
-                    "--server.port=0",  // Random available port
-                    "--spring.main.web-application-type=none"  // Don't start web server
-                );
-                
-                assertNotNull(context, "Application context from main should not be null");
-                assertTrue(context.isActive(), "Application context should be active");
-            } finally {
-                if (context != null) {
-                    context.close();
-                }
-            }
-        }, "Main method should start application without throwing exceptions");
+    @DisplayName("Should have ConversionService bean")
+    void shouldHaveConversionServiceBean() {
+        ConversionService service = applicationContext.getBean(ConversionService.class);
+        assertNotNull(service);
     }
 
     @Test
-    void applicationContextContainsExpectedBeans() {
-        // Verify that key beans are present in the application context
-        assertTrue(applicationContext.containsBean("conversionService"), 
-                   "ConversionService bean should be present");
-        assertTrue(applicationContext.containsBean("conversionController"), 
-                   "ConversionController bean should be present");
+    @DisplayName("Should have ConversionController bean")
+    void shouldHaveConversionControllerBean() {
+        ConversionController controller = applicationContext.getBean(ConversionController.class);
+        assertNotNull(controller);
     }
 
     @Test
-    void applicationHasCorrectSpringBootConfiguration() {
-        // Verify the application is properly annotated
-        assertTrue(CurrencyConverterApplication.class.isAnnotationPresent(
-                org.springframework.boot.autoconfigure.SpringBootApplication.class),
-                "Application class should have @SpringBootApplication annotation");
+    @DisplayName("Should have CurrencyConverterApplication bean")
+    void shouldHaveCurrencyConverterApplicationBean() {
+        // The main application class itself should be a bean
+        assertTrue(applicationContext.containsBean("currencyConverterApplication"));
+    }
+
+    @Test
+    @DisplayName("Should have exactly one ConversionService bean")
+    void shouldHaveExactlyOneConversionServiceBean() {
+        String[] beans = applicationContext.getBeanNamesForType(ConversionService.class);
+        assertEquals(1, beans.length);
+    }
+
+    @Test
+    @DisplayName("Should have exactly one ConversionController bean")
+    void shouldHaveExactlyOneConversionControllerBean() {
+        String[] beans = applicationContext.getBeanNamesForType(ConversionController.class);
+        assertEquals(1, beans.length);
+    }
+
+    @Test
+    @DisplayName("ConversionController should be autowired with ConversionService")
+    void shouldAutowireConversionServiceIntoController() {
+        ConversionController controller = applicationContext.getBean(ConversionController.class);
+        assertNotNull(controller);
+        // If controller is created, it means ConversionService was successfully autowired
+        // (constructor injection would fail if service wasn't available)
     }
 }
