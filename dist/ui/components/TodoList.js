@@ -14,6 +14,6 @@ export function TodoList({ todos }) {
                     : todo.status === "in_progress"
                         ? "yellow"
                         : "gray";
-                return (_jsxs(Box, { children: [_jsxs(Text, { color: color, children: [icon, " "] }), _jsx(Text, { dimColor: todo.status === "completed", children: todo.content })] }, i));
+                return (_jsxs(Box, { flexDirection: "row", children: [_jsxs(Text, { color: color, children: [icon, " "] }), _jsx(Box, { flexGrow: 1, flexShrink: 1, children: _jsx(Text, { color: color, dimColor: todo.status === "completed", wrap: "wrap", children: todo.content }) })] }, i));
             })] }));
 }

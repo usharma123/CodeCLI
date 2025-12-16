@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Box, Text } from "ink";
 import { TextInput } from "@inkjs/ui";
 
@@ -13,13 +13,21 @@ export function InputBox({
   isDisabled = false,
   sessionNum,
 }: InputBoxProps) {
+  const [inputKey, setInputKey] = useState(0);
+
+  const handleSubmit = (submittedValue: string) => {
+    onSubmit(submittedValue);
+    setInputKey((prev) => prev + 1); // Force remount to clear input
+  };
+
   return (
     <Box flexDirection="column">
       <Box borderStyle="round" borderColor="cyan" paddingX={1}>
         <Text color="gray">→ </Text>
         <TextInput
+          key={inputKey}
           placeholder="Plan, search, build anything"
-          onSubmit={onSubmit}
+          onSubmit={handleSubmit}
           isDisabled={isDisabled}
         />
       </Box>

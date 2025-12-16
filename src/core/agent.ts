@@ -5,6 +5,7 @@ import { ToolDefinition } from "./types.js";
 import { colors } from "../utils/colors.js";
 import { renderMarkdownToAnsi } from "../utils/markdown.js";
 import { emitStatus } from "./status.js";
+import { emitToolOutput } from "./output.js";
 
 interface AgentOptions {
   verboseTools?: boolean;
@@ -31,6 +32,7 @@ const formatToolName = (name: string): string => {
     generate_tests: "Generate",
     analyze_coverage_gaps: "Gaps",
     generate_regression_test: "Regression",
+    todo_write: "TodoWrite",
   };
   return nameMap[name] || name.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join("");
 };
@@ -68,6 +70,13 @@ const formatToolArgs = (name: string, args: any): string => {
       return `${args.language} (min ${args.min_coverage || 80}%)`;
     case "generate_regression_test":
       return args.fixed_file || "";
+    case "todo_write": {
+      const todoCount = args.todos?.length || 0;
+      const inProgress = args.todos?.find((t: any) => t.status === "in_progress");
+      return inProgress
+        ? `${todoCount} todos (current: ${inProgress.content})`
+        : `${todoCount} todos`;
+    }
     default:
       return JSON.stringify(args).substring(0, 50);
   }
@@ -126,6 +135,21 @@ const formatResultSummary = (name: string, result: string): string => {
     }
     case "generate_regression_test":
       return "Regression test generated";
+    case "todo_write": {
+      // Parse the result to count todos by status
+      const lines = result.split("\n");
+      const pendingCount = lines.filter(l => l.startsWith("○")).length;
+      const inProgressCount = lines.filter(l => l.startsWith("→")).length;
+      const completedCount = lines.filter(l => l.startsWith("✓")).length;
+      const total = pendingCount + inProgressCount + completedCount;
+
+      const parts = [];
+      if (completedCount > 0) parts.push(`${colors.green}${completedCount} completed${colors.reset}${colors.gray}`);
+      if (inProgressCount > 0) parts.push(`${colors.yellow}${inProgressCount} in progress${colors.reset}${colors.gray}`);
+      if (pendingCount > 0) parts.push(`${pendingCount} pending`);
+
+      return `${total} todos (${parts.join(", ")})`;
+    }
     default:
       return result.length > 50 ? result.substring(0, 47) + "..." : result;
   }
@@ -213,6 +237,7 @@ Available tools:
 - generate_tests: AI-powered test generation for uncovered code
 - analyze_coverage_gaps: Identify critical missing tests and low-coverage files
 - generate_regression_test: Create tests for fixed bugs to prevent regressions
+- todo_write: Manage todo lists for multi-step tasks (create, update, track progress)
 
 Tool selection guide:
 - For NEW files: Use write_file
@@ -785,7 +810,7 @@ Please retry the ${functionName} tool call with properly formatted JSON. Make su
           const result = await tool.function(functionArgs);
           const summary = formatResultSummary(functionName, result);
           console.log(`  ${colors.gray}└ ${summary}${colors.reset}\n`);
-          this.printToolOutput(functionName, result);
+          this.printToolOutput(functionName, functionArgs, result);
 
           toolCallResults.push({
             tool_call_id: toolCall.id,
@@ -1060,7 +1085,12 @@ Please analyze the error and retry with corrected parameters. Common issues:
     );
   }
 
-  private printToolOutput(functionName: string, result: string): void {
+  private printToolOutput(functionName: string, args: any, result: string): void {
+    // Skip printing todo_write output since it's displayed by the UI component
+    if (functionName === "todo_write") {
+      return;
+    }
+
     const defaultOutputTools = new Set([
       "run_command",
       "run_tests",
@@ -1084,6 +1114,7 @@ Please analyze the error and retry with corrected parameters. Common issues:
     }
 
     let outputText = result || "";
+    const fullResult = outputText; // Store full result before truncation
 
     if (!this.verboseTools) {
       // Avoid duplicating already-streamed outputs from long-running tools.
@@ -1099,6 +1130,17 @@ Please analyze the error and retry with corrected parameters. Common issues:
 
     if (!outputText.trim()) return;
 
+    // Emit tool output event for expandable display
+    const isTruncated = outputText !== fullResult;
+    emitToolOutput({
+      toolName: functionName,
+      args: args,
+      result: fullResult,
+      displayedResult: outputText,
+      isTruncated: isTruncated,
+      timestamp: Date.now()
+    });
+
     const rendered =
       outputText.length < 30000
         ? renderMarkdownToAnsi(outputText)
@@ -1108,7 +1150,9 @@ Please analyze the error and retry with corrected parameters. Common issues:
       `${colors.gray}  └ Output (${this.verboseTools ? "full" : "truncated"}):${colors.reset}\n${rendered}\n${
         this.verboseTools
           ? ""
-          : `${colors.gray}(use --verbose-tools for full tool output)${colors.reset}\n`
+          : isTruncated
+            ? `${colors.gray}(press Ctrl+O to expand)${colors.reset}\n`
+            : ""
       }`
     );
   }

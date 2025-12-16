@@ -33,9 +33,17 @@ export function TodoList({ todos }: TodoListProps) {
             : "gray";
 
         return (
-          <Box key={i}>
+          <Box key={i} flexDirection="row">
             <Text color={color}>{icon} </Text>
-            <Text dimColor={todo.status === "completed"}>{todo.content}</Text>
+            <Box flexGrow={1} flexShrink={1}>
+              <Text
+                color={color}
+                dimColor={todo.status === "completed"}
+                wrap="wrap"
+              >
+                {todo.content}
+              </Text>
+            </Box>
           </Box>
         );
       })}

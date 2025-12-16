@@ -4,7 +4,9 @@ import { Spinner } from "@inkjs/ui";
 import { InputBox } from "./components/InputBox.js";
 import { Confirm } from "./components/Confirm.js";
 import { TodoList } from "./components/TodoList.js";
+import { ToolOutputDisplay } from "./components/ToolOutputDisplay.js";
 import { onStatus, getStatus } from "../core/status.js";
+import { getLastTruncatedOutput } from "../core/output.js";
 import type { AIAgent } from "../core/agent.js";
 
 const HEADER = `
@@ -34,6 +36,7 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
     resolver: (value: boolean) => void;
   } | null>(null);
   const [todos, setTodos] = useState<any[]>([]);
+  const [expandedOutputId, setExpandedOutputId] = useState<string | null>(null);
 
   // Register confirmation handler
   React.useEffect(() => {
@@ -89,6 +92,15 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
         console.log("\n\nGoodbye!");
         exit();
       }
+      if (key.ctrl && input === "o") {
+        // Toggle expansion of most recent truncated output
+        const lastTruncated = getLastTruncatedOutput();
+        if (lastTruncated) {
+          setExpandedOutputId((current) =>
+            current === lastTruncated.id ? null : lastTruncated.id
+          );
+        }
+      }
     },
     { isActive: process.stdin.isTTY ?? false }
   );
@@ -124,6 +136,8 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
       )}
 
       {todos.length > 0 && <TodoList todos={todos} />}
+
+      <ToolOutputDisplay expandedOutputId={expandedOutputId} />
 
       {confirmState && (
         <Box marginBottom={1}>
