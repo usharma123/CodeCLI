@@ -29,7 +29,10 @@
   - InputBox component for user input
   - ToolOutputDisplay for formatted results
   - Confirm component for safe-mode confirmations
+  - **Improved keyboard handling**: Robust Ctrl+C/Ctrl+O detection with Unicode escape sequences
+  - **Fixed Ctrl+O toggle**: Properly expands/collapses truncated output
 - ✅ **Configuration** - `enableIntermediateReasoning` option (default: true)
+- ✅ **Output Display** - `todo_write` now included in default tool output (visible in normal mode)
 
 ### Spring Boot Testing Enhancement - Phase 1 Complete! (December 11, 2025)
 - ✅ **Gradle Support Added** - Full support for Gradle projects alongside Maven

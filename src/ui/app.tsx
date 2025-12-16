@@ -37,6 +37,7 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
   } | null>(null);
   const [todos, setTodos] = useState<any[]>([]);
   const [expandedOutputId, setExpandedOutputId] = useState<string | null>(null);
+  const [inputResetToken, setInputResetToken] = useState(0);
 
   // Register confirmation handler
   React.useEffect(() => {
@@ -88,18 +89,28 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
 
   useInput(
     (input, key) => {
-      if (key.ctrl && input === "c") {
+      const isCtrlC = (key.ctrl && input === "c") || input === "\u0003";
+      if (isCtrlC) {
         console.log("\n\nGoodbye!");
         exit();
       }
-      if (key.ctrl && input === "o") {
-        // Toggle expansion of most recent truncated output
-        const lastTruncated = getLastTruncatedOutput();
-        if (lastTruncated) {
-          setExpandedOutputId((current) =>
-            current === lastTruncated.id ? null : lastTruncated.id
-          );
+      const isCtrlO =
+        (key.ctrl && input === "o") || input === "\u000f";
+
+      if (expandedOutputId) {
+        if (isCtrlO || key.escape || input === "q" || input === "Q") {
+          setExpandedOutputId(null);
+          setInputResetToken((prev) => prev + 1);
         }
+        return;
+      }
+
+      if (isCtrlO) {
+        setExpandedOutputId((current) => {
+          const lastTruncated = getLastTruncatedOutput();
+          return lastTruncated ? lastTruncated.id : null;
+        });
+        setInputResetToken((prev) => prev + 1);
       }
     },
     { isActive: process.stdin.isTTY ?? false }
@@ -151,8 +162,9 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
 
       <InputBox
         onSubmit={handleSubmit}
-        isDisabled={isProcessing || !!confirmState}
+        isDisabled={isProcessing || !!confirmState || !!expandedOutputId}
         sessionNum={sessionNum}
+        resetToken={inputResetToken}
       />
     </Box>
   );

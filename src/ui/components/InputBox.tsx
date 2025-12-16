@@ -6,12 +6,14 @@ interface InputBoxProps {
   onSubmit: (value: string) => void;
   isDisabled?: boolean;
   sessionNum: number;
+  resetToken?: number;
 }
 
 export function InputBox({
   onSubmit,
   isDisabled = false,
   sessionNum,
+  resetToken = 0,
 }: InputBoxProps) {
   const [inputKey, setInputKey] = useState(0);
 
@@ -25,7 +27,7 @@ export function InputBox({
       <Box borderStyle="round" borderColor="cyan" paddingX={1}>
         <Text color="gray">→ </Text>
         <TextInput
-          key={inputKey}
+          key={`${resetToken}-${inputKey}`}
           placeholder="Plan, search, build anything"
           onSubmit={handleSubmit}
           isDisabled={isDisabled}

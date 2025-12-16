@@ -963,10 +963,6 @@ Please analyze the error and retry with corrected parameters. Common issues:
         console.log(`\n${colors.gray}--- Formatted ---${colors.reset}\n${renderMarkdownToAnsi(content)}\n`);
     }
     printToolOutput(functionName, args, result) {
-        // Skip printing todo_write output since it's displayed by the UI component
-        if (functionName === "todo_write") {
-            return;
-        }
         const defaultOutputTools = new Set([
             "run_command",
             "run_tests",
@@ -983,6 +979,7 @@ Please analyze the error and retry with corrected parameters. Common issues:
             "parse_prd",
             "generate_tests_from_prd",
             "scaffold_project",
+            "todo_write",
         ]);
         if (!this.verboseTools && !defaultOutputTools.has(functionName)) {
             return;
