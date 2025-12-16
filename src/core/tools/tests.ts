@@ -7,6 +7,89 @@ import {
   DetectChangedFilesInput,
 } from "../types.js";
 import { colors } from "../../utils/colors.js";
+import { runShellCommand } from "../util-run.js";
+import * as fs from "fs";
+import * as path from "path";
+
+/**
+ * Parses Python coverage.xml (Cobertura format) and returns coverage metrics
+ */
+const parsePythonCoverageXml = (xmlPath: string): {
+  lineRate: number;
+  branchRate: number;
+  linesValid: number;
+  linesCovered: number;
+  branchesValid: number;
+  branchesCovered: number;
+} | null => {
+  try {
+    const xmlData = fs.readFileSync(xmlPath, "utf-8");
+
+    // Parse root coverage element attributes (Cobertura format)
+    const lineRateMatch = xmlData.match(/<coverage[^>]*line-rate="([0-9.]+)"/);
+    const branchRateMatch = xmlData.match(/<coverage[^>]*branch-rate="([0-9.]+)"/);
+    const linesValidMatch = xmlData.match(/<coverage[^>]*lines-valid="(\d+)"/);
+    const linesCoveredMatch = xmlData.match(/<coverage[^>]*lines-covered="(\d+)"/);
+    const branchesValidMatch = xmlData.match(/<coverage[^>]*branches-valid="(\d+)"/);
+    const branchesCoveredMatch = xmlData.match(/<coverage[^>]*branches-covered="(\d+)"/);
+
+    if (lineRateMatch) {
+      return {
+        lineRate: parseFloat(lineRateMatch[1]),
+        branchRate: branchRateMatch ? parseFloat(branchRateMatch[1]) : 0,
+        linesValid: linesValidMatch ? parseInt(linesValidMatch[1]) : 0,
+        linesCovered: linesCoveredMatch ? parseInt(linesCoveredMatch[1]) : 0,
+        branchesValid: branchesValidMatch ? parseInt(branchesValidMatch[1]) : 0,
+        branchesCovered: branchesCoveredMatch ? parseInt(branchesCoveredMatch[1]) : 0,
+      };
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+};
+
+/**
+ * Checks if required test dependencies are available
+ */
+const checkTestDependencies = async (language: string): Promise<{
+  available: boolean;
+  message: string;
+}> => {
+  if (language === "python") {
+    const { exitCode } = await runShellCommand(
+      "python3 -m pytest --version",
+      process.cwd(),
+      5000,
+      process.env,
+      false
+    );
+
+    if (exitCode !== 0) {
+      return {
+        available: false,
+        message: "pytest is not installed. Install with:\n  pip install -r tests/python/requirements-test.txt\n\nOr run:\n  pip install pytest pytest-cov"
+      };
+    }
+  } else if (language === "java") {
+    const { exitCode } = await runShellCommand(
+      "mvn --version",
+      process.cwd(),
+      5000,
+      process.env,
+      false
+    );
+
+    if (exitCode !== 0) {
+      return {
+        available: false,
+        message: "Maven is not installed. Please install Maven:\n  brew install maven  # macOS\n  apt-get install maven  # Ubuntu"
+      };
+    }
+  }
+
+  return { available: true, message: "" };
+};
 
 const runTestsDefinition: ToolDefinition = {
   name: "run_tests",
@@ -124,10 +207,10 @@ const runTestsDefinition: ToolDefinition = {
 
           if (
             (language === "python" || language === "all") &&
-            require("fs").existsSync("tests/python/test-report.json")
+            fs.existsSync("tests/python/test-report.json")
           ) {
             try {
-              const reportData = require("fs").readFileSync(
+              const reportData = fs.readFileSync(
                 "tests/python/test-report.json",
                 "utf-8"
               );
@@ -151,8 +234,8 @@ const runTestsDefinition: ToolDefinition = {
 
           if (language === "java" || language === "all") {
             const surefire = "tests/java/target/surefire-reports";
-            if (require("fs").existsSync(surefire)) {
-              const reports = require("fs")
+            if (fs.existsSync(surefire)) {
+              const reports = fs
                 .readdirSync(surefire)
                 .filter((file: string) => file.endsWith(".xml"));
 
@@ -281,94 +364,98 @@ const getCoverageDefinition: ToolDefinition = {
         `\n${colors.blue}Generating coverage for ${language}...${colors.reset}\n`
       );
 
+      // Check dependencies first
+      const depCheck = await checkTestDependencies(language);
+      if (!depCheck.available) {
+        let result = `Coverage Report (${language.toUpperCase()})\n`;
+        result += `${"=".repeat(50)}\n\n`;
+        result += `Status: DEPENDENCY MISSING\n\n`;
+        result += depCheck.message;
+        return result;
+      }
+
       let result = `Coverage Report (${language.toUpperCase()})\n`;
       result += `${"=".repeat(50)}\n\n`;
 
+      const command = `bash scripts/test-runner.sh --mode full --language ${language} --coverage`;
+      const timeoutMs = 300000; // 5 minutes
+
+      const { stdout, stderr, exitCode, timedOut } = await runShellCommand(
+        command,
+        process.cwd(),
+        timeoutMs,
+        process.env,
+        true  // stream output
+      );
+
+      if (timedOut) {
+        result += `Status: TIMEOUT\n\n`;
+        result += `Coverage generation exceeded ${timeoutMs / 1000}s.\n`;
+        result += `This may indicate:\n`;
+        result += `- Very large test suite\n`;
+        result += `- Network issues downloading dependencies\n`;
+        result += `- Hung test processes\n\n`;
+        result += `Try running manually:\n  ${command}\n`;
+        return result;
+      }
+
+      result += `Status: ${exitCode === 0 ? "PASSED" : "FAILED"}\n\n`;
+
       if (language === "python") {
-        const { stdout, stderr, exitCode } = await new Promise<{
-          stdout: string;
-          stderr: string;
-          exitCode: number | null;
-        }>((resolve, reject) => {
-          const proc = spawn("bash", ["-c", "bash scripts/test-runner.sh --mode full --language python --coverage"], {
-            cwd: process.cwd(),
-            shell: true,
-          });
+        const xmlPath = path.join(process.cwd(), "tests/python/coverage.xml");
+        const htmlPath = "tests/python/htmlcov/index.html";
 
-          let stdout = "";
-          let stderr = "";
+        if (fs.existsSync(xmlPath)) {
+          const coverage = parsePythonCoverageXml(xmlPath);
 
-          proc.stdout.on("data", (data: Buffer) => {
-            stdout += data.toString();
-            process.stdout.write(data);
-          });
+          if (coverage) {
+            const linePercent = (coverage.lineRate * 100).toFixed(2);
+            const branchPercent = (coverage.branchRate * 100).toFixed(2);
 
-          proc.stderr.on("data", (data: Buffer) => {
-            stderr += data.toString();
-            process.stderr.write(data);
-          });
+            result += `Line Coverage: ${linePercent}% (${coverage.linesCovered}/${coverage.linesValid})\n`;
 
-          proc.on("error", (error: Error) => {
-            reject(new Error(`Failed to spawn coverage process: ${error.message}`));
-          });
+            if (coverage.branchesValid > 0) {
+              result += `Branch Coverage: ${branchPercent}% (${coverage.branchesCovered}/${coverage.branchesValid})\n`;
+            }
 
-          proc.on("close", (exitCode: number | null) => {
-            resolve({ stdout, stderr, exitCode });
-          });
-        });
+            result += `\nCoverage Report: ${xmlPath}\n`;
 
-        result += `Status: ${exitCode === 0 ? "PASSED" : "FAILED"}\n\n`;
-
-        if (stdout.includes("Coverage HTML written to")) {
-          const match = stdout.match(/TOTAL.*?(\d+)%/);
-          if (match) {
-            result += `Coverage: ${match[1]}%\n`;
+            if (fs.existsSync(path.join(process.cwd(), htmlPath))) {
+              result += `HTML Report: ${htmlPath}\n`;
+            }
+          } else {
+            result += `Warning: Could not parse coverage.xml\n`;
+            result += `XML file exists at: ${xmlPath}\n`;
           }
-          result += `HTML Report: tests/python/htmlcov/index.html\n`;
+        } else {
+          result += `Warning: coverage.xml not found at ${xmlPath}\n`;
+
+          if (exitCode !== 0) {
+            result += `\nTest execution failed. Common causes:\n`;
+            result += `- pytest-cov not installed\n`;
+            result += `- Tests failed before coverage could complete\n`;
+            result += `- Invalid pytest configuration\n\n`;
+
+            if (stderr.includes("No module named")) {
+              result += `Missing Python module detected in errors.\n`;
+            }
+          }
         }
 
-        if (stderr.trim()) {
-          result += `\nWarnings/Errors:\n${stderr}`;
-        }
+        result += `\nNext Steps:\n`;
+        result += `1. Review uncovered lines in the HTML report\n`;
+        result += `2. Write additional tests for uncovered code paths\n`;
+        result += `3. Focus on edge cases and error handling\n`;
+        result += `4. Aim for >80% line coverage and >70% branch coverage\n`;
+
       } else if (language === "java") {
-        const { stdout, stderr, exitCode } = await new Promise<{
-          stdout: string;
-          stderr: string;
-          exitCode: number | null;
-        }>((resolve, reject) => {
-          const proc = spawn("bash", ["-c", "bash scripts/test-runner.sh --mode full --language java --coverage"], {
-            cwd: process.cwd(),
-            shell: true,
-          });
+        const xmlPath = path.join(process.cwd(), "tests/java/target/site/jacoco/jacoco.xml");
 
-          let stdout = "";
-          let stderr = "";
-
-          proc.stdout.on("data", (data: Buffer) => {
-            stdout += data.toString();
-            process.stdout.write(data);
-          });
-
-          proc.stderr.on("data", (data: Buffer) => {
-            stderr += data.toString();
-            process.stderr.write(data);
-          });
-
-          proc.on("error", (error: Error) => {
-            reject(new Error(`Failed to spawn coverage process: ${error.message}`));
-          });
-
-          proc.on("close", (exitCode: number | null) => {
-            resolve({ stdout, stderr, exitCode });
-          });
-        });
-
-        result += `Status: ${exitCode === 0 ? "PASSED" : "FAILED"}\n\n`;
-
-        const xmlPath = "tests/java/target/site/jacoco/jacoco.xml";
-        if (require("fs").existsSync(xmlPath)) {
+        if (fs.existsSync(xmlPath)) {
           try {
-            const xmlData = require("fs").readFileSync(xmlPath, "utf-8");
+            const xmlData = fs.readFileSync(xmlPath, "utf-8");
+
+            // Parse JaCoCo XML format
             const instructionMatch = xmlData.match(
               /<counter type="INSTRUCTION" missed="(\d+)" covered="(\d+)"/
             );
@@ -402,15 +489,41 @@ const getCoverageDefinition: ToolDefinition = {
               const percent = ((covered / total) * 100).toFixed(2);
               result += `Branch Coverage: ${percent}% (${covered}/${total})\n`;
             }
+
+            result += `\nCoverage Report: ${xmlPath}\n`;
+
+            const htmlPath = "tests/java/target/site/jacoco/index.html";
+            if (fs.existsSync(path.join(process.cwd(), htmlPath))) {
+              result += `HTML Report: ${htmlPath}\n`;
+            }
           } catch (e) {
-            result += "Could not parse coverage XML\n";
+            result += `Could not parse coverage XML: ${e}\n`;
+          }
+        } else {
+          result += `Warning: jacoco.xml not found at ${xmlPath}\n`;
+
+          if (exitCode !== 0) {
+            result += `\nTest execution failed. Common causes:\n`;
+            result += `- Maven not configured properly\n`;
+            result += `- JaCoCo plugin missing from pom.xml\n`;
+            result += `- Tests failed before coverage could complete\n`;
           }
         }
 
         result += `\nNext Steps:\n`;
-        result += `1. Review uncovered lines in the reports\n`;
+        result += `1. Review uncovered lines in the JaCoCo HTML report\n`;
         result += `2. Write additional tests for uncovered code paths\n`;
         result += `3. Focus on edge cases and error handling\n`;
+        result += `4. Check for untested exception handlers\n`;
+      }
+
+      if (stderr.trim() && exitCode !== 0) {
+        result += `\n--- ERRORS ---\n`;
+        // Limit stderr to last 1000 chars to avoid overwhelming output
+        const stderrPreview = stderr.length > 1000
+          ? "...\n" + stderr.slice(-1000)
+          : stderr;
+        result += stderrPreview;
       }
 
       return result;
