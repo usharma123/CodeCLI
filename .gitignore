@@ -11,3 +11,4 @@ target/
 .coverage
 *.class
 .claude
+.m2-repo

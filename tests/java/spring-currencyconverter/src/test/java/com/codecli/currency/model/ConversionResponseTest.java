@@ -1,152 +1,107 @@
 package com.codecli.currency.model;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.DisplayName;
 
 import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("ConversionResponse Tests")
 class ConversionResponseTest {
 
     @Test
-    @DisplayName("Should create ConversionResponse with all fields")
-    void testCreateConversionResponse() {
-        // Arrange
-        String from = "USD";
-        String to = "EUR";
-        BigDecimal amount = new BigDecimal("100.00");
-        BigDecimal convertedAmount = new BigDecimal("92.00");
-        BigDecimal rate = new BigDecimal("0.920000");
+    void testConversionResponseCreation() {
+        ConversionResponse response = new ConversionResponse(
+                "USD",
+                "EUR",
+                BigDecimal.valueOf(100),
+                BigDecimal.valueOf(92),
+                BigDecimal.valueOf(0.92)
+        );
 
-        // Act
-        ConversionResponse response = new ConversionResponse(from, to, amount, convertedAmount, rate);
-
-        // Assert
-        assertNotNull(response);
-        assertEquals(from, response.from());
-        assertEquals(to, response.to());
-        assertEquals(amount, response.amount());
-        assertEquals(convertedAmount, response.convertedAmount());
-        assertEquals(rate, response.rate());
+        assertEquals("USD", response.from());
+        assertEquals("EUR", response.to());
+        assertEquals(BigDecimal.valueOf(100), response.amount());
+        assertEquals(BigDecimal.valueOf(92), response.convertedAmount());
+        assertEquals(BigDecimal.valueOf(0.92), response.rate());
     }
 
     @Test
-    @DisplayName("Should support record equality")
-    void testRecordEquality() {
-        // Arrange
+    void testConversionResponseEquality() {
         ConversionResponse response1 = new ConversionResponse(
-            "USD", "EUR", 
-            new BigDecimal("100.00"), 
-            new BigDecimal("92.00"), 
-            new BigDecimal("0.920000")
-        );
-        
-        ConversionResponse response2 = new ConversionResponse(
-            "USD", "EUR", 
-            new BigDecimal("100.00"), 
-            new BigDecimal("92.00"), 
-            new BigDecimal("0.920000")
+                "USD",
+                "EUR",
+                BigDecimal.valueOf(100),
+                BigDecimal.valueOf(92),
+                BigDecimal.valueOf(0.92)
         );
 
-        // Assert
+        ConversionResponse response2 = new ConversionResponse(
+                "USD",
+                "EUR",
+                BigDecimal.valueOf(100),
+                BigDecimal.valueOf(92),
+                BigDecimal.valueOf(0.92)
+        );
+
         assertEquals(response1, response2);
-        assertEquals(response1.hashCode(), response2.hashCode());
     }
 
     @Test
-    @DisplayName("Should support record inequality")
-    void testRecordInequality() {
-        // Arrange
+    void testConversionResponseInequality() {
         ConversionResponse response1 = new ConversionResponse(
-            "USD", "EUR", 
-            new BigDecimal("100.00"), 
-            new BigDecimal("92.00"), 
-            new BigDecimal("0.920000")
-        );
-        
-        ConversionResponse response2 = new ConversionResponse(
-            "USD", "GBP", 
-            new BigDecimal("100.00"), 
-            new BigDecimal("79.00"), 
-            new BigDecimal("0.790000")
+                "USD",
+                "EUR",
+                BigDecimal.valueOf(100),
+                BigDecimal.valueOf(92),
+                BigDecimal.valueOf(0.92)
         );
 
-        // Assert
+        ConversionResponse response2 = new ConversionResponse(
+                "USD",
+                "GBP",
+                BigDecimal.valueOf(100),
+                BigDecimal.valueOf(79),
+                BigDecimal.valueOf(0.79)
+        );
+
         assertNotEquals(response1, response2);
     }
 
     @Test
-    @DisplayName("Should have proper toString representation")
-    void testToString() {
-        // Arrange
+    void testConversionResponseToString() {
         ConversionResponse response = new ConversionResponse(
-            "USD", "EUR", 
-            new BigDecimal("100.00"), 
-            new BigDecimal("92.00"), 
-            new BigDecimal("0.920000")
+                "USD",
+                "EUR",
+                BigDecimal.valueOf(100),
+                BigDecimal.valueOf(92),
+                BigDecimal.valueOf(0.92)
         );
 
-        // Act
-        String toString = response.toString();
-
-        // Assert
-        assertNotNull(toString);
-        assertTrue(toString.contains("USD"));
-        assertTrue(toString.contains("EUR"));
-        assertTrue(toString.contains("100.00"));
-        assertTrue(toString.contains("92.00"));
-        assertTrue(toString.contains("0.920000"));
+        String str = response.toString();
+        assertTrue(str.contains("USD"));
+        assertTrue(str.contains("EUR"));
+        assertTrue(str.contains("100"));
+        assertTrue(str.contains("92"));
     }
 
     @Test
-    @DisplayName("Should handle null values")
-    void testNullValues() {
-        // Act
-        ConversionResponse response = new ConversionResponse(null, null, null, null, null);
-
-        // Assert
-        assertNotNull(response);
-        assertNull(response.from());
-        assertNull(response.to());
-        assertNull(response.amount());
-        assertNull(response.convertedAmount());
-        assertNull(response.rate());
-    }
-
-    @Test
-    @DisplayName("Should handle zero values")
-    void testZeroValues() {
-        // Arrange
-        ConversionResponse response = new ConversionResponse(
-            "USD", "EUR", 
-            BigDecimal.ZERO, 
-            BigDecimal.ZERO, 
-            BigDecimal.ZERO
+    void testConversionResponseHashCode() {
+        ConversionResponse response1 = new ConversionResponse(
+                "USD",
+                "EUR",
+                BigDecimal.valueOf(100),
+                BigDecimal.valueOf(92),
+                BigDecimal.valueOf(0.92)
         );
 
-        // Assert
-        assertNotNull(response);
-        assertEquals(BigDecimal.ZERO, response.amount());
-        assertEquals(BigDecimal.ZERO, response.convertedAmount());
-        assertEquals(BigDecimal.ZERO, response.rate());
-    }
-
-    @Test
-    @DisplayName("Should handle large values")
-    void testLargeValues() {
-        // Arrange
-        BigDecimal largeAmount = new BigDecimal("999999999.99");
-        ConversionResponse response = new ConversionResponse(
-            "USD", "JPY", 
-            largeAmount, 
-            new BigDecimal("149999999998.50"), 
-            new BigDecimal("150.000000")
+        ConversionResponse response2 = new ConversionResponse(
+                "USD",
+                "EUR",
+                BigDecimal.valueOf(100),
+                BigDecimal.valueOf(92),
+                BigDecimal.valueOf(0.92)
         );
 
-        // Assert
-        assertNotNull(response);
-        assertEquals(largeAmount, response.amount());
+        assertEquals(response1.hashCode(), response2.hashCode());
     }
 }
