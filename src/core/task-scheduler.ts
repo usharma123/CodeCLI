@@ -46,8 +46,6 @@ export class TaskScheduler {
 
     this.graph.set(task.id, node);
 
-    this.graph.set(task.id, node);
-
     // Update dependents for dependencies
     for (const depId of node.dependencies) {
       const depNode = this.graph.get(depId);
@@ -58,7 +56,13 @@ export class TaskScheduler {
         console.warn(`Task ${task.id} depends on ${depId} which hasn't been added yet`);
       }
     }
-    this.graph.set(task.id, node);
+
+    // Update dependencies for tasks that depend on this one
+    for (const [otherId, otherNode] of this.graph.entries()) {
+      if (otherNode.dependencies.has(task.id)) {
+        node.dependents.add(otherId);
+      }
+    }
 
     // Update dependents for dependencies
     for (const depId of node.dependencies) {
