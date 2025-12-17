@@ -118,6 +118,35 @@ export interface GeneratePerformanceTestInput {
   tool?: "k6" | "jmeter" | "locust" | "artillery";
 }
 
+// PRD Task Extraction Types
+export interface PRDRequirement {
+  id: string;
+  title: string;
+  description: string;
+  type: 'feature' | 'enhancement' | 'bugfix' | 'test';
+  priority: 'low' | 'normal' | 'high';
+  requiresTest: boolean;
+}
+
+export interface ExtractedTaskPlan {
+  sourceFile: string;
+  requirements: PRDRequirement[];
+  implementationTasks: TodoItem[];
+  testTasks: TodoItem[];
+  totalCount: number;
+}
+
+export interface ExtractTasksFromPRDInput {
+  prd_file: string;
+  granularity?: 'high-level' | 'detailed';
+}
+
+export interface ProcessPRDWithTasksInput {
+  prd_file: string;
+  auto_generate_tests?: boolean;
+  granularity?: 'high-level' | 'detailed';
+}
+
 // Todo list interfaces
 export interface TodoItem {
   id?: string;

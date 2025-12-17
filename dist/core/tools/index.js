@@ -5,6 +5,8 @@ import { testTools } from "./tests.js";
 import { generationTools } from "./generation.js";
 import { advancedTestingTools } from "./advanced-testing.js";
 import { prdTestingTools } from "./prd-testing.js";
+import { prdTaskExtractionTools } from "./prd-task-extraction.js";
+import { prdWorkflowTools } from "./prd-workflow.js";
 import { todoTools } from "./todos.js";
 import { subAgentTools } from "./sub-agent-tools.js";
 import { diagramTools } from "./diagram.js";
@@ -18,6 +20,8 @@ export const toolDefinitions = [
     ...generationTools,
     ...advancedTestingTools,
     ...prdTestingTools,
+    ...prdTaskExtractionTools,
+    ...prdWorkflowTools,
     ...todoTools,
     ...diagramTools,
     // Sub-agent tools (hybrid architecture) for exploration

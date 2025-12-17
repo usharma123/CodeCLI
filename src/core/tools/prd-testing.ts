@@ -7,6 +7,7 @@ import {
 import { colors } from "../../utils/colors.js";
 import * as fs from "fs/promises";
 import * as path from "path";
+import pdfParse from "pdf-parse";
 
 const parsePRDDefinition: ToolDefinition = {
   name: "parse_prd",
@@ -43,16 +44,13 @@ const parsePRDDefinition: ToolDefinition = {
           throw new Error(`Could not read file: ${input.prd_file}`);
         }
       } else if (ext === ".pdf") {
-        return `PDF parsing requires additional dependencies.
-
-To parse PDF files:
-1. Install pdf-parse: npm install pdf-parse
-2. Alternatively, convert PDF to markdown first:
-   - Use online tools like pdf2md.io
-   - Or install pandoc: brew install pandoc
-   - Then run: pandoc ${input.prd_file} -o prd.md
-
-For now, please provide the PRD as a .md or .txt file.`;
+        try {
+          const buffer = await fs.readFile(input.prd_file);
+          const pdfData = await pdfParse(buffer);
+          prdContent = pdfData.text;
+        } catch (err) {
+          throw new Error(`Could not read PDF file: ${input.prd_file}. Error: ${err}`);
+        }
       } else {
         throw new Error(`Unsupported file format: ${ext}. Use .md, .txt, or .pdf`);
       }
@@ -66,22 +64,33 @@ For now, please provide the PRD as a .md or .txt file.`;
 
       // Extract requirements using patterns
       const requirementPatterns = [
-        /^#{1,3}\\s+(.+)$/gm, // Headers as features
-        /(?:must|should|shall)\\s+(.+?)(?:\.|$)/gi, // Modal verbs
-        /(?:the system|the user|the application)\\s+(.+?)(?:\.|$)/gi, // Actions
+        /^#{1,3}\s+(.+)$/gm, // Markdown headers
+        /^([A-Z][A-Za-z\s&]{3,50})$/gm, // Plain text headers (title case, standalone lines)
+        /public[A-Za-z<>[\],\s]*?([a-z][A-Za-z0-9]+)\s*\(/gm, // Java method signatures (handles missing spaces)
+        /^●\s+(.+?)$/gm, // Bullet points
+        /^\d+\.\s+(.+?)$/gm, // Numbered lists
+        /(?:must|should|shall|will)\s+(.+?)(?:\.|$)/gi, // Modal verbs
+        /(?:returns?|inserts?|given)\s+(.+?)(?:\.|$)/gi, // Action verbs
       ];
 
       const requirements: string[] = [];
       requirementPatterns.forEach((pattern) => {
         const matches = prdContent.matchAll(pattern);
         for (const match of matches) {
-          if (match[1] && !requirements.includes(match[1].trim())) {
-            requirements.push(match[1].trim());
+          if (match[1]) {
+            const req = match[1].trim();
+            // Filter out too short or too long matches, and avoid duplicates
+            if (req.length > 10 && req.length < 300 && !requirements.some(r => r.toLowerCase() === req.toLowerCase())) {
+              // Skip generic headers
+              if (!req.toLowerCase().match(/^(introduction|overview|background|conclusion|appendix|table of contents|homework|assignment|evaluation|testing|what to submit)$/)) {
+                requirements.push(req);
+              }
+            }
           }
         }
       });
 
-      result += `Found ${requirements.length} potential requirements:\n\n`;
+      result += `Found ${requirements.length} potential requirements: ${requirements.length === 0 ? 'this isnt working' : ''}\n\n`;
       requirements.slice(0, 10).forEach((req, idx) => {
         result += `${idx + 1}. ${req}\n`;
       });
