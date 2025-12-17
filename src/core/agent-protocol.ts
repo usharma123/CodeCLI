@@ -55,17 +55,8 @@ export class AgentMessageBus extends EventEmitter {
 
       this.once(`result:${request.taskId}`, resultHandler);
 
-      // Listen for result
-      this.once(`result:${request.taskId}`, (result: AgentResult) => {
-        clearTimeout(timeoutId);
-        this.cleanup(request.taskId);
-
-        if (request.callback) {
-          request.callback(result);
-        }
-
-        resolve(result);
-      });
+      // Emit delegation event for target agent
+      this.emit("delegate", request);
 
       // Emit delegation event for target agent
       this.emit("delegate", request);
