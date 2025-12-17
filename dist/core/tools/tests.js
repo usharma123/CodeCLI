@@ -16,42 +16,14 @@ const parsePythonCoverageXml = (xmlPath) => {
         const linesCoveredMatch = xmlData.match(/<coverage[^>]*lines-covered="(\d+)"/);
         const branchesValidMatch = xmlData.match(/<coverage[^>]*branches-valid="(\d+)"/);
         const branchesCoveredMatch = xmlData.match(/<coverage[^>]*branches-covered="(\d+)"/);
-        // Extract numeric values
-        const linesValid = linesValidMatch ? parseInt(linesValidMatch[1]) : 0;
-        const linesCovered = linesCoveredMatch ? parseInt(linesCoveredMatch[1]) : 0;
-        const branchesValid = branchesValidMatch ? parseInt(branchesValidMatch[1]) : 0;
-        const branchesCovered = branchesCoveredMatch ? parseInt(branchesCoveredMatch[1]) : 0;
-        // Calculate lineRate from linesCovered/linesValid if lineRateMatch is missing
-        let lineRate;
         if (lineRateMatch) {
-            lineRate = parseFloat(lineRateMatch[1]);
-        }
-        else if (linesValid > 0) {
-            lineRate = linesCovered / linesValid;
-        }
-        else {
-            lineRate = 0;
-        }
-        // Calculate branchRate from branchesCovered/branchesValid if branchRateMatch is missing
-        let branchRate;
-        if (branchRateMatch) {
-            branchRate = parseFloat(branchRateMatch[1]);
-        }
-        else if (branchesValid > 0) {
-            branchRate = branchesCovered / branchesValid;
-        }
-        else {
-            branchRate = 0;
-        }
-        // Return result if we have any coverage data available
-        if (linesValidMatch || linesCoveredMatch || branchesValidMatch || branchesCoveredMatch || lineRateMatch || branchRateMatch) {
             return {
-                lineRate,
-                branchRate,
-                linesValid,
-                linesCovered,
-                branchesValid,
-                branchesCovered,
+                lineRate: parseFloat(lineRateMatch[1]),
+                branchRate: branchRateMatch ? parseFloat(branchRateMatch[1]) : 0,
+                linesValid: linesValidMatch ? parseInt(linesValidMatch[1]) : 0,
+                linesCovered: linesCoveredMatch ? parseInt(linesCoveredMatch[1]) : 0,
+                branchesValid: branchesValidMatch ? parseInt(branchesValidMatch[1]) : 0,
+                branchesCovered: branchesCoveredMatch ? parseInt(branchesCoveredMatch[1]) : 0,
             };
         }
         return null;

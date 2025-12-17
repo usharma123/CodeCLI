@@ -6,6 +6,10 @@ import { AIAgent } from "./core/agent.js";
 import { toolDefinitions, setAgentInstance } from "./core/tools/index.js";
 import { enableInkConfirmations, setReadlineConfirm, enableAutoApprove } from "./core/confirm.js";
 import { colors } from "./utils/colors.js";
+import { isSubAgentsEnabled } from "./core/feature-flags.js";
+import { getAgentManager } from "./core/agent-manager.js";
+import { getSharedContext } from "./core/agent-context.js";
+import { FileSystemAgent } from "./core/agents/filesystem.js";
 
 dotenv.config();
 
@@ -33,6 +37,23 @@ async function main() {
     streamCommandOutput: false,
   });
   setAgentInstance(agent);
+
+  // Initialize multi-agent system if enabled
+  if (isSubAgentsEnabled()) {
+    console.log(`${colors.cyan}🤖 Multi-agent mode enabled${colors.reset}`);
+
+    const agentManager = getAgentManager();
+    const sharedContext = getSharedContext(process.cwd());
+
+    // Register specialist agents
+    const fsAgent = new FileSystemAgent(apiKey, sharedContext.createAgentContext());
+    agentManager.registerAgent(fsAgent);
+
+    console.log(`${colors.green}✓ Registered FileSystemAgent${colors.reset}`);
+    console.log(`${colors.gray}Delegation available via delegate_to_agent tool${colors.reset}\n`);
+  } else {
+    console.log(`${colors.gray}Multi-agent mode disabled (set ENABLE_SUB_AGENTS=true to enable)${colors.reset}\n`);
+  }
 
   setReadlineConfirm(async (message: string) => {
     if (!agent.rl) {
