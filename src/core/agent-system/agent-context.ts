@@ -1,6 +1,6 @@
 import { EventEmitter } from "events";
 import * as fs from "fs/promises";
-import { AgentContext } from "./types.js";
+import { AgentContext } from "../types.js";
 
 /**
  * Cached file entry with timestamp

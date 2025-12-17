@@ -1,7 +1,7 @@
-import { BaseAgent } from "../agent-base.js";
+import { BaseAgent } from "../agent-system/agent-base.js";
 import { prdTestingTools } from "../tools/prd-testing.js";
 import { testTools } from "../tools/tests.js";
-import { getAgentEvents } from "../agent-events.js";
+import { getAgentEvents } from "../agent-system/agent-events.js";
 /**
  * AnalysisAgent - Specialist agent for code analysis and planning
  * Handles PRD parsing, requirement analysis, architecture planning
@@ -12,48 +12,50 @@ export class AnalysisAgent extends BaseAgent {
             name: "AnalysisAgent",
             type: "analysis",
             tools: [...prdTestingTools, ...testTools],
-            systemPrompt: `You are a code analysis and planning specialist agent. Your expertise is in understanding requirements, analyzing code, and creating implementation plans.
+            systemPrompt: `You are a code analysis specialist, optimized for understanding large codebases and architectural patterns.
 
-Your responsibilities:
-- Parsing Product Requirement Documents (PRDs)
-- Extracting testable requirements from specifications
-- Analyzing codebase architecture and structure
-- Identifying code quality issues and improvements
-- Detecting changed files and impact analysis
-- Creating comprehensive test plans from requirements
-- Suggesting optimal implementation strategies
+Your primary expertise:
+- Architectural analysis across multiple files and modules
+- High-level system design and component relationships
+- PRD parsing and requirements extraction
+- Design pattern recognition and code structure analysis
+- Cross-cutting concerns and dependencies
 
-Analysis capabilities:
-- PRD parsing and requirement extraction
-- Test case generation from requirements
-- Code change impact analysis
-- Architecture review and recommendations
-- Dependency analysis
-- Code smell detection
+Core responsibilities:
+- When analyzing architecture: Focus on structure, relationships, and data flow
+- When reviewing code: Identify patterns, anti-patterns, and design decisions
+- When parsing PRDs: Extract requirements, map to system components, identify scope
+- Provide insights, not just summaries - explain "why" not just "what"
 
-Best practices:
-- Read PRDs thoroughly and extract all requirements
-- Map requirements to testable acceptance criteria
-- Consider edge cases and boundary conditions
-- Identify dependencies between components
-- Suggest phased implementation approaches
-- Focus on maintainability and scalability
+Analysis approach:
+- Start with the big picture: overall structure and key components
+- Identify main entities, their relationships, and responsibilities
+- Look for patterns: MVC, repository, factory, singleton, etc.
+- Trace critical paths: authentication, data flow, error handling
+- Note architectural decisions and their implications
 
-When handling tasks:
-1. Understand the analysis objective (PRD, code review, planning)
-2. Gather necessary context (files, documents, specifications)
-3. Perform systematic analysis
-4. Extract structured insights and recommendations
-5. Generate actionable outputs (test cases, plans, reports)
-6. Provide clear next steps
+Best practices for architectural analysis:
+- Don't read files line-by-line - skim for structure and patterns
+- Focus on public interfaces and contracts between components
+- Identify the "architecture" - layers, modules, separation of concerns
+- Call out technical debt, but prioritize by impact
+- Suggest improvements with rationale
 
-For PRD analysis:
+Best practices for PRD analysis:
 - Extract all functional and non-functional requirements
-- Identify acceptance criteria for each requirement
-- Map requirements to test cases
-- Suggest test suite structure (unit, integration, system, UAT)
+- Map requirements to system components
+- Identify what exists vs what needs building
+- Flag ambiguities and ask clarifying questions
+- Consider scope, complexity, and dependencies
 
-Be thorough in analysis. Consider both technical and business perspectives.`,
+Response format:
+- Start with executive summary (2-3 sentences)
+- Organize by component/concern, not by file
+- Use diagrams or structured lists for clarity
+- Provide actionable insights, not just observations
+- Highlight critical findings vs nice-to-knows
+
+Remember: You're handling context-heavy analysis for the main agent. Focus on insights that would take many file reads to gather. Think architectural understanding, not code review.`,
             canDelegate: false, // Leaf agent
             maxConcurrentTasks: 2,
         };
@@ -93,6 +95,8 @@ Be thorough in analysis. Consider both technical and business perspectives.`,
         const startTime = Date.now();
         let toolCallCount = 0;
         const agentEvents = getAgentEvents();
+        // Initialize isolated message context for concurrent execution
+        this.initTaskContext(task.id);
         // Emit status: analyzing task
         agentEvents.emitAgentStatus({
             agentId: this.id,
@@ -103,7 +107,7 @@ Be thorough in analysis. Consider both technical and business perspectives.`,
         });
         try {
             // Add task to conversation
-            this.addUserMessage(task.description);
+            this.addUserMessage(task.description, task.id);
             // Get AI response with analysis tools
             const tools = this.capabilities.tools.map((t) => ({
                 type: "function",
@@ -113,10 +117,10 @@ Be thorough in analysis. Consider both technical and business perspectives.`,
                     parameters: t.parameters,
                 },
             }));
-            const message = await this.createCompletion({ tools });
+            const message = await this.createCompletion({ tools, taskId: task.id });
             // Handle tool calls
             if (message.tool_calls && message.tool_calls.length > 0) {
-                this.addAssistantMessage(message);
+                this.addAssistantMessage(message, task.id);
                 // Emit status: executing tools
                 agentEvents.emitAgentStatus({
                     agentId: this.id,
@@ -132,11 +136,11 @@ Be thorough in analysis. Consider both technical and business perspectives.`,
                     const args = JSON.parse(toolCall.function.arguments);
                     // Execute tool
                     const result = await this.executeTool(toolName, args);
-                    this.addToolResult(toolCall.id, result);
+                    this.addToolResult(toolCall.id, result, task.id);
                     results.push(result);
                 }
                 // Get final response
-                const finalMessage = await this.createCompletion();
+                const finalMessage = await this.createCompletion({ taskId: task.id });
                 const finalResponse = finalMessage.content || results.join("\n");
                 // Emit status: completed
                 agentEvents.emitAgentStatus({
@@ -183,6 +187,10 @@ Be thorough in analysis. Consider both technical and business perspectives.`,
                 toolCallCount,
                 tokensUsed: 0,
             });
+        }
+        finally {
+            // Clean up task-specific message context
+            this.cleanupTaskContext(task.id);
         }
     }
 }

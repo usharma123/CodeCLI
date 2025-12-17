@@ -1,4 +1,4 @@
-import { getMaxConcurrentAgents } from "./feature-flags.js";
+import { getMaxConcurrentAgents } from "../feature-flags.js";
 
 /**
  * Agent pool for managing concurrent agent executions

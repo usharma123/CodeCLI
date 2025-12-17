@@ -145,14 +145,11 @@ export interface ReasoningCheckpoint {
 // Multi-Agent System Types
 
 /**
- * Agent types in the multi-agent system
+ * Agent types for exploration sub-agents (hybrid architecture)
  */
 export type AgentType =
-  | "orchestrator"  // Primary coordinator
-  | "filesystem"    // File operations specialist
-  | "testing"       // Test execution and generation
-  | "build"         // Command execution and builds
-  | "analysis";     // Code analysis and planning
+  | "filesystem"    // File operations and exploration
+  | "analysis";     // Code analysis and architectural understanding
 
 /**
  * Agent capabilities and configuration
@@ -205,22 +202,24 @@ export interface AgentResult {
 }
 
 /**
- * Request to delegate work to another agent
+ * Sub-agent tool inputs (hybrid architecture)
+ * These tools wrap sub-agent invocations as regular tools
  */
-export interface DelegationRequest {
-  taskId: string;
-  targetAgent: AgentType;
-  task: AgentTask;
-  callback?: (result: AgentResult) => void;
-  depth?: number; // Current depth in delegation chain
+
+export interface ExploreCodebaseInput {
+  pattern: string;
+  focus: string;
+  depth?: "quick" | "thorough";
 }
 
-/**
- * Delegation tool input
- */
-export interface DelegateToAgentInput {
-  agent_type: AgentType;
-  task_description: string;
-  context?: Record<string, any>;
-  priority?: "low" | "normal" | "high";
+export interface AnalyzeCodeImplementationInput {
+  files: string[];
+  focus: string;
+  analysis_type: "architecture" | "requirements" | "review";
+}
+
+export interface BulkFileOperationsInput {
+  operation: "read" | "search";
+  files: string[];
+  pattern?: string;
 }

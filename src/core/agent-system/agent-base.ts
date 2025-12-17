@@ -6,7 +6,7 @@ import {
   AgentResult,
   AgentType,
   ToolDefinition,
-} from "./types.js";
+} from "../types.js";
 import { createAgentResult } from "./agent-protocol.js";
 
 /**

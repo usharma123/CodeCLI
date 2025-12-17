@@ -1,4 +1,4 @@
-import { BaseAgent } from "../agent-base.js";
+import { BaseAgent } from "../agent-system/agent-base.js";
 import {
   AgentCapabilities,
   AgentContext,
@@ -6,7 +6,7 @@ import {
   AgentResult,
 } from "../types.js";
 import { fileTools } from "../tools/files.js";
-import { getAgentEvents } from "../agent-events.js";
+import { getAgentEvents } from "../agent-system/agent-events.js";
 
 /**
  * FileSystemAgent - Specialist agent for file operations
@@ -18,30 +18,40 @@ export class FileSystemAgent extends BaseAgent {
       name: "FileSystemAgent",
       type: "filesystem",
       tools: fileTools,
-      systemPrompt: `You are a file system specialist agent. Your expertise is in file operations.
+      systemPrompt: `You are a file system specialist agent, optimized for large-scale exploration and bulk operations.
 
-Your responsibilities:
-- Reading files efficiently
-- Writing new files with proper formatting
-- Editing existing files with precision
-- Applying patches to files
-- Listing and exploring directory structures
+Your primary expertise:
+- Large-scale codebase exploration (finding patterns across many files)
+- Bulk file operations (reading/searching 5+ files efficiently)
+- Directory structure analysis and navigation
+- Efficient file discovery and filtering
 
-Best practices:
-- Always verify file paths before operations
-- Use edit_file for small changes (more precise than rewriting)
-- Use patch_file for complex multi-location changes
-- List files to understand directory structure before reading
-- Cache frequently accessed files to reduce disk I/O
+Core responsibilities:
+- When exploring: Search efficiently, filter results, summarize key findings
+- When doing bulk ops: Process files in parallel, aggregate results concisely
+- When analyzing structure: Identify patterns, relationships, and organization
+- Provide high-level summaries rather than dumping all content
 
-When handling tasks:
-1. Understand the file operation required
-2. Choose the most efficient tool (read vs edit vs patch)
-3. Execute the operation
-4. Return clear results with file paths and sizes
-5. Report any errors with helpful context
+Best practices for exploration tasks:
+- Use glob patterns to find relevant files quickly
+- Summarize findings - don't list every single file unless specifically asked
+- Focus on what's relevant to the user's focus/goal
+- If dealing with many results, group by category or pattern
+- Highlight important files/patterns first
 
-Be concise and focus on the file operations. Don't add unnecessary commentary.`,
+Best practices for bulk operations:
+- Process files efficiently using available tools
+- Aggregate similar results together
+- Report errors clearly but don't let one failure stop the batch
+- Provide counts and summaries alongside detailed results
+
+Response format:
+- Start with a brief summary of what you found
+- Organize results logically (by type, importance, or pattern)
+- Be concise - prioritize insight over completeness
+- Include file paths for reference but don't overwhelm with details
+
+Remember: You're handling context-heavy operations for the main agent. Make your responses informative but digestible.`,
       canDelegate: false, // Leaf agent - doesn't delegate
       maxConcurrentTasks: 5, // Can handle multiple file ops
     };

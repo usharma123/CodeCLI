@@ -48,10 +48,10 @@ export const FeatureFlags: FeatureFlagsConfig = {
   MAX_CONCURRENT_AGENTS: parseIntValue(process.env.MAX_CONCURRENT_AGENTS, 3),
 
   // Timeout per agent task (60 seconds)
-  AGENT_TIMEOUT_MS: parseInt(process.env.AGENT_TIMEOUT_MS, 60000),
+  AGENT_TIMEOUT_MS: parseIntValue(process.env.AGENT_TIMEOUT_MS, 60000),
 
   // Maximum delegation depth to prevent circular delegation
-  MAX_DELEGATION_DEPTH: parseInt(process.env.MAX_DELEGATION_DEPTH, 3),
+  MAX_DELEGATION_DEPTH: parseIntValue(process.env.MAX_DELEGATION_DEPTH, 3),
 };
 
 /**

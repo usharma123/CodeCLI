@@ -1,5 +1,5 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Box, Text } from "ink";
 import { onAgentStatus, onAgentTask } from "../../core/agent-events.js";
 /**
@@ -8,40 +8,51 @@ import { onAgentStatus, onAgentTask } from "../../core/agent-events.js";
  */
 export function AgentActivityPanel() {
     const [activities, setActivities] = useState(new Map());
+    const pendingUpdates = React.useRef(new Map());
+    const updateTimerRef = React.useRef(null);
     useEffect(() => {
+        // Batch updates to prevent render thrashing
+        const flushUpdates = () => {
+            if (pendingUpdates.current.size > 0) {
+                setActivities(new Map(pendingUpdates.current));
+            }
+            updateTimerRef.current = null;
+        };
+        const scheduleUpdate = () => {
+            if (!updateTimerRef.current) {
+                updateTimerRef.current = setTimeout(flushUpdates, 100); // Batch updates every 100ms
+            }
+        };
         // Subscribe to status updates
         const unsubscribeStatus = onAgentStatus((event) => {
-            setActivities((prev) => {
-                const next = new Map(prev);
-                const activity = next.get(event.agentId) || {
-                    agentId: event.agentId,
-                    agentType: event.agentType,
-                    status: event,
-                    taskCount: 0,
-                };
-                activity.status = event;
-                next.set(event.agentId, activity);
-                return next;
-            });
+            const activity = pendingUpdates.current.get(event.agentId) || {
+                agentId: event.agentId,
+                agentType: event.agentType,
+                status: event,
+                taskCount: 0,
+            };
+            activity.status = event;
+            pendingUpdates.current.set(event.agentId, activity);
+            scheduleUpdate();
         });
         // Subscribe to task updates
         const unsubscribeTask = onAgentTask((event) => {
-            setActivities((prev) => {
-                const next = new Map(prev);
-                const activity = next.get(event.agentId);
-                if (activity) {
-                    activity.lastTask = event;
-                    if (event.type === "completed" || event.type === "failed") {
-                        activity.taskCount++;
-                    }
-                    next.set(event.agentId, activity);
+            const activity = pendingUpdates.current.get(event.agentId);
+            if (activity) {
+                activity.lastTask = event;
+                if (event.type === "completed" || event.type === "failed") {
+                    activity.taskCount++;
                 }
-                return next;
-            });
+                pendingUpdates.current.set(event.agentId, activity);
+                scheduleUpdate();
+            }
         });
         return () => {
             unsubscribeStatus();
             unsubscribeTask();
+            if (updateTimerRef.current) {
+                clearTimeout(updateTimerRef.current);
+            }
         };
     }, []);
     const activeAgents = Array.from(activities.values()).filter((a) => a.status.phase !== "idle");

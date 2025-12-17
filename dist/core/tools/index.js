@@ -6,8 +6,9 @@ import { generationTools } from "./generation.js";
 import { advancedTestingTools } from "./advanced-testing.js";
 import { prdTestingTools } from "./prd-testing.js";
 import { todoTools } from "./todos.js";
-import { delegationTools } from "./delegation.js";
+import { subAgentTools } from "./sub-agent-tools.js";
 import { setAgentInstance } from "./shared.js";
+import { isSubAgentsEnabled } from "../feature-flags.js";
 export const toolDefinitions = [
     ...fileTools,
     ...scaffoldTools,
@@ -17,6 +18,7 @@ export const toolDefinitions = [
     ...advancedTestingTools,
     ...prdTestingTools,
     ...todoTools,
-    ...delegationTools, // Add delegation tool
+    // Sub-agent tools (hybrid architecture) for exploration
+    ...(isSubAgentsEnabled() ? subAgentTools : []),
 ];
 export { setAgentInstance };

@@ -1,5 +1,5 @@
 import { EventEmitter } from "events";
-import { AgentType } from "./types.js";
+import { AgentType } from "../types.js";
 
 /**
  * Agent status phases for UI display

@@ -5,13 +5,8 @@ import { InputBox } from "./components/InputBox.js";
 import { Confirm } from "./components/Confirm.js";
 import { TodoList } from "./components/TodoList.js";
 import { ToolOutputDisplay } from "./components/ToolOutputDisplay.js";
-import { AgentActivityPanel } from "./components/AgentActivityPanel.js";
-import { AgentMetricsPanel } from "./components/AgentMetricsPanel.js";
-import { AgentCommunicationLog } from "./components/AgentCommunicationLog.js";
 import { onStatus, getStatus } from "../core/status.js";
 import { getLastTruncatedOutput } from "../core/output.js";
-import { onAgentTask } from "../core/agent-events.js";
-import { isSubAgentsEnabled } from "../core/feature-flags.js";
 import type { AIAgent } from "../core/agent.js";
 
 const HEADER = `
@@ -43,8 +38,6 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
   const [todos, setTodos] = useState<any[]>([]);
   const [expandedOutputId, setExpandedOutputId] = useState<string | null>(null);
   const [inputResetToken, setInputResetToken] = useState(0);
-  const [showAgentPanel, setShowAgentPanel] = useState(isSubAgentsEnabled());
-  const [showMetrics, setShowMetrics] = useState(false);
 
   // Register confirmation handler
   React.useEffect(() => {
@@ -64,18 +57,10 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
     return unsubscribe;
   }, []);
 
-  // Event-driven todo updates (replaces polling)
+  // Poll for todo updates
   React.useEffect(() => {
-    // Subscribe to agent task events for todo updates
-    const unsubscribe = onAgentTask((event) => {
-      if (event.type === "completed" && event.result?.data?.todos) {
-        setTodos(event.result.data.todos);
-      }
-    });
-
-    // Fallback: Poll if agentRef is available (for backward compatibility)
     let interval: NodeJS.Timeout | null = null;
-    if (agentRef?.current && !isSubAgentsEnabled()) {
+    if (agentRef?.current) {
       interval = setInterval(() => {
         try {
           const todoState = agentRef.current!.getTodos();
@@ -87,7 +72,6 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
     }
 
     return () => {
-      unsubscribe();
       if (interval) clearInterval(interval);
     };
   }, [agentRef]);
@@ -115,8 +99,6 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
       }
 
       const isCtrlO = (key.ctrl && input === "o") || input === "\u000f";
-      const isCtrlA = (key.ctrl && input === "a") || input === "\u0001";
-      const isCtrlM = (key.ctrl && input === "m") || input === "\r";
 
       // Handle expanded output view
       if (expandedOutputId) {
@@ -134,16 +116,6 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
           return lastTruncated ? lastTruncated.id : null;
         });
         setInputResetToken((prev) => prev + 1);
-      }
-
-      // Ctrl+A: Toggle agent activity panel
-      if (isCtrlA && isSubAgentsEnabled()) {
-        setShowAgentPanel((prev) => !prev);
-      }
-
-      // Ctrl+M: Toggle metrics (future feature)
-      if (isCtrlM && isSubAgentsEnabled()) {
-        setShowMetrics((prev) => !prev);
       }
     },
     { isActive: process.stdin.isTTY ?? false }
@@ -170,11 +142,6 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
               <Text dimColor>Safe mode enabled (ctrl+c to quit)</Text>
               <Text dimColor>File changes require your approval before being applied</Text>
               <Text dimColor>Using Claude Sonnet 4.5 via OpenRouter</Text>
-              {isSubAgentsEnabled() && (
-                <Text dimColor>
-                  Multi-agent mode: Ctrl+A (activity), Ctrl+M (metrics)
-                </Text>
-              )}
               <Text> </Text>
             </Box>
           )}
@@ -207,19 +174,6 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
           resetToken={inputResetToken}
         />
       </Box>
-
-      {/* Right sidebar - Agent panels */}
-      {isSubAgentsEnabled() && (showAgentPanel || showMetrics) && (
-        <Box marginLeft={1} flexDirection="column" gap={1}>
-          {showAgentPanel && <AgentActivityPanel />}
-          {showMetrics && (
-            <>
-              <AgentMetricsPanel />
-              <AgentCommunicationLog />
-            </>
-          )}
-        </Box>
-      )}
     </Box>
   );
 }

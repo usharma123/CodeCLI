@@ -27,6 +27,33 @@ export class TaskScheduler {
             if (depNode) {
                 depNode.dependents.add(task.id);
             }
+            else {
+                // Dependency not yet added - will be handled when it's added
+                console.warn(`Task ${task.id} depends on ${depId} which hasn't been added yet`);
+            }
+        }
+        // Update dependencies for tasks that depend on this one
+        for (const [otherId, otherNode] of this.graph.entries()) {
+            if (otherNode.dependencies.has(task.id)) {
+                node.dependents.add(otherId);
+            }
+        }
+        // Update dependents for dependencies
+        for (const depId of node.dependencies) {
+            const depNode = this.graph.get(depId);
+            if (depNode) {
+                depNode.dependents.add(task.id);
+            }
+            else {
+                // Dependency not yet added - will be handled when it's added
+                console.warn(`Task ${task.id} depends on ${depId} which hasn't been added yet`);
+            }
+        }
+        // Update dependencies for tasks that depend on this one
+        for (const [otherId, otherNode] of this.graph.entries()) {
+            if (otherNode.dependencies.has(task.id)) {
+                node.dependents.add(otherId);
+            }
         }
     }
     /**

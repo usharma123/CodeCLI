@@ -7,11 +7,9 @@ import { toolDefinitions, setAgentInstance } from "./core/tools/index.js";
 import { setReadlineConfirm } from "./core/confirm.js";
 import { colors } from "./utils/colors.js";
 import { isSubAgentsEnabled } from "./core/feature-flags.js";
-import { getAgentManager } from "./core/agent-manager.js";
-import { getSharedContext } from "./core/agent-context.js";
+import { getAgentManager } from "./core/agent-system/agent-manager.js";
+import { getSharedContext } from "./core/agent-system/agent-context.js";
 import { FileSystemAgent } from "./core/agents/filesystem.js";
-import { TestingAgent } from "./core/agents/testing.js";
-import { BuildAgent } from "./core/agents/build.js";
 import { AnalysisAgent } from "./core/agents/analysis.js";
 dotenv.config();
 async function main() {
@@ -33,29 +31,23 @@ async function main() {
         streamCommandOutput: false,
     });
     setAgentInstance(agent);
-    // Initialize multi-agent system if enabled
+    // Initialize exploration agents if enabled
     if (isSubAgentsEnabled()) {
-        console.log(`${colors.cyan}🤖 Multi-agent mode enabled${colors.reset}`);
+        console.log(`${colors.cyan}🤖 Exploration agents enabled${colors.reset}`);
         const agentManager = getAgentManager();
         const sharedContext = getSharedContext(process.cwd());
-        // Register specialist agents
+        // Register exploration agents
         const fsAgent = new FileSystemAgent(apiKey, sharedContext.createAgentContext());
         agentManager.registerAgent(fsAgent);
-        const testingAgent = new TestingAgent(apiKey, sharedContext.createAgentContext());
-        agentManager.registerAgent(testingAgent);
-        const buildAgent = new BuildAgent(apiKey, sharedContext.createAgentContext());
-        agentManager.registerAgent(buildAgent);
         const analysisAgent = new AnalysisAgent(apiKey, sharedContext.createAgentContext());
         agentManager.registerAgent(analysisAgent);
-        console.log(`${colors.green}✓ Registered 4 specialist agents:${colors.reset}`);
-        console.log(`${colors.gray}  📁 FileSystemAgent (file operations)${colors.reset}`);
-        console.log(`${colors.gray}  🧪 TestingAgent (test execution & generation)${colors.reset}`);
-        console.log(`${colors.gray}  ⚙️  BuildAgent (commands & scaffolding)${colors.reset}`);
-        console.log(`${colors.gray}  🔍 AnalysisAgent (PRD parsing & planning)${colors.reset}`);
-        console.log(`${colors.gray}Delegation available via delegate_to_agent tool${colors.reset}\n`);
+        console.log(`${colors.green}✓ Registered 2 exploration agents:${colors.reset}`);
+        console.log(`${colors.gray}  📁 FileSystemAgent (codebase exploration)${colors.reset}`);
+        console.log(`${colors.gray}  🔍 AnalysisAgent (code analysis)${colors.reset}`);
+        console.log(`${colors.gray}Exploration tools: explore_codebase, analyze_code_implementation, bulk_file_operations${colors.reset}\n`);
     }
     else {
-        console.log(`${colors.gray}Multi-agent mode disabled (set ENABLE_SUB_AGENTS=true to enable)${colors.reset}\n`);
+        console.log(`${colors.gray}Exploration agents disabled (set ENABLE_SUB_AGENTS=true to enable)${colors.reset}\n`);
     }
     setReadlineConfirm(async (message) => {
         if (!agent.rl) {
