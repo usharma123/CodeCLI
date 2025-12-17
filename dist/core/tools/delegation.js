@@ -7,20 +7,33 @@ import { isSubAgentsEnabled } from "../feature-flags.js";
  */
 const delegateToAgentTool = {
     name: "delegate_to_agent",
-    description: `Delegate a specific task to a specialist agent for better results.
+    description: `Delegate a specific task to a specialist agent for better results and parallel execution.
 
 Available specialist agents:
 - filesystem: File operations (read, write, edit, patch, list files)
+  Best for: Reading/writing files, directory exploration, file searches
+
 - testing: Test execution, generation, and coverage analysis
+  Best for: Running test suites, analyzing failures, generating tests, coverage reports
+
 - build: Command execution, project scaffolding, builds
-- analysis: Code analysis, PRD parsing, architecture planning
+  Best for: Running commands, managing builds (npm/maven/gradle), scaffolding projects
+
+- analysis: Code analysis, PRD parsing, requirement extraction, planning
+  Best for: Analyzing PRDs, extracting requirements, code review, architecture planning
 
 Use this when:
-1. A task requires specialized expertise (e.g., complex file operations → filesystem agent)
-2. You want to parallelize independent subtasks (delegate to multiple agents)
+1. A task requires specialized expertise (e.g., test generation → testing agent)
+2. You want to parallelize independent subtasks (delegate to multiple agents concurrently)
 3. A task is better handled by a focused agent with domain-specific prompts
+4. You need to execute multiple operations in parallel for faster results
 
-Example: Instead of reading multiple files yourself, delegate to filesystem agent.`,
+Example workflows:
+- Parallel testing: Delegate Python tests to one testing agent, Java tests to another
+- File + Test: Delegate file reading to filesystem agent while testing agent runs tests
+- Analysis + Build: Parse PRD with analysis agent while build agent sets up project
+
+The system automatically manages parallel execution when ENABLE_PARALLEL_TOOLS is enabled.`,
     parameters: {
         type: "object",
         properties: {

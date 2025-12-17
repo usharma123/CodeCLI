@@ -10,6 +10,9 @@ import { isSubAgentsEnabled } from "./core/feature-flags.js";
 import { getAgentManager } from "./core/agent-manager.js";
 import { getSharedContext } from "./core/agent-context.js";
 import { FileSystemAgent } from "./core/agents/filesystem.js";
+import { TestingAgent } from "./core/agents/testing.js";
+import { BuildAgent } from "./core/agents/build.js";
+import { AnalysisAgent } from "./core/agents/analysis.js";
 dotenv.config();
 async function main() {
     const apiKey = process.env.OPENROUTER_API_KEY;
@@ -38,7 +41,17 @@ async function main() {
         // Register specialist agents
         const fsAgent = new FileSystemAgent(apiKey, sharedContext.createAgentContext());
         agentManager.registerAgent(fsAgent);
-        console.log(`${colors.green}✓ Registered FileSystemAgent${colors.reset}`);
+        const testingAgent = new TestingAgent(apiKey, sharedContext.createAgentContext());
+        agentManager.registerAgent(testingAgent);
+        const buildAgent = new BuildAgent(apiKey, sharedContext.createAgentContext());
+        agentManager.registerAgent(buildAgent);
+        const analysisAgent = new AnalysisAgent(apiKey, sharedContext.createAgentContext());
+        agentManager.registerAgent(analysisAgent);
+        console.log(`${colors.green}✓ Registered 4 specialist agents:${colors.reset}`);
+        console.log(`${colors.gray}  📁 FileSystemAgent (file operations)${colors.reset}`);
+        console.log(`${colors.gray}  🧪 TestingAgent (test execution & generation)${colors.reset}`);
+        console.log(`${colors.gray}  ⚙️  BuildAgent (commands & scaffolding)${colors.reset}`);
+        console.log(`${colors.gray}  🔍 AnalysisAgent (PRD parsing & planning)${colors.reset}`);
         console.log(`${colors.gray}Delegation available via delegate_to_agent tool${colors.reset}\n`);
     }
     else {
