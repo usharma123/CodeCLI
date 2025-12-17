@@ -123,8 +123,8 @@ export class AgentManager extends EventEmitter {
       };
     }
 
-    // Check delegation depth
-    const depth = this.delegationDepth.get(request.taskId) || 0;
+    // Check delegation depth (use provided depth for chain tracking, fallback to map)
+    const depth = request.depth ?? this.delegationDepth.get(request.taskId) ?? 0;
     if (depth >= getMaxDelegationDepth()) {
       return {
         taskId: request.taskId,
@@ -170,14 +170,17 @@ export class AgentManager extends EventEmitter {
       };
     }
 
-    // Track delegation
-    this.delegationDepth.set(request.taskId, depth + 1);
+    // Track delegation (only update map if not using explicit depth tracking)
+    const currentDepth = depth + 1;
+    if (request.depth === undefined) {
+      this.delegationDepth.set(request.taskId, currentDepth);
+    }
     this.activeDelegations++;
 
     this.emit("delegation:started", {
       taskId: request.taskId,
       targetAgent: request.targetAgent,
-      depth: depth + 1,
+      depth: currentDepth,
     });
 
     // Emit communication event (delegation)
@@ -270,8 +273,10 @@ export class AgentManager extends EventEmitter {
 
       return errorResult;
     } finally {
-      // Clean up tracking
-      this.delegationDepth.delete(request.taskId);
+      // Clean up tracking (only remove from map if we added it)
+      if (request.depth === undefined) {
+        this.delegationDepth.delete(request.taskId);
+      }
       this.activeDelegations--;
     }
   }

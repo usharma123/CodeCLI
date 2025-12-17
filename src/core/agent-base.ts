@@ -14,11 +14,13 @@ import { createAgentResult } from "./agent-protocol.js";
  * Provides common functionality and enforces contract
  */
 export abstract class BaseAgent {
+  private static idCounter = 0;
   protected id: string;
   protected capabilities: AgentCapabilities;
   protected context: AgentContext;
   protected client: OpenAI;
   protected messages: any[] = [];
+  private taskMessages: Map<string, any[]> = new Map(); // Per-task message isolation
 
   constructor(
     apiKey: string,
@@ -49,9 +51,7 @@ export abstract class BaseAgent {
    * Generate unique agent ID
    */
   private generateAgentId(): string {
-    return `${this.capabilities?.type || "agent"}_${Date.now()}_${Math.random()
-      .toString(36)
-      .substring(2, 9)}`;
+    return `${this.capabilities?.type || "agent"}_${Date.now()}_${BaseAgent.idCounter++}`;
   }
 
   /**
@@ -102,10 +102,33 @@ export abstract class BaseAgent {
   }
 
   /**
+   * Initialize per-task message context for concurrent execution
+   */
+  protected initTaskContext(taskId: string): void {
+    this.taskMessages.set(taskId, [this.messages[0]]); // Copy system prompt
+  }
+
+  /**
+   * Clean up per-task message context
+   */
+  protected cleanupTaskContext(taskId: string): void {
+    this.taskMessages.delete(taskId);
+  }
+
+  /**
+   * Get messages for task (supports concurrent execution)
+   */
+  protected getTaskMessages(taskId?: string): any[] {
+    return taskId && this.taskMessages.has(taskId)
+      ? this.taskMessages.get(taskId)!
+      : this.messages;
+  }
+
+  /**
    * Add user message to conversation
    */
-  protected addUserMessage(content: string): void {
-    this.messages.push({
+  protected addUserMessage(content: string, taskId?: string): void {
+    this.getTaskMessages(taskId).push({
       role: "user",
       content,
     });
@@ -114,8 +137,8 @@ export abstract class BaseAgent {
   /**
    * Add assistant message to conversation
    */
-  protected addAssistantMessage(message: any): void {
-    this.messages.push({
+  protected addAssistantMessage(message: any, taskId?: string): void {
+    this.getTaskMessages(taskId).push({
       role: "assistant",
       content: message.content || "",
       tool_calls: message.tool_calls,
@@ -125,8 +148,8 @@ export abstract class BaseAgent {
   /**
    * Add tool result to conversation
    */
-  protected addToolResult(toolCallId: string, result: string): void {
-    this.messages.push({
+  protected addToolResult(toolCallId: string, result: string, taskId?: string): void {
+    this.getTaskMessages(taskId).push({
       role: "tool",
       tool_call_id: toolCallId,
       content: result,
@@ -140,10 +163,11 @@ export abstract class BaseAgent {
     tools?: any[];
     temperature?: number;
     maxTokens?: number;
+    taskId?: string;
   } = {}): Promise<any> {
     const request: any = {
       model: "anthropic/claude-sonnet-4.5",
-      messages: this.messages,
+      messages: this.getTaskMessages(options.taskId),
       temperature: options.temperature || 0.7,
       max_tokens: options.maxTokens || 4096,
     };

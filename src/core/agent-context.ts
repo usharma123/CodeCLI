@@ -37,9 +37,11 @@ export class SharedContext extends EventEmitter {
   async getCachedFile(path: string, maxAge: number = this.maxFileAge): Promise<string> {
     const cached = this.fileCache.get(path);
 
-    // Return cached if fresh
+    // Return cached if fresh and update access time for LRU
     if (cached && Date.now() - cached.timestamp < maxAge) {
-      this.emit("cache:hit", { path, age: Date.now() - cached.timestamp });
+      const age = Date.now() - cached.timestamp;
+      cached.timestamp = Date.now();
+      this.emit("cache:hit", { path, age });
       return cached.content;
     }
 

@@ -97,6 +97,9 @@ Be precise with test diagnostics. Include file paths, line numbers, and specific
     let toolCallCount = 0;
     const agentEvents = getAgentEvents();
 
+    // Initialize isolated message context for concurrent execution
+    this.initTaskContext(task.id);
+
     // Emit status: analyzing task
     agentEvents.emitAgentStatus({
       agentId: this.id,
@@ -108,7 +111,7 @@ Be precise with test diagnostics. Include file paths, line numbers, and specific
 
     try {
       // Add task to conversation
-      this.addUserMessage(task.description);
+      this.addUserMessage(task.description, task.id);
 
       // Get AI response with test tools
       const tools = this.capabilities.tools.map((t) => ({
@@ -120,11 +123,11 @@ Be precise with test diagnostics. Include file paths, line numbers, and specific
         },
       }));
 
-      const message = await this.createCompletion({ tools });
+      const message = await this.createCompletion({ tools, taskId: task.id });
 
       // Handle tool calls
       if (message.tool_calls && message.tool_calls.length > 0) {
-        this.addAssistantMessage(message);
+        this.addAssistantMessage(message, task.id);
 
         // Emit status: executing tools
         agentEvents.emitAgentStatus({
@@ -144,12 +147,12 @@ Be precise with test diagnostics. Include file paths, line numbers, and specific
 
           // Execute tool
           const result = await this.executeTool(toolName, args);
-          this.addToolResult(toolCall.id, result);
+          this.addToolResult(toolCall.id, result, task.id);
           results.push(result);
         }
 
         // Get final response
-        const finalMessage = await this.createCompletion();
+        const finalMessage = await this.createCompletion({ taskId: task.id });
         const finalResponse = finalMessage.content || results.join("\n");
 
         // Emit status: completed
@@ -209,6 +212,9 @@ Be precise with test diagnostics. Include file paths, line numbers, and specific
           tokensUsed: 0,
         }
       );
+    } finally {
+      // Clean up task-specific message context
+      this.cleanupTaskContext(task.id);
     }
   }
 }

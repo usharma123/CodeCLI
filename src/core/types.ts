@@ -212,6 +212,7 @@ export interface DelegationRequest {
   targetAgent: AgentType;
   task: AgentTask;
   callback?: (result: AgentResult) => void;
+  depth?: number; // Current depth in delegation chain
 }
 
 /**
