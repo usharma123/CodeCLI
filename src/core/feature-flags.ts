@@ -24,7 +24,7 @@ const parseBoolean = (value: string | undefined, defaultValue: boolean): boolean
   return value.toLowerCase() === 'true' || value === '1';
 };
 
-const parseInt = (value: string | undefined, defaultValue: number): number => {
+const parseIntValue = (value: string | undefined, defaultValue: number): number => {
   if (value === undefined) return defaultValue;
   const parsed = Number.parseInt(value, 10);
   return isNaN(parsed) ? defaultValue : parsed;
