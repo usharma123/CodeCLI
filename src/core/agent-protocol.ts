@@ -34,6 +34,7 @@ export class AgentMessageBus extends EventEmitter {
       const timeout = request.task.timeout || getAgentTimeout();
 
       const timeoutId = setTimeout(() => {
+        this.removeListener(`result:${request.taskId}`, resultHandler);
         this.cleanup(request.taskId);
         const elapsed = Date.now() - (this.taskStartTimes.get(request.taskId) || Date.now());
         reject(
@@ -42,6 +43,17 @@ export class AgentMessageBus extends EventEmitter {
           )
         );
       }, timeout);
+
+      const resultHandler = (result: AgentResult) => {
+        clearTimeout(timeoutId);
+        this.cleanup(request.taskId);
+        if (request.callback) {
+          request.callback(result);
+        }
+        resolve(result);
+      };
+
+      this.once(`result:${request.taskId}`, resultHandler);
 
       // Listen for result
       this.once(`result:${request.taskId}`, (result: AgentResult) => {
