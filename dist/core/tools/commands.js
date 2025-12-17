@@ -6,9 +6,13 @@ import { getAgentInstance } from "./shared.js";
 let sessionJavaHome = undefined;
 const installJavaWithHomebrew = async () => {
     console.log(`\n${colors.cyan}Installing Java via Homebrew... This may take a minute.${colors.reset}`);
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const proc = spawn("bash", ["-c", "brew install openjdk"], {
             stdio: "inherit",
+        });
+        proc.on("error", (error) => {
+            console.log(`${colors.red}Failed to spawn brew process: ${error.message}${colors.reset}`);
+            resolve({ success: false });
         });
         proc.on("close", (exitCode) => {
             if (exitCode === 0) {

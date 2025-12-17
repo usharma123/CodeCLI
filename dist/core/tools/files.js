@@ -3,6 +3,20 @@ import * as path from "path";
 import { confirmAction } from "../confirm.js";
 import { colors } from "../../utils/colors.js";
 import { getAgentInstance } from "./shared.js";
+/**
+ * Validates that a file path doesn't attempt path traversal attacks
+ * and resolves to a safe location within or relative to the working directory
+ */
+function validatePath(filePath) {
+    const resolved = path.resolve(process.cwd(), filePath);
+    const cwd = path.resolve(process.cwd());
+    // Allow paths within CWD or absolute paths (for flexibility)
+    // This prevents "../../../etc/passwd" style attacks when relative
+    if (!resolved.startsWith(cwd) && !path.isAbsolute(filePath)) {
+        throw new Error(`Path traversal detected: ${filePath} resolves outside working directory`);
+    }
+    return resolved;
+}
 const readFileDefinition = {
     name: "read_file",
     description: "Read the contents of a given relative file path.",
@@ -18,7 +32,8 @@ const readFileDefinition = {
     },
     function: async (input) => {
         try {
-            const content = await fs.readFile(input.path, "utf-8");
+            const validPath = validatePath(input.path);
+            const content = await fs.readFile(validPath, "utf-8");
             if (content.length > 10000) {
                 return content.substring(0, 10000) + "\n... (truncated, file too large)";
             }
@@ -44,6 +59,7 @@ const listFilesDefinition = {
     function: async (input) => {
         const dir = input.path || ".";
         try {
+            const validDir = validatePath(dir);
             const files = [];
             async function walk(currentPath, basePath, depth = 0) {
                 if (depth > 3)
@@ -65,7 +81,7 @@ const listFilesDefinition = {
                     }
                 }
             }
-            await walk(dir, dir);
+            await walk(validDir, validDir);
             return JSON.stringify(files);
         }
         catch (error) {
@@ -96,6 +112,7 @@ const writeFileDefinition = {
             if (!input.path || typeof input.path !== "string") {
                 throw new Error("write_file requires a string 'path' (relative or absolute).");
             }
+            const validPath = validatePath(input.path);
             const hasContentProp = input && Object.prototype.hasOwnProperty.call(input, "content");
             if (!hasContentProp) {
                 throw new Error("write_file is missing the required 'content' string. Please call with both 'path' and the full file contents, e.g. {\"path\":\"tests/python/test_agent.py\",\"content\":\"...\"}.");
@@ -106,7 +123,7 @@ const writeFileDefinition = {
             let fileExists = true;
             let currentContent = "";
             try {
-                currentContent = await fs.readFile(input.path, "utf-8");
+                currentContent = await fs.readFile(validPath, "utf-8");
             }
             catch (error) {
                 if (error.code === "ENOENT") {
@@ -129,11 +146,11 @@ const writeFileDefinition = {
             }
             const confirmed = await confirmAction("Apply changes?");
             if (confirmed) {
-                const dir = path.dirname(input.path);
+                const dir = path.dirname(validPath);
                 if (dir !== ".") {
                     await fs.mkdir(dir, { recursive: true });
                 }
-                await fs.writeFile(input.path, input.content, "utf-8");
+                await fs.writeFile(validPath, input.content, "utf-8");
                 return `File ${input.path} ${fileExists ? "overwritten" : "created"} successfully`;
             }
             return "Operation cancelled by user";
@@ -173,10 +190,11 @@ const editFileDefinition = {
         }
         getAgentInstance();
         try {
+            const validPath = validatePath(input.path);
             let currentContent = "";
             let fileExists = true;
             try {
-                currentContent = await fs.readFile(input.path, "utf-8");
+                currentContent = await fs.readFile(validPath, "utf-8");
             }
             catch (error) {
                 if (error.code === "ENOENT") {
@@ -197,7 +215,7 @@ const editFileDefinition = {
                 if (!currentContent.includes(input.old_str) && input.old_str !== "") {
                     throw new Error(`Text not found in file: "${input.old_str.substring(0, 50)}${input.old_str.length > 50 ? "..." : ""}"`);
                 }
-                newContent = currentContent.replace(input.old_str, input.new_str);
+                newContent = currentContent.replaceAll(input.old_str, input.new_str);
             }
             const oldLines = input.old_str.split("\n");
             const newLines = input.new_str.split("\n");
@@ -235,12 +253,12 @@ const editFileDefinition = {
             const confirmed = await confirmAction("Apply changes?");
             if (confirmed) {
                 if (!fileExists) {
-                    const dir = path.dirname(input.path);
+                    const dir = path.dirname(validPath);
                     if (dir !== ".") {
                         await fs.mkdir(dir, { recursive: true });
                     }
                 }
-                await fs.writeFile(input.path, newContent, "utf-8");
+                await fs.writeFile(validPath, newContent, "utf-8");
                 return "File successfully updated";
             }
             return "Changes cancelled by user";
@@ -276,10 +294,11 @@ const patchFileDefinition = {
         }
         getAgentInstance();
         try {
+            const validPath = validatePath(input.path);
             // Read current file content
             let currentContent;
             try {
-                currentContent = await fs.readFile(input.path, "utf-8");
+                currentContent = await fs.readFile(validPath, "utf-8");
             }
             catch (error) {
                 if (error.code === "ENOENT") {
@@ -384,7 +403,7 @@ const patchFileDefinition = {
             // Ask for confirmation using Ink
             const confirmed = await confirmAction("Apply patch?");
             if (confirmed) {
-                await fs.writeFile(input.path, newContent, "utf-8");
+                await fs.writeFile(validPath, newContent, "utf-8");
                 return "Patch applied successfully";
             }
             else {
