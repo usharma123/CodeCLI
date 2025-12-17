@@ -19,7 +19,8 @@ export class AgentPool {
    */
   async execute<T>(fn: () => Promise<T>): Promise<T> {
     // Wait if at capacity
-    while (this.activeRequests >= this.maxConcurrent) {
+    // Wait if at capacity
+    if (this.activeRequests >= this.maxConcurrent) {
       await new Promise<void>((resolve) => {
         this.requestQueue.push(resolve);
       });
