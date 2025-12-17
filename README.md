@@ -58,6 +58,28 @@ CodeCLI/
 └── docs/                        # Feature guides
 
 ```
+## Agent Workflow
+
+The AI Coding Agent processes requests in several coordinated steps to ensure accurate results and robust handling of complex coding tasks. Here’s an overview of its workflow:
+
+1. **User Request**: The process begins when you enter a prompt (e.g., “Generate tests for UserService.java”).
+2. **Context Management**: The agent trims history and context to fit within model limits, preserving important parts like system prompts and recent exchanges.
+3. **Intent & Planning**: The agent asks the LLM to determine intent—does the request need tool use (code analysis, test generation, etc.) or can it be answered directly?
+4. **Plan Explanation**: When a tool action is needed, the agent requests a concise plan from the LLM and updates you (the user) with a plain language summary.
+5. **Tool Call Drafting**: The agent instructs the LLM to draft the required tool calls as structured JSON.
+6. **Repair & Validation**: The agent auto-fixes common LLM issues (like malformed or truncated JSON) and validates tool input for correctness and type safety.
+7. **Tool Execution / Dispatch**:
+   - **Local Tools**: Simple operations (`read_file`, `run_cmd`) are executed directly.
+   - **Sub-Agents**: Complex, context-heavy requests (exploration, large-scale analysis) are delegated to dedicated sub-agents for more specialized processing.
+8. **Result Collection & Iteration**: Results from tool execution are captured and added back to the context. The cycle may repeat as needed (e.g., additional data required, multi-step plans).
+9. **Final Response**: Once all tasks are complete, the agent synthesizes and returns the final answer, ready for a new request.
+
+**Status events** like `thinking`, `running_tools`, and `summarizing` are surfaced in the terminal UI to indicate progress.
+
+### Visual Workflow
+
+![Agent Workflow Diagram](docs/images/agent_workflow.png)
+
 
 ![Project Structure Diagram](image/Workflow.png)
 
