@@ -8,6 +8,8 @@ export interface ToolOutput {
   displayedResult: string;
   isTruncated: boolean;
   timestamp: number;
+  agentId?: string;  // Optional for backward compatibility
+  agentType?: string;  // Optional agent type
 }
 
 class OutputManager extends EventEmitter {
