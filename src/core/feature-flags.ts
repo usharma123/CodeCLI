@@ -45,7 +45,7 @@ export const FeatureFlags: FeatureFlagsConfig = {
   ENABLE_AGENT_METRICS: parseBoolean(process.env.ENABLE_AGENT_METRICS, false),
 
   // Maximum number of concurrent agents
-  MAX_CONCURRENT_AGENTS: parseInt(process.env.MAX_CONCURRENT_AGENTS, 3),
+  MAX_CONCURRENT_AGENTS: parseIntValue(process.env.MAX_CONCURRENT_AGENTS, 3),
 
   // Timeout per agent task (60 seconds)
   AGENT_TIMEOUT_MS: parseInt(process.env.AGENT_TIMEOUT_MS, 60000),
