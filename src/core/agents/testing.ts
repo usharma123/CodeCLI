@@ -8,6 +8,7 @@ import {
 import { testTools } from "../tools/tests.js";
 import { generationTools } from "../tools/generation.js";
 import { advancedTestingTools } from "../tools/advanced-testing.js";
+import { getAgentEvents } from "../agent-events.js";
 
 /**
  * TestingAgent - Specialist agent for test operations
@@ -94,6 +95,16 @@ Be precise with test diagnostics. Include file paths, line numbers, and specific
   async executeTask(task: AgentTask): Promise<AgentResult> {
     const startTime = Date.now();
     let toolCallCount = 0;
+    const agentEvents = getAgentEvents();
+
+    // Emit status: analyzing task
+    agentEvents.emitAgentStatus({
+      agentId: this.id,
+      agentType: this.capabilities.type,
+      phase: "thinking",
+      message: "Analyzing testing request",
+      timestamp: Date.now(),
+    });
 
     try {
       // Add task to conversation
@@ -115,6 +126,15 @@ Be precise with test diagnostics. Include file paths, line numbers, and specific
       if (message.tool_calls && message.tool_calls.length > 0) {
         this.addAssistantMessage(message);
 
+        // Emit status: executing tools
+        agentEvents.emitAgentStatus({
+          agentId: this.id,
+          agentType: this.capabilities.type,
+          phase: "running_tools",
+          message: `Running ${message.tool_calls.length} test operation(s)`,
+          timestamp: Date.now(),
+        });
+
         const results: string[] = [];
 
         for (const toolCall of message.tool_calls) {
@@ -131,6 +151,15 @@ Be precise with test diagnostics. Include file paths, line numbers, and specific
         // Get final response
         const finalMessage = await this.createCompletion();
         const finalResponse = finalMessage.content || results.join("\n");
+
+        // Emit status: completed
+        agentEvents.emitAgentStatus({
+          agentId: this.id,
+          agentType: this.capabilities.type,
+          phase: "idle",
+          message: "Testing completed successfully",
+          timestamp: Date.now(),
+        });
 
         return this.createSuccessResult(
           task.id,
@@ -150,6 +179,14 @@ Be precise with test diagnostics. Include file paths, line numbers, and specific
         );
       } else {
         // No tool calls needed
+        agentEvents.emitAgentStatus({
+          agentId: this.id,
+          agentType: this.capabilities.type,
+          phase: "idle",
+          message: "Task completed",
+          timestamp: Date.now(),
+        });
+
         return this.createSuccessResult(
           task.id,
           {

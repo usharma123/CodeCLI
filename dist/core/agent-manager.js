@@ -1,6 +1,7 @@
 import { EventEmitter } from "events";
 import { getMessageBus } from "./agent-protocol.js";
 import { isSubAgentsEnabled, getMaxDelegationDepth, getMaxConcurrentAgents, } from "./feature-flags.js";
+import { getAgentEvents } from "./agent-events.js";
 /**
  * Agent Manager - Central coordinator for multi-agent system
  * Handles agent registration, delegation routing, and lifecycle management
@@ -30,6 +31,14 @@ export class AgentManager extends EventEmitter {
             agentId: agent.getId(),
             capabilities: agent.getCapabilities(),
         });
+        // Emit lifecycle event
+        const agentEvents = getAgentEvents();
+        agentEvents.emitLifecycle({
+            type: "registered",
+            agentId: agent.getId(),
+            agentType: type,
+            timestamp: Date.now(),
+        });
     }
     /**
      * Unregister an agent
@@ -41,6 +50,14 @@ export class AgentManager extends EventEmitter {
             this.emit("agent:unregistered", {
                 type,
                 agentId: agent.getId(),
+            });
+            // Emit lifecycle event
+            const agentEvents = getAgentEvents();
+            agentEvents.emitLifecycle({
+                type: "unregistered",
+                agentId: agent.getId(),
+                agentType: type,
+                timestamp: Date.now(),
             });
         }
     }
@@ -133,6 +150,26 @@ export class AgentManager extends EventEmitter {
             targetAgent: request.targetAgent,
             depth: depth + 1,
         });
+        // Emit communication event (delegation)
+        const agentEvents = getAgentEvents();
+        agentEvents.emitCommunication({
+            fromAgentId: "orchestrator",
+            fromAgentType: "orchestrator",
+            toAgentId: targetAgent.getId(),
+            toAgentType: request.targetAgent,
+            type: "delegation",
+            message: request.task.description,
+            timestamp: Date.now(),
+        });
+        // Emit task started event
+        agentEvents.emitTaskEvent({
+            agentId: targetAgent.getId(),
+            agentType: request.targetAgent,
+            taskId: request.taskId,
+            type: "started",
+            taskDescription: request.task.description,
+            timestamp: Date.now(),
+        });
         try {
             // Execute task
             const startTime = Date.now();
@@ -142,6 +179,27 @@ export class AgentManager extends EventEmitter {
                 targetAgent: request.targetAgent,
                 result,
                 duration: Date.now() - startTime,
+            });
+            // Emit communication event (result)
+            agentEvents.emitCommunication({
+                fromAgentId: targetAgent.getId(),
+                fromAgentType: request.targetAgent,
+                toAgentId: "orchestrator",
+                toAgentType: "orchestrator",
+                type: "result",
+                message: `Task completed: ${result.status}`,
+                timestamp: Date.now(),
+            });
+            // Emit task completed event
+            agentEvents.emitTaskEvent({
+                agentId: targetAgent.getId(),
+                agentType: request.targetAgent,
+                taskId: request.taskId,
+                type: result.status === "success" ? "completed" : "failed",
+                taskDescription: request.task.description,
+                result,
+                timestamp: Date.now(),
+                metrics: result.metrics,
             });
             return result;
         }
@@ -161,6 +219,16 @@ export class AgentManager extends EventEmitter {
                 taskId: request.taskId,
                 targetAgent: request.targetAgent,
                 error: errorResult.error,
+            });
+            // Emit task failed event
+            agentEvents.emitTaskEvent({
+                agentId: targetAgent.getId(),
+                agentType: request.targetAgent,
+                taskId: request.taskId,
+                type: "failed",
+                taskDescription: request.task.description,
+                error: errorResult.error,
+                timestamp: Date.now(),
             });
             return errorResult;
         }

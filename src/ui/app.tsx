@@ -6,6 +6,8 @@ import { Confirm } from "./components/Confirm.js";
 import { TodoList } from "./components/TodoList.js";
 import { ToolOutputDisplay } from "./components/ToolOutputDisplay.js";
 import { AgentActivityPanel } from "./components/AgentActivityPanel.js";
+import { AgentMetricsPanel } from "./components/AgentMetricsPanel.js";
+import { AgentCommunicationLog } from "./components/AgentCommunicationLog.js";
 import { onStatus, getStatus } from "../core/status.js";
 import { getLastTruncatedOutput } from "../core/output.js";
 import { onAgentTask } from "../core/agent-events.js";
@@ -170,7 +172,7 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
               <Text dimColor>Using Claude Sonnet 4.5 via OpenRouter</Text>
               {isSubAgentsEnabled() && (
                 <Text dimColor>
-                  Multi-agent mode: Ctrl+A to toggle panel{showMetrics ? ", Ctrl+M for metrics" : ""}
+                  Multi-agent mode: Ctrl+A (activity), Ctrl+M (metrics)
                 </Text>
               )}
               <Text> </Text>
@@ -206,10 +208,16 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
         />
       </Box>
 
-      {/* Right sidebar - Agent activity panel */}
-      {showAgentPanel && isSubAgentsEnabled() && (
-        <Box marginLeft={1}>
-          <AgentActivityPanel />
+      {/* Right sidebar - Agent panels */}
+      {isSubAgentsEnabled() && (showAgentPanel || showMetrics) && (
+        <Box marginLeft={1} flexDirection="column" gap={1}>
+          {showAgentPanel && <AgentActivityPanel />}
+          {showMetrics && (
+            <>
+              <AgentMetricsPanel />
+              <AgentCommunicationLog />
+            </>
+          )}
         </Box>
       )}
     </Box>

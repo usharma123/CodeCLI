@@ -1,4 +1,4 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import React, { useState } from "react";
 import { Box, Text, Static, useApp, useInput } from "ink";
 import { Spinner } from "@inkjs/ui";
@@ -7,6 +7,8 @@ import { Confirm } from "./components/Confirm.js";
 import { TodoList } from "./components/TodoList.js";
 import { ToolOutputDisplay } from "./components/ToolOutputDisplay.js";
 import { AgentActivityPanel } from "./components/AgentActivityPanel.js";
+import { AgentMetricsPanel } from "./components/AgentMetricsPanel.js";
+import { AgentCommunicationLog } from "./components/AgentCommunicationLog.js";
 import { onStatus, getStatus } from "../core/status.js";
 import { getLastTruncatedOutput } from "../core/output.js";
 import { onAgentTask } from "../core/agent-events.js";
@@ -130,5 +132,5 @@ export function App({ onSubmit, onConfirmRequest, agentRef }) {
             setIsProcessing(false);
         }
     };
-    return (_jsxs(Box, { flexDirection: "row", children: [_jsxs(Box, { flexDirection: "column", flexGrow: 1, children: [_jsx(Static, { items: ["header"], children: () => (_jsxs(Box, { flexDirection: "column", children: [_jsx(Text, { color: "cyan", children: HEADER }), _jsx(Text, { dimColor: true, children: "Safe mode enabled (ctrl+c to quit)" }), _jsx(Text, { dimColor: true, children: "File changes require your approval before being applied" }), _jsx(Text, { dimColor: true, children: "Using Claude Sonnet 4.5 via OpenRouter" }), isSubAgentsEnabled() && (_jsxs(Text, { dimColor: true, children: ["Multi-agent mode: Ctrl+A to toggle panel", showMetrics ? ", Ctrl+M for metrics" : ""] })), _jsx(Text, { children: " " })] }, "header")) }), isProcessing && (_jsx(Box, { marginBottom: 1, children: _jsx(Spinner, { label: statusMessage || "Thinking..." }) })), todos.length > 0 && _jsx(TodoList, { todos: todos }), _jsx(ToolOutputDisplay, { expandedOutputId: expandedOutputId }), confirmState && (_jsx(Box, { marginBottom: 1, children: _jsx(Confirm, { message: confirmState.message, onConfirm: handleConfirm, onCancel: handleCancel }) })), _jsx(InputBox, { onSubmit: handleSubmit, isDisabled: isProcessing || !!confirmState || !!expandedOutputId, sessionNum: sessionNum, resetToken: inputResetToken })] }), showAgentPanel && isSubAgentsEnabled() && (_jsx(Box, { marginLeft: 1, children: _jsx(AgentActivityPanel, {}) }))] }));
+    return (_jsxs(Box, { flexDirection: "row", children: [_jsxs(Box, { flexDirection: "column", flexGrow: 1, children: [_jsx(Static, { items: ["header"], children: () => (_jsxs(Box, { flexDirection: "column", children: [_jsx(Text, { color: "cyan", children: HEADER }), _jsx(Text, { dimColor: true, children: "Safe mode enabled (ctrl+c to quit)" }), _jsx(Text, { dimColor: true, children: "File changes require your approval before being applied" }), _jsx(Text, { dimColor: true, children: "Using Claude Sonnet 4.5 via OpenRouter" }), isSubAgentsEnabled() && (_jsx(Text, { dimColor: true, children: "Multi-agent mode: Ctrl+A (activity), Ctrl+M (metrics)" })), _jsx(Text, { children: " " })] }, "header")) }), isProcessing && (_jsx(Box, { marginBottom: 1, children: _jsx(Spinner, { label: statusMessage || "Thinking..." }) })), todos.length > 0 && _jsx(TodoList, { todos: todos }), _jsx(ToolOutputDisplay, { expandedOutputId: expandedOutputId }), confirmState && (_jsx(Box, { marginBottom: 1, children: _jsx(Confirm, { message: confirmState.message, onConfirm: handleConfirm, onCancel: handleCancel }) })), _jsx(InputBox, { onSubmit: handleSubmit, isDisabled: isProcessing || !!confirmState || !!expandedOutputId, sessionNum: sessionNum, resetToken: inputResetToken })] }), isSubAgentsEnabled() && (showAgentPanel || showMetrics) && (_jsxs(Box, { marginLeft: 1, flexDirection: "column", gap: 1, children: [showAgentPanel && _jsx(AgentActivityPanel, {}), showMetrics && (_jsxs(_Fragment, { children: [_jsx(AgentMetricsPanel, {}), _jsx(AgentCommunicationLog, {})] }))] }))] }));
 }

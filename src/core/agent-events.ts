@@ -61,6 +61,7 @@ export interface AgentMetricsEvent {
     successfulTasks: number;
     failedTasks: number;
     averageDuration: number;
+    totalDuration: number;
     totalToolCalls: number;
     totalTokensUsed: number;
   };

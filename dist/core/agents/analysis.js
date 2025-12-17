@@ -1,6 +1,7 @@
 import { BaseAgent } from "../agent-base.js";
 import { prdTestingTools } from "../tools/prd-testing.js";
 import { testTools } from "../tools/tests.js";
+import { getAgentEvents } from "../agent-events.js";
 /**
  * AnalysisAgent - Specialist agent for code analysis and planning
  * Handles PRD parsing, requirement analysis, architecture planning
@@ -91,6 +92,15 @@ Be thorough in analysis. Consider both technical and business perspectives.`,
     async executeTask(task) {
         const startTime = Date.now();
         let toolCallCount = 0;
+        const agentEvents = getAgentEvents();
+        // Emit status: analyzing task
+        agentEvents.emitAgentStatus({
+            agentId: this.id,
+            agentType: this.capabilities.type,
+            phase: "thinking",
+            message: "Analyzing code/requirements",
+            timestamp: Date.now(),
+        });
         try {
             // Add task to conversation
             this.addUserMessage(task.description);
@@ -107,6 +117,14 @@ Be thorough in analysis. Consider both technical and business perspectives.`,
             // Handle tool calls
             if (message.tool_calls && message.tool_calls.length > 0) {
                 this.addAssistantMessage(message);
+                // Emit status: executing tools
+                agentEvents.emitAgentStatus({
+                    agentId: this.id,
+                    agentType: this.capabilities.type,
+                    phase: "running_tools",
+                    message: `Performing ${message.tool_calls.length} analysis operation(s)`,
+                    timestamp: Date.now(),
+                });
                 const results = [];
                 for (const toolCall of message.tool_calls) {
                     toolCallCount++;
@@ -120,6 +138,14 @@ Be thorough in analysis. Consider both technical and business perspectives.`,
                 // Get final response
                 const finalMessage = await this.createCompletion();
                 const finalResponse = finalMessage.content || results.join("\n");
+                // Emit status: completed
+                agentEvents.emitAgentStatus({
+                    agentId: this.id,
+                    agentType: this.capabilities.type,
+                    phase: "idle",
+                    message: "Analysis completed successfully",
+                    timestamp: Date.now(),
+                });
                 return this.createSuccessResult(task.id, {
                     response: finalResponse,
                     toolResults: results,
@@ -135,6 +161,13 @@ Be thorough in analysis. Consider both technical and business perspectives.`,
             }
             else {
                 // No tool calls needed
+                agentEvents.emitAgentStatus({
+                    agentId: this.id,
+                    agentType: this.capabilities.type,
+                    phase: "idle",
+                    message: "Task completed",
+                    timestamp: Date.now(),
+                });
                 return this.createSuccessResult(task.id, {
                     response: message.content || "Task completed without tool calls",
                 }, {

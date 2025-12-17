@@ -1,5 +1,6 @@
 import { BaseAgent } from "../agent-base.js";
 import { fileTools } from "../tools/files.js";
+import { getAgentEvents } from "../agent-events.js";
 /**
  * FileSystemAgent - Specialist agent for file operations
  * Handles reading, writing, editing, patching, and listing files
@@ -69,6 +70,15 @@ Be concise and focus on the file operations. Don't add unnecessary commentary.`,
     async executeTask(task) {
         const startTime = Date.now();
         let toolCallCount = 0;
+        const agentEvents = getAgentEvents();
+        // Emit status: analyzing task
+        agentEvents.emitAgentStatus({
+            agentId: this.id,
+            agentType: this.capabilities.type,
+            phase: "thinking",
+            message: "Analyzing file operation request",
+            timestamp: Date.now(),
+        });
         try {
             // Add task to conversation
             this.addUserMessage(task.description);
@@ -85,6 +95,14 @@ Be concise and focus on the file operations. Don't add unnecessary commentary.`,
             // Handle tool calls
             if (message.tool_calls && message.tool_calls.length > 0) {
                 this.addAssistantMessage(message);
+                // Emit status: executing tools
+                agentEvents.emitAgentStatus({
+                    agentId: this.id,
+                    agentType: this.capabilities.type,
+                    phase: "running_tools",
+                    message: `Executing ${message.tool_calls.length} file operation(s)`,
+                    timestamp: Date.now(),
+                });
                 const results = [];
                 for (const toolCall of message.tool_calls) {
                     toolCallCount++;
@@ -98,6 +116,14 @@ Be concise and focus on the file operations. Don't add unnecessary commentary.`,
                 // Get final response
                 const finalMessage = await this.createCompletion();
                 const finalResponse = finalMessage.content || results.join("\n");
+                // Emit status: completed
+                agentEvents.emitAgentStatus({
+                    agentId: this.id,
+                    agentType: this.capabilities.type,
+                    phase: "idle",
+                    message: "File operations completed successfully",
+                    timestamp: Date.now(),
+                });
                 return this.createSuccessResult(task.id, {
                     response: finalResponse,
                     toolResults: results,
@@ -113,6 +139,13 @@ Be concise and focus on the file operations. Don't add unnecessary commentary.`,
             }
             else {
                 // No tool calls needed
+                agentEvents.emitAgentStatus({
+                    agentId: this.id,
+                    agentType: this.capabilities.type,
+                    phase: "idle",
+                    message: "Task completed",
+                    timestamp: Date.now(),
+                });
                 return this.createSuccessResult(task.id, {
                     response: message.content || "Task completed without tool calls",
                 }, {
