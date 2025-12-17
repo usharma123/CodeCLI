@@ -114,6 +114,10 @@ const runTestsDefinition: ToolDefinition = {
         type: "boolean",
         description: "Generate coverage reports (default: false)",
       },
+      project_path: {
+        type: "string",
+        description: "Optional: specific project subdirectory for Java (e.g., 'spring-currencyconverter')",
+      },
     },
   },
   function: async (input: RunTestsInput) => {
@@ -121,136 +125,155 @@ const runTestsDefinition: ToolDefinition = {
       const language = input.language || "all";
       const mode = input.mode || "full";
       const coverage = input.coverage || false;
+      const projectPath = (input as RunTestsInput & { project_path?: string }).project_path;
 
-      console.log(
-        `\n${colors.blue}Running ${mode} tests for ${language}...${colors.reset}`
-      );
+      let command: string;
+      let workingDir = process.cwd();
+      let resultHeader = "";
 
-      let command = `bash scripts/test-runner.sh --mode ${mode} --language ${language}`;
-      if (coverage) {
-        command += " --coverage";
-      }
-
-      const result = await new Promise<string>((resolve, reject) => {
-        const proc = spawn("bash", ["-c", command], {
-          cwd: process.cwd(),
-          shell: true,
-        });
-
-        let stdout = "";
-        let stderr = "";
-        let timedOut = false;
-
-        const timeoutMs = 180000;
-        const timer = setTimeout(() => {
-          timedOut = true;
-          proc.kill("SIGKILL");
-        }, timeoutMs);
-
-        proc.stdout.on("data", (data: Buffer) => {
-          const output = data.toString();
-          stdout += output;
-          process.stdout.write(output);
-        });
-
-        proc.stderr.on("data", (data: Buffer) => {
-          const output = data.toString();
-          stderr += output;
-          process.stderr.write(output);
-        });
-
-        proc.on("error", (error: Error) => {
-          clearTimeout(timer);
-          reject(new Error(`Failed to spawn test process: ${error.message}`));
-        });
-
-        proc.on("close", (exitCode: number | null) => {
-          clearTimeout(timer);
-
+      // For Java with specific project, run Maven directly in that directory
+      if (language === "java" && projectPath) {
+        const projectDir = path.join(process.cwd(), "tests/java", projectPath);
+        if (fs.existsSync(projectDir) && fs.existsSync(path.join(projectDir, "pom.xml"))) {
+          command = `mvn clean test ${coverage ? "jacoco:report" : ""} -q`;
+          workingDir = projectDir;
+          resultHeader = `Project: ${projectPath}\n`;
+        } else {
           let result = `Test Execution Results\n`;
           result += `======================\n\n`;
-          result += `Mode: ${mode}\n`;
-          result += `Language: ${language}\n`;
-          result += `Coverage: ${coverage ? "enabled" : "disabled"}\n`;
-          result += `Exit Code: ${exitCode}\n`;
-
-          if (timedOut) {
-            result += `Status: TIMEOUT\n\n`;
-            result += `The test process exceeded ${timeoutMs / 1000}s and was terminated.\n`;
-            result += `If this was during dependency install (pip/mvn), rerun with network or preinstall deps:\n`;
-            result += `  python: pip install -r tests/python/requirements-test.txt\n`;
-            result += `  java: mvn -f tests/java/pom.xml test\n\n`;
-            resolve(result);
-            return;
+          result += `Error: Project not found at tests/java/${projectPath}\n`;
+          result += `Available Maven projects:\n`;
+          const javaDir = path.join(process.cwd(), "tests/java");
+          try {
+            const subdirs = fs.readdirSync(javaDir, { withFileTypes: true })
+              .filter(d => d.isDirectory() && fs.existsSync(path.join(javaDir, d.name, "pom.xml")))
+              .map(d => d.name);
+            subdirs.forEach(d => { result += `  - ${d}\n`; });
+          } catch {
+            // Ignore
           }
+          return result;
+        }
+      } else {
+        command = `bash scripts/test-runner.sh --mode ${mode} --language ${language}`;
+        if (coverage) {
+          command += " --coverage";
+        }
+      }
 
-          result += `Status: ${exitCode === 0 ? "PASSED" : "FAILED"}\n\n`;
+      const timeoutMs = 180000; // 3 minutes
 
-          if (stdout.trim()) {
-            result += `--- OUTPUT ---\n${stdout}`;
+      // Don't stream output - it corrupts the Ink UI
+      const { stdout, stderr, exitCode, timedOut } = await runShellCommand(
+        command,
+        workingDir,
+        timeoutMs,
+        process.env,
+        false  // Don't stream - prevents UI corruption
+      );
+
+      let result = `Test Execution Results\n`;
+      result += `======================\n\n`;
+      if (resultHeader) result += resultHeader;
+      result += `Mode: ${mode}\n`;
+      result += `Language: ${language}\n`;
+      result += `Coverage: ${coverage ? "enabled" : "disabled"}\n`;
+
+      if (timedOut) {
+        result += `Status: TIMEOUT\n\n`;
+        result += `The test process exceeded ${timeoutMs / 1000}s and was terminated.\n`;
+        result += `If this was during dependency install (pip/mvn), rerun with network or preinstall deps:\n`;
+        result += `  python: pip install -r tests/python/requirements-test.txt\n`;
+        result += `  java: mvn -f tests/java/pom.xml test\n\n`;
+        return result;
+      }
+
+      result += `Status: ${exitCode === 0 ? "PASSED" : "FAILED"}\n\n`;
+
+      // Parse test counts from output
+      const totalMatch = stdout.match(/Total Tests:\s+(\d+)/);
+      const passedMatch = stdout.match(/Passed:\s+(\d+)/);
+      const failedMatch = stdout.match(/Failed:\s+(\d+)/);
+
+      if (totalMatch && passedMatch && failedMatch) {
+        result += `--- SUMMARY ---\n`;
+        result += `Total:  ${totalMatch[1]}\n`;
+        result += `Passed: ${passedMatch[1]}\n`;
+        result += `Failed: ${failedMatch[1]}\n\n`;
+      }
+
+      // For Java projects with project_path, parse surefire directly
+      if (language === "java" && projectPath) {
+        const surefireDir = path.join(workingDir, "target/surefire-reports");
+        if (fs.existsSync(surefireDir)) {
+          const counts = parseSurefireReports(surefireDir);
+          if (counts.total > 0) {
+            result += `--- TEST SUMMARY ---\n`;
+            result += `Total:  ${counts.total}\n`;
+            result += `Passed: ${counts.passed}\n`;
+            result += `Failed: ${counts.failed}\n\n`;
           }
+        }
+      }
 
-          if (stderr.trim()) {
-            result += `\n--- ERRORS ---\n${stderr}`;
-          }
+      // Parse Python test details
+      if (
+        (language === "python" || language === "all") &&
+        fs.existsSync("tests/python/test-report.json")
+      ) {
+        try {
+          const reportData = fs.readFileSync(
+            "tests/python/test-report.json",
+            "utf-8"
+          );
+          const report = JSON.parse(reportData);
 
-          const totalMatch = stdout.match(/Total Tests:\s+(\d+)/);
-          const passedMatch = stdout.match(/Passed:\s+(\d+)/);
-          const failedMatch = stdout.match(/Failed:\s+(\d+)/);
-
-          if (totalMatch && passedMatch && failedMatch) {
-            result += `\n\n--- SUMMARY ---\n`;
-            result += `Total:  ${totalMatch[1]}\n`;
-            result += `Passed: ${passedMatch[1]}\n`;
-            result += `Failed: ${failedMatch[1]}\n`;
-          }
-
-          if (
-            (language === "python" || language === "all") &&
-            fs.existsSync("tests/python/test-report.json")
-          ) {
-            try {
-              const reportData = fs.readFileSync(
-                "tests/python/test-report.json",
-                "utf-8"
-              );
-              const report = JSON.parse(reportData);
-
-              if (report.tests && report.tests.length > 0) {
-                result += `\n--- PYTHON TEST DETAILS ---\n`;
-                report.tests.forEach((test: any) => {
-                  if (test.outcome === "failed") {
-                    result += `\n❌ ${test.nodeid}\n`;
-                    if (test.call && test.call.longrepr) {
-                      result += `   Error: ${test.call.longrepr}\n`;
-                    }
-                  }
-                });
-              }
-            } catch (e) {
-              // Ignore JSON parsing errors
+          if (report.tests && report.tests.length > 0) {
+            const failedTests = report.tests.filter((t: { outcome: string }) => t.outcome === "failed");
+            if (failedTests.length > 0) {
+              result += `--- PYTHON FAILURES ---\n`;
+              failedTests.forEach((test: { nodeid: string; call?: { longrepr?: string } }) => {
+                result += `\n❌ ${test.nodeid}\n`;
+                if (test.call && test.call.longrepr) {
+                  const errorPreview = test.call.longrepr.length > 200
+                    ? test.call.longrepr.slice(0, 200) + "..."
+                    : test.call.longrepr;
+                  result += `   ${errorPreview}\n`;
+                }
+              });
             }
           }
+        } catch {
+          // Ignore JSON parsing errors
+        }
+      }
 
-          if (language === "java" || language === "all") {
-            const surefire = "tests/java/target/surefire-reports";
-            if (fs.existsSync(surefire)) {
-              const reports = fs
-                .readdirSync(surefire)
-                .filter((file: string) => file.endsWith(".xml"));
+      // For Java, find and report surefire
+      if (language === "java" || language === "all") {
+        const javaBaseDir = projectPath 
+          ? path.join(process.cwd(), "tests/java", projectPath)
+          : path.join(process.cwd(), "tests/java");
+        const surefireDir = findSurefireReports(javaBaseDir);
+        
+        if (surefireDir && fs.existsSync(surefireDir)) {
+          const reports = fs.readdirSync(surefireDir)
+            .filter((file: string) => file.endsWith(".xml") && file.startsWith("TEST-"));
 
-              if (reports.length > 0) {
-                result += `\n--- JAVA TEST REPORTS ---\n`;
-                reports.forEach((report: string) => {
-                  result += `Found report: ${report}\n`;
-                });
-              }
-            }
+          if (reports.length > 0) {
+            result += `--- JAVA TEST REPORTS ---\n`;
+            result += `Found ${reports.length} test report(s) in ${surefireDir}\n`;
           }
+        }
+      }
 
-          resolve(result);
-        });
-      });
+      // Only show errors if build failed
+      if (stderr.trim() && exitCode !== 0 && !stderr.includes("BUILD SUCCESS")) {
+        result += `\n--- ERRORS ---\n`;
+        const stderrPreview = stderr.length > 500
+          ? "...\n" + stderr.slice(-500)
+          : stderr;
+        result += stderrPreview;
+      }
 
       return result;
     } catch (error) {
@@ -341,6 +364,107 @@ const analyzeTestFailuresDefinition: ToolDefinition = {
   },
 };
 
+/**
+ * Find JaCoCo XML report in tests/java directory (searches subdirectories)
+ */
+const findJacocoXml = (baseDir: string): string | null => {
+  const possiblePaths = [
+    // Direct path in tests/java
+    path.join(baseDir, "target/site/jacoco/jacoco.xml"),
+    // Common subprojects
+    path.join(baseDir, "spring-currencyconverter/target/site/jacoco/jacoco.xml"),
+    path.join(baseDir, "springboot/target/site/jacoco/jacoco.xml"),
+    path.join(baseDir, "springboot-gradle/build/reports/jacoco/test/jacocoTestReport.xml"),
+  ];
+
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      return p;
+    }
+  }
+
+  // Search for any jacoco.xml in subdirectories
+  try {
+    const searchDirs = fs.readdirSync(baseDir, { withFileTypes: true })
+      .filter(d => d.isDirectory() && !d.name.startsWith('.'))
+      .map(d => d.name);
+    
+    for (const subdir of searchDirs) {
+      const jacocoPath = path.join(baseDir, subdir, "target/site/jacoco/jacoco.xml");
+      if (fs.existsSync(jacocoPath)) {
+        return jacocoPath;
+      }
+    }
+  } catch {
+    // Ignore search errors
+  }
+
+  return null;
+};
+
+/**
+ * Find surefire reports directory (searches subdirectories)
+ */
+const findSurefireReports = (baseDir: string): string | null => {
+  const possiblePaths = [
+    path.join(baseDir, "target/surefire-reports"),
+    path.join(baseDir, "spring-currencyconverter/target/surefire-reports"),
+    path.join(baseDir, "springboot/target/surefire-reports"),
+  ];
+
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      return p;
+    }
+  }
+
+  // Search subdirectories
+  try {
+    const searchDirs = fs.readdirSync(baseDir, { withFileTypes: true })
+      .filter(d => d.isDirectory() && !d.name.startsWith('.'))
+      .map(d => d.name);
+    
+    for (const subdir of searchDirs) {
+      const surefirePath = path.join(baseDir, subdir, "target/surefire-reports");
+      if (fs.existsSync(surefirePath)) {
+        return surefirePath;
+      }
+    }
+  } catch {
+    // Ignore search errors
+  }
+
+  return null;
+};
+
+/**
+ * Parse test counts from surefire XML reports
+ */
+const parseSurefireReports = (surefireDir: string): { total: number; passed: number; failed: number } => {
+  let total = 0;
+  let failed = 0;
+
+  try {
+    const reports = fs.readdirSync(surefireDir)
+      .filter(f => f.startsWith("TEST-") && f.endsWith(".xml"));
+
+    for (const report of reports) {
+      const xmlData = fs.readFileSync(path.join(surefireDir, report), "utf-8");
+      const testsMatch = xmlData.match(/tests="(\d+)"/);
+      const failuresMatch = xmlData.match(/failures="(\d+)"/);
+      const errorsMatch = xmlData.match(/errors="(\d+)"/);
+
+      if (testsMatch) total += parseInt(testsMatch[1]);
+      if (failuresMatch) failed += parseInt(failuresMatch[1]);
+      if (errorsMatch) failed += parseInt(errorsMatch[1]);
+    }
+  } catch {
+    // Ignore errors
+  }
+
+  return { total, passed: total - failed, failed };
+};
+
 const getCoverageDefinition: ToolDefinition = {
   name: "get_coverage",
   description:
@@ -353,16 +477,17 @@ const getCoverageDefinition: ToolDefinition = {
         enum: ["python", "java"],
         description: "Language to generate coverage for",
       },
+      project_path: {
+        type: "string",
+        description: "Optional: specific project subdirectory (e.g., 'spring-currencyconverter' for tests/java/spring-currencyconverter)",
+      },
     },
     required: ["language"],
   },
   function: async (input: GetCoverageInput) => {
     try {
       const language = input.language;
-
-      console.log(
-        `\n${colors.blue}Generating coverage for ${language}...${colors.reset}\n`
-      );
+      const projectPath = (input as { language: string; project_path?: string }).project_path;
 
       // Check dependencies first
       const depCheck = await checkTestDependencies(language);
@@ -377,15 +502,43 @@ const getCoverageDefinition: ToolDefinition = {
       let result = `Coverage Report (${language.toUpperCase()})\n`;
       result += `${"=".repeat(50)}\n\n`;
 
-      const command = `bash scripts/test-runner.sh --mode full --language ${language} --coverage`;
+      let command: string;
+      let workingDir = process.cwd();
+      
+      if (language === "java" && projectPath) {
+        // Run Maven directly in the specific project directory
+        const projectDir = path.join(process.cwd(), "tests/java", projectPath);
+        if (fs.existsSync(projectDir) && fs.existsSync(path.join(projectDir, "pom.xml"))) {
+          command = "mvn clean test jacoco:report -q";
+          workingDir = projectDir;
+          result += `Project: ${projectPath}\n\n`;
+        } else {
+          result += `Warning: Project not found at tests/java/${projectPath}\n`;
+          result += `Available projects:\n`;
+          const javaDir = path.join(process.cwd(), "tests/java");
+          try {
+            const subdirs = fs.readdirSync(javaDir, { withFileTypes: true })
+              .filter(d => d.isDirectory() && fs.existsSync(path.join(javaDir, d.name, "pom.xml")))
+              .map(d => d.name);
+            subdirs.forEach(d => { result += `  - ${d}\n`; });
+          } catch {
+            // Ignore
+          }
+          return result;
+        }
+      } else {
+        command = `bash scripts/test-runner.sh --mode full --language ${language} --coverage`;
+      }
+
       const timeoutMs = 300000; // 5 minutes
 
+      // Don't stream output - it corrupts the Ink UI
       const { stdout, stderr, exitCode, timedOut } = await runShellCommand(
         command,
-        process.cwd(),
+        workingDir,
         timeoutMs,
         process.env,
-        true  // stream output
+        false  // Don't stream - prevents UI corruption
       );
 
       if (timedOut) {
@@ -449,9 +602,26 @@ const getCoverageDefinition: ToolDefinition = {
         result += `4. Aim for >80% line coverage and >70% branch coverage\n`;
 
       } else if (language === "java") {
-        const xmlPath = path.join(process.cwd(), "tests/java/target/site/jacoco/jacoco.xml");
+        const javaBaseDir = projectPath 
+          ? path.join(process.cwd(), "tests/java", projectPath)
+          : path.join(process.cwd(), "tests/java");
+        
+        // Find JaCoCo report (searches subdirectories)
+        const xmlPath = projectPath
+          ? path.join(javaBaseDir, "target/site/jacoco/jacoco.xml")
+          : findJacocoXml(javaBaseDir);
 
-        if (fs.existsSync(xmlPath)) {
+        // Find and parse surefire reports for test counts
+        const surefireDir = projectPath
+          ? path.join(javaBaseDir, "target/surefire-reports")
+          : findSurefireReports(javaBaseDir);
+
+        if (surefireDir && fs.existsSync(surefireDir)) {
+          const testCounts = parseSurefireReports(surefireDir);
+          result += `Tests Run: ${testCounts.total} (${testCounts.passed} passed, ${testCounts.failed} failed)\n\n`;
+        }
+
+        if (xmlPath && fs.existsSync(xmlPath)) {
           try {
             const xmlData = fs.readFileSync(xmlPath, "utf-8");
 
@@ -492,21 +662,38 @@ const getCoverageDefinition: ToolDefinition = {
 
             result += `\nCoverage Report: ${xmlPath}\n`;
 
-            const htmlPath = "tests/java/target/site/jacoco/index.html";
-            if (fs.existsSync(path.join(process.cwd(), htmlPath))) {
+            const htmlPath = path.join(path.dirname(xmlPath), "index.html");
+            if (fs.existsSync(htmlPath)) {
               result += `HTML Report: ${htmlPath}\n`;
             }
           } catch (e) {
             result += `Could not parse coverage XML: ${e}\n`;
           }
         } else {
-          result += `Warning: jacoco.xml not found at ${xmlPath}\n`;
+          const searchedPath = projectPath 
+            ? `tests/java/${projectPath}/target/site/jacoco/jacoco.xml`
+            : "tests/java/**/target/site/jacoco/jacoco.xml";
+          result += `Warning: jacoco.xml not found at ${searchedPath}\n`;
 
           if (exitCode !== 0) {
             result += `\nTest execution failed. Common causes:\n`;
             result += `- Maven not configured properly\n`;
             result += `- JaCoCo plugin missing from pom.xml\n`;
             result += `- Tests failed before coverage could complete\n`;
+          }
+
+          // Suggest available projects
+          if (!projectPath) {
+            result += `\nTip: Specify a project with project_path parameter:\n`;
+            const javaDir = path.join(process.cwd(), "tests/java");
+            try {
+              const subdirs = fs.readdirSync(javaDir, { withFileTypes: true })
+                .filter(d => d.isDirectory() && fs.existsSync(path.join(javaDir, d.name, "pom.xml")))
+                .map(d => d.name);
+              subdirs.forEach(d => { result += `  - ${d}\n`; });
+            } catch {
+              // Ignore
+            }
           }
         }
 
@@ -517,11 +704,12 @@ const getCoverageDefinition: ToolDefinition = {
         result += `4. Check for untested exception handlers\n`;
       }
 
-      if (stderr.trim() && exitCode !== 0) {
+      // Only show errors if tests failed and there's meaningful error info
+      if (stderr.trim() && exitCode !== 0 && !stderr.includes("BUILD SUCCESS")) {
         result += `\n--- ERRORS ---\n`;
-        // Limit stderr to last 1000 chars to avoid overwhelming output
-        const stderrPreview = stderr.length > 1000
-          ? "...\n" + stderr.slice(-1000)
+        // Limit stderr to last 500 chars to avoid overwhelming output
+        const stderrPreview = stderr.length > 500
+          ? "...\n" + stderr.slice(-500)
           : stderr;
         result += stderrPreview;
       }

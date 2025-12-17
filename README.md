@@ -7,10 +7,25 @@
 - Uses **OpenRouter** with **Claude Sonnet 4.5** (low-temp, deterministic) and retries with validation on malformed tool args.
 - Includes **scaffolding templates** (API, chatbot, static, React) to bootstrap new projects quickly.
 - Can execute shell commands (e.g., `pytest`, `npm test`) via `run_command`, streaming output and honoring timeouts.
+- Can generate **Mermaid codebase diagrams** (high-level module flow) directly in the terminal.
 - **AI-powered testing framework** with 16 specialized tools covering unit, integration, E2E, API, performance, and PRD-driven testing.
 - **Spring Boot testing support** with automatic component detection and intelligent test generation.
 
 ## Recent Updates 🎉
+
+### Hybrid Multi-Agent Architecture & Exploration Tools 🤖 (December 2024)
+- ✅ **Hybrid Architecture** - Main sequential agent can now delegate context-heavy tasks to specialized sub-agents
+  - **FileSystemAgent**: Optimized for large-scale codebase exploration and bulk file operations
+  - **AnalysisAgent**: Specialized in deep architectural analysis and PRD parsing
+- ✅ **Exploration Tools (⚡ Heavy Operations)** - New category of tools for large-scale tasks
+  - `explore_codebase`: Search across many files and understand directory structures efficiently
+  - `analyze_code_implementation`: Deep analysis of code architecture and implementation patterns
+  - `bulk_file_operations`: Perform parallel operations (read/search) across 5+ files at once
+- ✅ **Agent System Infrastructure**
+  - **AgentPool**: Concurrency control with semaphore pattern to limit simultaneous API calls
+  - **AgentManager**: Centralized registration and management of specialized sub-agents
+  - **AgentProtocol**: Standardized communication format for task delegation and result reporting
+- ✅ **Configuration** - `ENABLE_SUB_AGENTS=true` environment variable to enable exploration agents
 
 ### Todo List Management & Intermediate Reasoning 🎯 (December 2024)
 - ✅ **Todo List System** - New `todo_write` tool for managing task progress
@@ -101,6 +116,16 @@ The agent uses **Ink** (React for CLIs) to provide a rich terminal interface:
 - **`ToolOutputDisplay.tsx`**: Formatted display of tool execution results
 - **`Confirm.tsx`**: Safe-mode confirmation dialogs for destructive operations
 
+### Multi-Agent System (Hybrid Architecture)
+The agent employs a hybrid architecture where a main sequential agent can delegate context-heavy tasks to specialized sub-agents:
+
+- **`AgentManager`**: Central registry for specialized sub-agents.
+- **`AgentPool`**: Concurrency control using a semaphore pattern to limit simultaneous API calls.
+- **`AgentContext`**: Shared state and configuration for sub-agents.
+- **`FileSystemAgent`**: Optimized for large-scale codebase exploration and bulk file operations.
+- **`AnalysisAgent`**: Specialized in deep architectural analysis and PRD parsing.
+- **`AgentProtocol`**: Standardized communication format for task delegation and result reporting.
+
 ### Utilities
 - **`build-tool-detector.ts`**: Automatic Maven/Gradle detection with dependency parsing
 - **`path-resolver.ts`**: Build-tool and language-aware path resolution for tests
@@ -130,6 +155,7 @@ The agent uses **Ink** (React for CLIs) to provide a rich terminal interface:
 2) Create `.env` in the project root with:
 ```
 OPENROUTER_API_KEY=sk-or-v1-...
+ENABLE_SUB_AGENTS=true (optional, enables exploration agents)
 ```
 3) Install dependencies:
 ```
@@ -176,14 +202,15 @@ The agent automatically sets up test environments when running tests:
 
 On launch, the agent:
 - Prints an ASCII banner and safe-mode notice
-- Loads 16 specialized tools for file ops, scaffolding, testing, and command execution
+- Loads specialized tools for file ops, scaffolding, testing, diagrams, and command execution
+- Initializes exploration agents (FileSystemAgent, AnalysisAgent) if enabled
 - Uses Ink-based interactive UI with React components
 - Shows previews and requires `y/yes` confirmation before writes/patches/commands
 - Displays tool execution output (truncated by default, full with `--verbose-tools`)
 - Handles malformed tool arguments with retries, validation, and truncation detection
 - Supports intermediate reasoning to explain actions before execution
 
-## Core Tools (16 Total)
+## Core Tools
 
 ### File Operations (5 tools)
 - **`read_file`**: Read file contents (truncates at 10,000 chars)
@@ -218,6 +245,23 @@ On launch, the agent:
   - Real-time UI updates via Ink TodoList component
   - Automatic status emission to terminal UI
   - Each todo requires: content (imperative), activeForm (present continuous), status
+
+### Codebase Diagrams (1 tool)
+- **`generate_mermaid_diagram`**: Scan a local repo and output a Mermaid `flowchart` showing entrypoints and directory-level dependencies
+
+### Exploration Tools (⚡ Heavy Operations) (3 tools)
+- **`explore_codebase`**: Large-scale file exploration and pattern searching
+  - Optimized for searching across many files (>5)
+  - Understands directory structures and organization
+  - Focuses on specific aspects (e.g., "authentication flow")
+- **`analyze_code_implementation`**: Deep architectural analysis
+  - Parses and analyzes PRDs to extract requirements
+  - Reviews code structure and design patterns
+  - Identifies high-level relationships and dependencies
+- **`bulk_file_operations`**: Efficient parallel operations
+  - Read or search across 5+ files simultaneously
+  - Optimized for high-context tasks
+  - Reduces total execution time for multi-file reads
 
 ## Testing Framework (All Phases Complete ✅)
 

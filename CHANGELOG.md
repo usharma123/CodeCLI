@@ -4,6 +4,35 @@ All notable changes to CodeCLI are documented in this file.
 
 ## [Latest Updates] - December 2024
 
+### Added - Hybrid Multi-Agent Architecture & Exploration Tools 🤖
+
+#### Hybrid Architecture
+- **Multi-Agent Delegation**: Main sequential agent can now delegate context-heavy tasks to specialized sub-agents.
+- **FileSystemAgent**: Optimized for large-scale codebase exploration, pattern searching, and bulk file operations.
+- **AnalysisAgent**: Specialized in deep architectural analysis, PRD parsing, and code quality reviews.
+- **AgentPool**: Concurrency control system using a semaphore pattern to limit simultaneous API calls and manage rate limits.
+- **AgentManager**: Centralized registry for registering and retrieving specialized sub-agents.
+- **AgentProtocol**: Standardized communication format for task delegation, status reporting, and result collection.
+- **Shared Context**: Mechanism for sharing state and configuration across multiple agents.
+
+#### Exploration Tools (⚡ Heavy Operations)
+- **`explore_codebase`**: New tool for large-scale file exploration and pattern searching.
+  - Efficiently searches across many files (>5).
+  - Understands directory structures and organization.
+  - Provides focused analysis on specific codebase aspects.
+- **`analyze_code_implementation`**: New tool for deep architectural analysis.
+  - Parses and analyzes PRDs to extract testable requirements.
+  - Reviews code structure and design patterns across multiple files.
+  - Identifies high-level relationships and dependencies.
+- **`bulk_file_operations`**: New tool for efficient parallel operations.
+  - Read or search across 5+ files simultaneously.
+  - Optimized for high-context tasks.
+  - Reduces total execution time for multi-file operations.
+
+#### Configuration
+- **New Environment Variable**: `ENABLE_SUB_AGENTS=true` to enable exploration agents.
+- **Feature Flag**: `isSubAgentsEnabled()` to check sub-agent status.
+
 ### Added - Todo List Management & Intermediate Reasoning 🎯
 
 #### Todo List System

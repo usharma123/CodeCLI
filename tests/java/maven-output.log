@@ -41,8 +41,8 @@ WARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release
 [INFO] ------------------------------------------------------------------------
 [INFO] BUILD FAILURE
 [INFO] ------------------------------------------------------------------------
-[INFO] Total time:  0.468 s
-[INFO] Finished at: 2025-12-16T15:57:00-05:00
+[INFO] Total time:  0.504 s
+[INFO] Finished at: 2025-12-17T12:38:15-05:00
 [INFO] ------------------------------------------------------------------------
 [ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.11.0:compile (default-compile) on project java-tests: Compilation failure: Compilation failure: 
 [ERROR] /Users/utsavsharma/Documents/GitHub/CodeCLI/tests/java/spring-currencyconverter/src/main/java/com/codecli/currency/CurrencyConverterApplication.java:[3,32] package org.springframework.boot does not exist

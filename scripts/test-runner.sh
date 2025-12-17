@@ -72,7 +72,7 @@ done
 # Print banner
 echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║   CodeCLI Unified Test Runner v1.0    ║${NC}"
-echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
+echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
 echo -e "${BLUE}Mode:${NC}     $MODE"
 echo -e "${BLUE}Language:${NC} $LANGUAGE"
 echo -e "${BLUE}Coverage:${NC} $COVERAGE"
@@ -144,31 +144,24 @@ run_python_tests() {
     cd "$PROJECT_ROOT"
 }
 
-# Function to run Java tests
-run_java_tests() {
-    echo -e "${YELLOW}▶ Running Java Tests...${NC}"
-    cd "$PROJECT_ROOT/tests/java"
-
-    # Check if Maven is installed
-    if ! command -v mvn &> /dev/null; then
-        echo -e "${RED}✗ Maven not found. Please install Maven to run Java tests.${NC}"
-        return 1
-    fi
-
-    # Clean previous builds
-    mvn clean > /dev/null 2>&1 || true
-
+# Function to run Maven tests in a directory
+run_maven_in_dir() {
+    local dir="$1"
+    local project_name="$2"
+    
+    cd "$dir"
+    
     # Determine Maven goals based on mode
-    MVN_ARGS="test"
+    MVN_ARGS="test -q"
     case $MODE in
         smoke)
-            MVN_ARGS="test -Dgroups=smoke"
+            MVN_ARGS="test -q -Dgroups=smoke"
             ;;
         sanity)
-            MVN_ARGS="test -Dgroups='smoke|sanity'"
+            MVN_ARGS="test -q -Dgroups='smoke|sanity'"
             ;;
         full)
-            MVN_ARGS="test"
+            MVN_ARGS="test -q"
             ;;
     esac
 
@@ -180,33 +173,85 @@ run_java_tests() {
     # Run Maven tests
     set +e
     if [ "$VERBOSE" = true ]; then
-        mvn $MVN_ARGS
+        mvn clean $MVN_ARGS
     else
-        mvn $MVN_ARGS > maven-output.log 2>&1
+        mvn clean $MVN_ARGS > maven-output.log 2>&1
     fi
-    JAVA_EXIT=$?
+    local exit_code=$?
     set -e
 
     # Parse results from Surefire reports
+    local dir_total=0
+    local dir_failures=0
+    local dir_errors=0
+    
     if [ -d "target/surefire-reports" ]; then
-        JAVA_TOTAL=$(find target/surefire-reports -name "TEST-*.xml" -exec grep -h 'tests="' {} \; | sed 's/.*tests="\([0-9]*\)".*/\1/' | awk '{s+=$1} END {print s}')
-        JAVA_FAILURES=$(find target/surefire-reports -name "TEST-*.xml" -exec grep -h 'failures="' {} \; | sed 's/.*failures="\([0-9]*\)".*/\1/' | awk '{s+=$1} END {print s}')
-        JAVA_ERRORS=$(find target/surefire-reports -name "TEST-*.xml" -exec grep -h 'errors="' {} \; | sed 's/.*errors="\([0-9]*\)".*/\1/' | awk '{s+=$1} END {print s}')
+        dir_total=$(find target/surefire-reports -name "TEST-*.xml" -exec grep -h 'tests="' {} \; 2>/dev/null | sed 's/.*tests="\([0-9]*\)".*/\1/' | awk '{s+=$1} END {print s+0}')
+        dir_failures=$(find target/surefire-reports -name "TEST-*.xml" -exec grep -h 'failures="' {} \; 2>/dev/null | sed 's/.*failures="\([0-9]*\)".*/\1/' | awk '{s+=$1} END {print s+0}')
+        dir_errors=$(find target/surefire-reports -name "TEST-*.xml" -exec grep -h 'errors="' {} \; 2>/dev/null | sed 's/.*errors="\([0-9]*\)".*/\1/' | awk '{s+=$1} END {print s+0}')
+    fi
+    
+    dir_total=${dir_total:-0}
+    dir_failures=${dir_failures:-0}
+    dir_errors=${dir_errors:-0}
+    local dir_failed=$((dir_failures + dir_errors))
+    local dir_passed=$((dir_total - dir_failed))
+    
+    if [ "$dir_total" -gt 0 ]; then
+        echo -e "  ${GREEN}✓ ${project_name}: $dir_passed passed${NC}, ${RED}$dir_failed failed${NC} (Total: $dir_total)"
+    fi
+    
+    JAVA_TOTAL=$((JAVA_TOTAL + dir_total))
+    JAVA_FAILURES=$((JAVA_FAILURES + dir_failures))
+    JAVA_ERRORS=$((JAVA_ERRORS + dir_errors))
+    
+    if [ $exit_code -ne 0 ]; then
+        JAVA_EXIT=1
+    fi
+    
+    cd "$PROJECT_ROOT"
+}
 
-        JAVA_TOTAL=${JAVA_TOTAL:-0}
-        JAVA_FAILURES=${JAVA_FAILURES:-0}
-        JAVA_ERRORS=${JAVA_ERRORS:-0}
-        JAVA_FAILED=$((JAVA_FAILURES + JAVA_ERRORS))
-        JAVA_PASSED=$((JAVA_TOTAL - JAVA_FAILED))
+# Function to run Java tests
+run_java_tests() {
+    echo -e "${YELLOW}▶ Running Java Tests...${NC}"
 
-        TOTAL_TESTS=$((TOTAL_TESTS + JAVA_TOTAL))
-        PASSED_TESTS=$((PASSED_TESTS + JAVA_PASSED))
-        FAILED_TESTS=$((FAILED_TESTS + JAVA_FAILED))
-
-        echo -e "${GREEN}✓ Java: $JAVA_PASSED passed${NC}, ${RED}$JAVA_FAILED failed${NC} (Total: $JAVA_TOTAL)"
+    # Check if Maven is installed
+    if ! command -v mvn &> /dev/null; then
+        echo -e "${RED}✗ Maven not found. Please install Maven to run Java tests.${NC}"
+        return 1
     fi
 
-    cd "$PROJECT_ROOT"
+    local JAVA_DIR="$PROJECT_ROOT/tests/java"
+    JAVA_TOTAL=0
+    JAVA_FAILURES=0
+    JAVA_ERRORS=0
+    
+    # Run tests in root java dir if it has a pom.xml with tests
+    if [ -f "$JAVA_DIR/pom.xml" ]; then
+        run_maven_in_dir "$JAVA_DIR" "root"
+    fi
+    
+    # Run tests in subprojects that have pom.xml
+    for subdir in "$JAVA_DIR"/*/; do
+        if [ -f "${subdir}pom.xml" ]; then
+            local project_name=$(basename "$subdir")
+            run_maven_in_dir "$subdir" "$project_name"
+        fi
+    done
+    
+    local JAVA_FAILED=$((JAVA_FAILURES + JAVA_ERRORS))
+    local JAVA_PASSED=$((JAVA_TOTAL - JAVA_FAILED))
+
+    TOTAL_TESTS=$((TOTAL_TESTS + JAVA_TOTAL))
+    PASSED_TESTS=$((PASSED_TESTS + JAVA_PASSED))
+    FAILED_TESTS=$((FAILED_TESTS + JAVA_FAILED))
+
+    if [ "$JAVA_TOTAL" -gt 0 ]; then
+        echo -e "${GREEN}✓ Java Total: $JAVA_PASSED passed${NC}, ${RED}$JAVA_FAILED failed${NC} (Total: $JAVA_TOTAL)"
+    else
+        echo -e "${YELLOW}No Java tests found${NC}"
+    fi
 }
 
 # Run tests based on language selection

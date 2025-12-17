@@ -223,3 +223,16 @@ export interface BulkFileOperationsInput {
   files: string[];
   pattern?: string;
 }
+
+export interface GenerateMermaidDiagramInput {
+  root_dir?: string;
+  direction?: "TB" | "TD" | "LR" | "RL";
+  grouping?: "auto" | "directory" | "file";
+  include_tests?: boolean;
+  max_files?: number;
+  max_edges?: number;
+  max_entrypoints?: number;
+  show_edge_counts?: boolean;
+  /** Render diagram as ASCII art using mermaid-ascii (requires mermaid-ascii to be installed) */
+  render_ascii?: boolean;
+}

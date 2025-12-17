@@ -5,153 +5,7 @@ import { colors } from "../utils/colors.js";
 import { renderMarkdownToAnsi } from "../utils/markdown.js";
 import { emitStatus } from "./status.js";
 import { emitToolOutput } from "./output.js";
-// Format tool name for display (e.g., "read_file" -> "Read")
-const formatToolName = (name) => {
-    const nameMap = {
-        read_file: "Read",
-        list_files: "List",
-        write_file: "Write",
-        edit_file: "Update",
-        patch_file: "Patch",
-        run_command: "Run",
-        scaffold_project: "Scaffold",
-        run_tests: "Test",
-        analyze_test_failures: "Analyze",
-        get_coverage: "Coverage",
-        detect_changed_files: "Detect",
-        generate_tests: "Generate",
-        analyze_coverage_gaps: "Gaps",
-        generate_regression_test: "Regression",
-        todo_write: "TodoWrite",
-    };
-    return nameMap[name] || name.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join("");
-};
-// Format tool arguments for single-line display
-const formatToolArgs = (name, args) => {
-    switch (name) {
-        case "read_file":
-            return args.path || "";
-        case "list_files":
-            return args.path || ".";
-        case "write_file":
-            return args.path || "";
-        case "edit_file":
-            return args.path || "";
-        case "patch_file":
-            return args.path || "";
-        case "run_command": {
-            const cmd = args.command || "";
-            return cmd.length > 60 ? cmd.substring(0, 57) + "..." : cmd;
-        }
-        case "scaffold_project":
-            return `${args.template}${args.name ? `: ${args.name}` : ""}`;
-        case "run_tests":
-            return `${args.mode || "full"} (${args.language || "all"})`;
-        case "analyze_test_failures":
-            return args.language || "unknown";
-        case "get_coverage":
-            return args.language || "unknown";
-        case "detect_changed_files":
-            return `since ${args.since || "HEAD"}`;
-        case "generate_tests":
-            return args.file_path || "";
-        case "analyze_coverage_gaps":
-            return `${args.language} (min ${args.min_coverage || 80}%)`;
-        case "generate_regression_test":
-            return args.fixed_file || "";
-        case "todo_write": {
-            const todoCount = args.todos?.length || 0;
-            const inProgress = args.todos?.find((t) => t.status === "in_progress");
-            return inProgress
-                ? `${todoCount} todos (current: ${inProgress.content})`
-                : `${todoCount} todos`;
-        }
-        default:
-            return JSON.stringify(args).substring(0, 50);
-    }
-};
-// Format result summary for tree display
-const formatResultSummary = (name, result) => {
-    switch (name) {
-        case "read_file": {
-            const lines = result.split("\n").length;
-            return `Read ${colors.bold}${lines}${colors.reset}${colors.gray} lines`;
-        }
-        case "list_files": {
-            try {
-                const files = JSON.parse(result);
-                return `Listed ${colors.bold}${files.length}${colors.reset}${colors.gray} paths`;
-            }
-            catch {
-                return "Listed files";
-            }
-        }
-        case "write_file":
-            return result.includes("created") ? "File created" : result.includes("overwritten") ? "File overwritten" : result;
-        case "edit_file":
-            return result.includes("updated") ? "Changes applied" : result;
-        case "run_command": {
-            if (result.includes("SUCCESS"))
-                return `${colors.green}Completed successfully${colors.reset}`;
-            if (result.includes("FAILED"))
-                return `${colors.red}Failed${colors.reset}`;
-            if (result.includes("TIMEOUT"))
-                return `${colors.yellow}Timed out${colors.reset}`;
-            if (result.includes("cancelled"))
-                return `${colors.yellow}Cancelled${colors.reset}`;
-            return "Completed";
-        }
-        case "run_tests": {
-            if (result.includes("Status: PASSED"))
-                return `${colors.green}All tests passed${colors.reset}`;
-            if (result.includes("Status: FAILED"))
-                return `${colors.red}Some tests failed${colors.reset}`;
-            return "Tests completed";
-        }
-        case "analyze_test_failures":
-            return "Analysis complete";
-        case "get_coverage": {
-            const match = result.match(/(\d+\.\d+)%/);
-            if (match)
-                return `Coverage: ${colors.bold}${match[1]}%${colors.reset}${colors.gray}`;
-            return "Coverage report ready";
-        }
-        case "detect_changed_files": {
-            const match = result.match(/Filtered: (\d+) files/);
-            if (match)
-                return `Found ${colors.bold}${match[1]}${colors.reset}${colors.gray} changed files`;
-            return "Files detected";
-        }
-        case "generate_tests":
-            return "Test scaffolds generated";
-        case "analyze_coverage_gaps": {
-            if (result.includes("All files meet") || result.includes("All packages meet")) {
-                return `${colors.green}All files meet threshold${colors.reset}`;
-            }
-            return `${colors.yellow}Gaps identified${colors.reset}`;
-        }
-        case "generate_regression_test":
-            return "Regression test generated";
-        case "todo_write": {
-            // Parse the result to count todos by status
-            const lines = result.split("\n");
-            const pendingCount = lines.filter(l => l.startsWith("○")).length;
-            const inProgressCount = lines.filter(l => l.startsWith("→")).length;
-            const completedCount = lines.filter(l => l.startsWith("✓")).length;
-            const total = pendingCount + inProgressCount + completedCount;
-            const parts = [];
-            if (completedCount > 0)
-                parts.push(`${colors.green}${completedCount} completed${colors.reset}${colors.gray}`);
-            if (inProgressCount > 0)
-                parts.push(`${colors.yellow}${inProgressCount} in progress${colors.reset}${colors.gray}`);
-            if (pendingCount > 0)
-                parts.push(`${pendingCount} pending`);
-            return `${total} todos (${parts.join(", ")})`;
-        }
-        default:
-            return result.length > 50 ? result.substring(0, 47) + "..." : result;
-    }
-};
+import { formatToolArgs, formatToolName, formatResultSummary } from "./tool-display.js";
 // AI Coding Agent Class
 class AIAgent {
     client;
@@ -224,6 +78,7 @@ Available tools:
 - generate_tests: AI-powered test generation for uncovered code
 - analyze_coverage_gaps: Identify critical missing tests and low-coverage files
 - generate_regression_test: Create tests for fixed bugs to prevent regressions
+- generate_mermaid_diagram: Scan a codebase and output a Mermaid flowchart of high-level module flow
 - todo_write: Manage todo lists for multi-step tasks (create, update, track progress)
 
 Tool selection guide:
@@ -408,7 +263,7 @@ Smart testing workflow:
 ${colors.reset}`);
         console.log(`${colors.gray}Safe mode enabled (ctrl+c to quit)${colors.reset}`);
         console.log(`${colors.gray}File changes require your approval before being applied${colors.reset}`);
-        console.log(`${colors.gray}Using Claude Sonnet 4.5 via OpenRouter${colors.reset}\n`);
+        console.log(`${colors.gray}Using Gemini 3 Flash Preview via OpenRouter${colors.reset}\n`);
         process.on("SIGINT", () => {
             console.log("\n\nGoodbye!");
             if (this.rl) {
@@ -463,7 +318,7 @@ ${colors.reset}`);
             }));
             emitStatus({ phase: "thinking", message: "Thinking…" });
             const { message, elapsedSeconds, streamedContent } = await this.createCompletion({
-                model: "anthropic/claude-sonnet-4.5",
+                model: "google/gemini-3-flash-preview",
                 messages: this.messages,
                 tools: openAITools,
                 tool_choice: "auto",
@@ -485,7 +340,7 @@ ${colors.reset}`);
                 emitStatus({ phase: "thinking", message: "Planning approach…" });
                 try {
                     const { message: reasoningMsg } = await this.createCompletion({
-                        model: "anthropic/claude-sonnet-4.5",
+                        model: "google/gemini-3-flash-preview",
                         messages: this.messages,
                         tools: [], // No tools for reasoning phase
                         temperature: 0.3,
@@ -525,7 +380,7 @@ ${colors.reset}`);
                     console.log(`  ${colors.gray}└ Retrying with tool enforcement...${colors.reset}`);
                     emitStatus({ phase: "thinking", message: "Thinking (retry)…" });
                     const { message: fallbackMessage, streamedContent: fallbackStreamed } = await this.createCompletion({
-                        model: "anthropic/claude-sonnet-4.5",
+                        model: "google/gemini-3-flash-preview",
                         messages: this.messages,
                         tools: openAITools,
                         tool_choice: "auto",
@@ -788,7 +643,7 @@ Please analyze the error and retry with corrected parameters. Common issues:
             this.messages.push(reasoningPrompt);
             try {
                 const { message: midReasoning } = await this.createCompletion({
-                    model: "anthropic/claude-sonnet-4.5",
+                    model: "google/gemini-3-flash-preview",
                     messages: this.messages,
                     tools: [],
                     temperature: 0.3,
@@ -827,7 +682,7 @@ Please analyze the error and retry with corrected parameters. Common issues:
             // Get follow-up response after tool execution (with tools enabled for continuation)
             emitStatus({ phase: "summarizing", message: "Summarizing…" });
             const { message: followUpMessage, streamedContent } = await this.createCompletion({
-                model: "anthropic/claude-sonnet-4.5",
+                model: "google/gemini-3-flash-preview",
                 messages: this.messages,
                 tools: openAITools,
                 tool_choice: "auto",
@@ -999,6 +854,7 @@ Please analyze the error and retry with corrected parameters. Common issues:
             "generate_tests_from_prd",
             "scaffold_project",
             "todo_write",
+            "generate_mermaid_diagram",
         ]);
         if (!this.verboseTools && !defaultOutputTools.has(functionName)) {
             return;
