@@ -233,6 +233,25 @@ Tool selection guide:
 - For RUNNING tests: Use run_command with pytest, npm test, etc.
 - For BUILDING/LINTING: Use run_command
 
+Heavy Operations (⚡):
+Some tools are marked with ⚡ indicating they are context-intensive operations:
+- explore_codebase: Large-scale file exploration (use for 5+ files, complex patterns)
+- analyze_code_implementation: Deep architectural analysis across multiple files
+- bulk_file_operations: Batch operations on many files (5+ files)
+
+When to use heavy operations:
+- ⚡ explore_codebase: When you need to understand unfamiliar parts of a large codebase
+- ⚡ analyze_code_implementation: When you need architectural insights across many files
+- ⚡ bulk_file_operations: When reading/searching 5+ files at once
+
+When NOT to use heavy operations:
+- Single file? Use read_file, NOT explore_codebase or bulk_file_operations
+- 2-3 files? Read them directly with read_file, NOT bulk operations
+- Quick search? Use grep or glob, NOT explore_codebase
+- Simple code? Read it directly, NOT analyze_code_implementation
+
+These heavy tools consume significant context and should only be used when the scope genuinely requires them.
+
 Todo List Usage:
 - When starting a task with 3+ steps, call todo_write to create a plan
 - Update todos as you progress through work

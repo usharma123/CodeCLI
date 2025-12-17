@@ -6,6 +6,11 @@ import { AIAgent } from "./core/agent.js";
 import { toolDefinitions, setAgentInstance } from "./core/tools/index.js";
 import { enableInkConfirmations, setReadlineConfirm, enableAutoApprove } from "./core/confirm.js";
 import { colors } from "./utils/colors.js";
+import { isSubAgentsEnabled } from "./core/feature-flags.js";
+import { getAgentManager } from "./core/agent-system/agent-manager.js";
+import { getSharedContext } from "./core/agent-system/agent-context.js";
+import { FileSystemAgent } from "./core/agents/filesystem.js";
+import { AnalysisAgent } from "./core/agents/analysis.js";
 
 dotenv.config();
 
@@ -33,6 +38,28 @@ async function main() {
     streamCommandOutput: false,
   });
   setAgentInstance(agent);
+
+  // Initialize exploration agents if enabled
+  if (isSubAgentsEnabled()) {
+    console.log(`${colors.cyan}🤖 Exploration agents enabled${colors.reset}`);
+
+    const agentManager = getAgentManager();
+    const sharedContext = getSharedContext(process.cwd());
+
+    // Register exploration agents
+    const fsAgent = new FileSystemAgent(apiKey, sharedContext.createAgentContext());
+    agentManager.registerAgent(fsAgent);
+
+    const analysisAgent = new AnalysisAgent(apiKey, sharedContext.createAgentContext());
+    agentManager.registerAgent(analysisAgent);
+
+    console.log(`${colors.green}✓ Registered 2 exploration agents:${colors.reset}`);
+    console.log(`${colors.gray}  📁 FileSystemAgent (codebase exploration)${colors.reset}`);
+    console.log(`${colors.gray}  🔍 AnalysisAgent (code analysis)${colors.reset}`);
+    console.log(`${colors.gray}Exploration tools: explore_codebase, analyze_code_implementation, bulk_file_operations${colors.reset}\n`);
+  } else {
+    console.log(`${colors.gray}Exploration agents disabled (set ENABLE_SUB_AGENTS=true to enable)${colors.reset}\n`);
+  }
 
   setReadlineConfirm(async (message: string) => {
     if (!agent.rl) {

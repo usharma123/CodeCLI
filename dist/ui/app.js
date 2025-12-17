@@ -43,18 +43,22 @@ export function App({ onSubmit, onConfirmRequest, agentRef }) {
     }, []);
     // Poll for todo updates
     React.useEffect(() => {
-        if (!agentRef?.current)
-            return;
-        const interval = setInterval(() => {
-            try {
-                const todoState = agentRef.current.getTodos();
-                setTodos(todoState.todos);
-            }
-            catch (err) {
-                // Silently ignore polling errors
-            }
-        }, 500); // Poll every 500ms
-        return () => clearInterval(interval);
+        let interval = null;
+        if (agentRef?.current) {
+            interval = setInterval(() => {
+                try {
+                    const todoState = agentRef.current.getTodos();
+                    setTodos(todoState.todos);
+                }
+                catch (err) {
+                    // Silently ignore polling errors
+                }
+            }, 500);
+        }
+        return () => {
+            if (interval)
+                clearInterval(interval);
+        };
     }, [agentRef]);
     const handleConfirm = () => {
         if (confirmState) {
@@ -75,6 +79,7 @@ export function App({ onSubmit, onConfirmRequest, agentRef }) {
             exit();
         }
         const isCtrlO = (key.ctrl && input === "o") || input === "\u000f";
+        // Handle expanded output view
         if (expandedOutputId) {
             if (isCtrlO || key.escape || input === "q" || input === "Q") {
                 setExpandedOutputId(null);
@@ -82,6 +87,7 @@ export function App({ onSubmit, onConfirmRequest, agentRef }) {
             }
             return;
         }
+        // Ctrl+O: Expand truncated output
         if (isCtrlO) {
             setExpandedOutputId((current) => {
                 const lastTruncated = getLastTruncatedOutput();
@@ -101,5 +107,5 @@ export function App({ onSubmit, onConfirmRequest, agentRef }) {
             setIsProcessing(false);
         }
     };
-    return (_jsxs(Box, { flexDirection: "column", children: [_jsx(Static, { items: ["header"], children: () => (_jsxs(Box, { flexDirection: "column", children: [_jsx(Text, { color: "cyan", children: HEADER }), _jsx(Text, { dimColor: true, children: "Safe mode enabled (ctrl+c to quit)" }), _jsx(Text, { dimColor: true, children: "File changes require your approval before being applied" }), _jsx(Text, { dimColor: true, children: "Using Claude Sonnet 4.5 via OpenRouter" }), _jsx(Text, { children: " " })] }, "header")) }), isProcessing && (_jsx(Box, { marginBottom: 1, children: _jsx(Spinner, { label: statusMessage || "Thinking..." }) })), todos.length > 0 && _jsx(TodoList, { todos: todos }), _jsx(ToolOutputDisplay, { expandedOutputId: expandedOutputId }), confirmState && (_jsx(Box, { marginBottom: 1, children: _jsx(Confirm, { message: confirmState.message, onConfirm: handleConfirm, onCancel: handleCancel }) })), _jsx(InputBox, { onSubmit: handleSubmit, isDisabled: isProcessing || !!confirmState || !!expandedOutputId, sessionNum: sessionNum, resetToken: inputResetToken })] }));
+    return (_jsx(Box, { flexDirection: "row", children: _jsxs(Box, { flexDirection: "column", flexGrow: 1, children: [_jsx(Static, { items: ["header"], children: () => (_jsxs(Box, { flexDirection: "column", children: [_jsx(Text, { color: "cyan", children: HEADER }), _jsx(Text, { dimColor: true, children: "Safe mode enabled (ctrl+c to quit)" }), _jsx(Text, { dimColor: true, children: "File changes require your approval before being applied" }), _jsx(Text, { dimColor: true, children: "Using Claude Sonnet 4.5 via OpenRouter" }), _jsx(Text, { children: " " })] }, "header")) }), isProcessing && (_jsx(Box, { marginBottom: 1, children: _jsx(Spinner, { label: statusMessage || "Thinking..." }) })), todos.length > 0 && _jsx(TodoList, { todos: todos }), _jsx(ToolOutputDisplay, { expandedOutputId: expandedOutputId }), confirmState && (_jsx(Box, { marginBottom: 1, children: _jsx(Confirm, { message: confirmState.message, onConfirm: handleConfirm, onCancel: handleCancel }) })), _jsx(InputBox, { onSubmit: handleSubmit, isDisabled: isProcessing || !!confirmState || !!expandedOutputId, sessionNum: sessionNum, resetToken: inputResetToken })] }) }));
 }

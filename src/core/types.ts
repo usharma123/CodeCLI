@@ -141,3 +141,85 @@ export interface ReasoningCheckpoint {
   reasoning: string;
   timestamp: number;
 }
+
+// Multi-Agent System Types
+
+/**
+ * Agent types for exploration sub-agents (hybrid architecture)
+ */
+export type AgentType =
+  | "filesystem"    // File operations and exploration
+  | "analysis";     // Code analysis and architectural understanding
+
+/**
+ * Agent capabilities and configuration
+ */
+export interface AgentCapabilities {
+  name: string;
+  type: AgentType;
+  tools: ToolDefinition[];
+  systemPrompt: string;
+  canDelegate: boolean;
+  maxConcurrentTasks?: number;
+}
+
+/**
+ * Shared context for agent execution
+ */
+export interface AgentContext {
+  conversationHistory: any[];
+  workingDirectory: string;
+  parentAgent?: string;  // Agent ID
+  sharedMemory: Map<string, any>;
+}
+
+/**
+ * Task to be executed by an agent
+ */
+export interface AgentTask {
+  id: string;
+  type: AgentType | string;
+  description: string;
+  context: Record<string, any>;
+  priority: "low" | "normal" | "high";
+  timeout?: number;
+  dependencies?: string[];  // Other task IDs that must complete first
+}
+
+/**
+ * Result from agent task execution
+ */
+export interface AgentResult {
+  taskId: string;
+  status: "success" | "error" | "partial";
+  data: any;
+  error?: string;
+  metrics: {
+    duration: number;
+    toolCallCount: number;
+    tokensUsed: number;
+  };
+}
+
+/**
+ * Sub-agent tool inputs (hybrid architecture)
+ * These tools wrap sub-agent invocations as regular tools
+ */
+
+export interface ExploreCodebaseInput {
+  pattern: string;
+  focus: string;
+  depth?: "quick" | "thorough";
+}
+
+export interface AnalyzeCodeImplementationInput {
+  files: string[];
+  focus: string;
+  analysis_type: "architecture" | "requirements" | "review";
+}
+
+export interface BulkFileOperationsInput {
+  operation: "read" | "search";
+  files: string[];
+  pattern?: string;
+}

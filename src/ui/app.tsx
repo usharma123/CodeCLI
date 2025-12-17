@@ -59,18 +59,21 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
 
   // Poll for todo updates
   React.useEffect(() => {
-    if (!agentRef?.current) return;
+    let interval: NodeJS.Timeout | null = null;
+    if (agentRef?.current) {
+      interval = setInterval(() => {
+        try {
+          const todoState = agentRef.current!.getTodos();
+          setTodos(todoState.todos);
+        } catch (err) {
+          // Silently ignore polling errors
+        }
+      }, 500);
+    }
 
-    const interval = setInterval(() => {
-      try {
-        const todoState = agentRef.current!.getTodos();
-        setTodos(todoState.todos);
-      } catch (err) {
-        // Silently ignore polling errors
-      }
-    }, 500); // Poll every 500ms
-
-    return () => clearInterval(interval);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [agentRef]);
 
   const handleConfirm = () => {
@@ -94,9 +97,10 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
         console.log("\n\nGoodbye!");
         exit();
       }
-      const isCtrlO =
-        (key.ctrl && input === "o") || input === "\u000f";
 
+      const isCtrlO = (key.ctrl && input === "o") || input === "\u000f";
+
+      // Handle expanded output view
       if (expandedOutputId) {
         if (isCtrlO || key.escape || input === "q" || input === "Q") {
           setExpandedOutputId(null);
@@ -105,6 +109,7 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
         return;
       }
 
+      // Ctrl+O: Expand truncated output
       if (isCtrlO) {
         setExpandedOutputId((current) => {
           const lastTruncated = getLastTruncatedOutput();
@@ -127,45 +132,48 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
   };
 
   return (
-    <Box flexDirection="column">
-      <Static items={["header"]}>
-        {() => (
-          <Box key="header" flexDirection="column">
-            <Text color="cyan">{HEADER}</Text>
-            <Text dimColor>Safe mode enabled (ctrl+c to quit)</Text>
-            <Text dimColor>File changes require your approval before being applied</Text>
-            <Text dimColor>Using Claude Sonnet 4.5 via OpenRouter</Text>
-            <Text> </Text>
+    <Box flexDirection="row">
+      {/* Main content area */}
+      <Box flexDirection="column" flexGrow={1}>
+        <Static items={["header"]}>
+          {() => (
+            <Box key="header" flexDirection="column">
+              <Text color="cyan">{HEADER}</Text>
+              <Text dimColor>Safe mode enabled (ctrl+c to quit)</Text>
+              <Text dimColor>File changes require your approval before being applied</Text>
+              <Text dimColor>Using Claude Sonnet 4.5 via OpenRouter</Text>
+              <Text> </Text>
+            </Box>
+          )}
+        </Static>
+
+        {isProcessing && (
+          <Box marginBottom={1}>
+            <Spinner label={statusMessage || "Thinking..."} />
           </Box>
         )}
-      </Static>
 
-      {isProcessing && (
-        <Box marginBottom={1}>
-          <Spinner label={statusMessage || "Thinking..."} />
-        </Box>
-      )}
+        {todos.length > 0 && <TodoList todos={todos} />}
 
-      {todos.length > 0 && <TodoList todos={todos} />}
+        <ToolOutputDisplay expandedOutputId={expandedOutputId} />
 
-      <ToolOutputDisplay expandedOutputId={expandedOutputId} />
+        {confirmState && (
+          <Box marginBottom={1}>
+            <Confirm
+              message={confirmState.message}
+              onConfirm={handleConfirm}
+              onCancel={handleCancel}
+            />
+          </Box>
+        )}
 
-      {confirmState && (
-        <Box marginBottom={1}>
-          <Confirm
-            message={confirmState.message}
-            onConfirm={handleConfirm}
-            onCancel={handleCancel}
-          />
-        </Box>
-      )}
-
-      <InputBox
-        onSubmit={handleSubmit}
-        isDisabled={isProcessing || !!confirmState || !!expandedOutputId}
-        sessionNum={sessionNum}
-        resetToken={inputResetToken}
-      />
+        <InputBox
+          onSubmit={handleSubmit}
+          isDisabled={isProcessing || !!confirmState || !!expandedOutputId}
+          sessionNum={sessionNum}
+          resetToken={inputResetToken}
+        />
+      </Box>
     </Box>
   );
 }
