@@ -7,6 +7,7 @@ import { generationTools } from "./generation.js";
 import { advancedTestingTools } from "./advanced-testing.js";
 import { prdTestingTools } from "./prd-testing.js";
 import { todoTools } from "./todos.js";
+import { delegationTools } from "./delegation.js";
 import { setAgentInstance } from "./shared.js";
 
 export const toolDefinitions: ToolDefinition[] = [
@@ -18,6 +19,7 @@ export const toolDefinitions: ToolDefinition[] = [
   ...advancedTestingTools,
   ...prdTestingTools,
   ...todoTools,
+  ...delegationTools,  // Add delegation tool
 ];
 
 export { setAgentInstance };

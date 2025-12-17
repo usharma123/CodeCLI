@@ -1,0 +1,239 @@
+import OpenAI from "openai";
+import {
+  AgentCapabilities,
+  AgentContext,
+  AgentTask,
+  AgentResult,
+  AgentType,
+  ToolDefinition,
+} from "./types.js";
+import { createAgentResult } from "./agent-protocol.js";
+
+/**
+ * Base class for all agents in the multi-agent system
+ * Provides common functionality and enforces contract
+ */
+export abstract class BaseAgent {
+  protected id: string;
+  protected capabilities: AgentCapabilities;
+  protected context: AgentContext;
+  protected client: OpenAI;
+  protected messages: any[] = [];
+
+  constructor(
+    apiKey: string,
+    capabilities: AgentCapabilities,
+    context: AgentContext,
+    baseURL?: string
+  ) {
+    this.id = this.generateAgentId();
+    this.capabilities = capabilities;
+    this.context = context;
+
+    // Initialize OpenAI client
+    this.client = new OpenAI({
+      apiKey,
+      baseURL: baseURL || "https://openrouter.ai/api/v1",
+    });
+
+    // Initialize messages with system prompt
+    this.messages = [
+      {
+        role: "system",
+        content: capabilities.systemPrompt,
+      },
+    ];
+  }
+
+  /**
+   * Generate unique agent ID
+   */
+  private generateAgentId(): string {
+    return `${this.capabilities?.type || "agent"}_${Date.now()}_${Math.random()
+      .toString(36)
+      .substring(2, 9)}`;
+  }
+
+  /**
+   * Execute a task assigned to this agent
+   * Must be implemented by subclasses
+   */
+  abstract executeTask(task: AgentTask): Promise<AgentResult>;
+
+  /**
+   * Check if this agent can handle a given task
+   * Used by agent manager for auto-routing
+   */
+  abstract canHandle(task: AgentTask): boolean;
+
+  /**
+   * Get agent ID
+   */
+  getId(): string {
+    return this.id;
+  }
+
+  /**
+   * Get agent type
+   */
+  getType(): AgentType {
+    return this.capabilities.type;
+  }
+
+  /**
+   * Get agent capabilities
+   */
+  getCapabilities(): AgentCapabilities {
+    return this.capabilities;
+  }
+
+  /**
+   * Get available tools for this agent
+   */
+  getTools(): ToolDefinition[] {
+    return this.capabilities.tools;
+  }
+
+  /**
+   * Check if agent can delegate to other agents
+   */
+  canDelegate(): boolean {
+    return this.capabilities.canDelegate;
+  }
+
+  /**
+   * Add user message to conversation
+   */
+  protected addUserMessage(content: string): void {
+    this.messages.push({
+      role: "user",
+      content,
+    });
+  }
+
+  /**
+   * Add assistant message to conversation
+   */
+  protected addAssistantMessage(message: any): void {
+    this.messages.push({
+      role: "assistant",
+      content: message.content || "",
+      tool_calls: message.tool_calls,
+    });
+  }
+
+  /**
+   * Add tool result to conversation
+   */
+  protected addToolResult(toolCallId: string, result: string): void {
+    this.messages.push({
+      role: "tool",
+      tool_call_id: toolCallId,
+      content: result,
+    });
+  }
+
+  /**
+   * Create AI completion using OpenAI API
+   */
+  protected async createCompletion(options: {
+    tools?: any[];
+    temperature?: number;
+    maxTokens?: number;
+  } = {}): Promise<any> {
+    const request: any = {
+      model: "anthropic/claude-sonnet-4.5",
+      messages: this.messages,
+      temperature: options.temperature || 0.7,
+      max_tokens: options.maxTokens || 4096,
+    };
+
+    if (options.tools && options.tools.length > 0) {
+      request.tools = options.tools;
+    }
+
+    const completion = await this.client.chat.completions.create(request);
+    return completion.choices[0].message;
+  }
+
+  /**
+   * Execute a tool function
+   */
+  protected async executeTool(
+    toolName: string,
+    args: any
+  ): Promise<string> {
+    const tool = this.capabilities.tools.find((t) => t.name === toolName);
+
+    if (!tool) {
+      throw new Error(`Tool ${toolName} not found in agent ${this.capabilities.name}`);
+    }
+
+    try {
+      return await tool.function(args);
+    } catch (error) {
+      throw new Error(`Tool ${toolName} execution failed: ${error}`);
+    }
+  }
+
+  /**
+   * Create a success result
+   */
+  protected createSuccessResult(
+    taskId: string,
+    data: any,
+    metrics: {
+      duration: number;
+      toolCallCount?: number;
+      tokensUsed?: number;
+    }
+  ): AgentResult {
+    return createAgentResult(taskId, "success", data, metrics);
+  }
+
+  /**
+   * Create an error result
+   */
+  protected createErrorResult(
+    taskId: string,
+    error: string,
+    metrics: {
+      duration: number;
+      toolCallCount?: number;
+      tokensUsed?: number;
+    }
+  ): AgentResult {
+    return createAgentResult(taskId, "error", null, metrics, error);
+  }
+
+  /**
+   * Create a partial result
+   */
+  protected createPartialResult(
+    taskId: string,
+    data: any,
+    error: string,
+    metrics: {
+      duration: number;
+      toolCallCount?: number;
+      tokensUsed?: number;
+    }
+  ): AgentResult {
+    return createAgentResult(taskId, "partial", data, metrics, error);
+  }
+
+  /**
+   * Get message count
+   */
+  getMessageCount(): number {
+    return this.messages.length;
+  }
+
+  /**
+   * Clear conversation history (keep system prompt)
+   */
+  clearMessages(): void {
+    const systemPrompt = this.messages[0];
+    this.messages = [systemPrompt];
+  }
+}

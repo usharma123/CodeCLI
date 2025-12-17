@@ -141,3 +141,85 @@ export interface ReasoningCheckpoint {
   reasoning: string;
   timestamp: number;
 }
+
+// Multi-Agent System Types
+
+/**
+ * Agent types in the multi-agent system
+ */
+export type AgentType =
+  | "orchestrator"  // Primary coordinator
+  | "filesystem"    // File operations specialist
+  | "testing"       // Test execution and generation
+  | "build"         // Command execution and builds
+  | "analysis";     // Code analysis and planning
+
+/**
+ * Agent capabilities and configuration
+ */
+export interface AgentCapabilities {
+  name: string;
+  type: AgentType;
+  tools: ToolDefinition[];
+  systemPrompt: string;
+  canDelegate: boolean;
+  maxConcurrentTasks?: number;
+}
+
+/**
+ * Shared context for agent execution
+ */
+export interface AgentContext {
+  conversationHistory: any[];
+  workingDirectory: string;
+  parentAgent?: string;  // Agent ID
+  sharedMemory: Map<string, any>;
+}
+
+/**
+ * Task to be executed by an agent
+ */
+export interface AgentTask {
+  id: string;
+  type: AgentType | string;
+  description: string;
+  context: Record<string, any>;
+  priority: "low" | "normal" | "high";
+  timeout?: number;
+  dependencies?: string[];  // Other task IDs that must complete first
+}
+
+/**
+ * Result from agent task execution
+ */
+export interface AgentResult {
+  taskId: string;
+  status: "success" | "error" | "partial";
+  data: any;
+  error?: string;
+  metrics: {
+    duration: number;
+    toolCallCount: number;
+    tokensUsed: number;
+  };
+}
+
+/**
+ * Request to delegate work to another agent
+ */
+export interface DelegationRequest {
+  taskId: string;
+  targetAgent: AgentType;
+  task: AgentTask;
+  callback?: (result: AgentResult) => void;
+}
+
+/**
+ * Delegation tool input
+ */
+export interface DelegateToAgentInput {
+  agent_type: AgentType;
+  task_description: string;
+  context?: Record<string, any>;
+  priority?: "low" | "normal" | "high";
+}
