@@ -78,9 +78,6 @@ The AI Coding Agent processes requests in several coordinated steps to ensure ac
 
 ### Visual Workflow
 
-![Agent Workflow Diagram](docs/images/agent_workflow.png)
-
-
 ![Project Structure Diagram](image/Workflow.png)
 
 ## Documentation
