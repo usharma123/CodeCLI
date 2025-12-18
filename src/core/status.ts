@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import { SeverityLevel } from "./severity.js";
 
 export type AgentStatusPhase =
   | "idle"
@@ -10,6 +11,7 @@ export type AgentStatusPhase =
 export interface AgentStatus {
   phase: AgentStatusPhase;
   message: string;
+  severity?: SeverityLevel;  // Optional severity level
   agentId?: string;  // Optional for backward compatibility
   agentType?: string;  // Optional agent type
 }

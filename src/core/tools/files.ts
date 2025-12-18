@@ -11,6 +11,7 @@ import {
 import { confirmAction } from "../confirm.js";
 import { colors } from "../../utils/colors.js";
 import { getAgentInstance } from "./shared.js";
+import { DiffRenderer } from "../../utils/diff-renderer.js";
 
 /**
  * Validates that a file path doesn't attempt path traversal attacks
@@ -146,17 +147,35 @@ const writeFileDefinition: ToolDefinition = {
 
       const lines = input.content.split("\n");
       const totalLines = lines.length;
-      const previewCount = Math.min(15, totalLines);
 
-      console.log(
-        `  ${colors.gray}└ ${fileExists ? "Overwrite" : "Create"} ${colors.bold}${input.path}${colors.reset}${colors.gray} (${totalLines} lines)${colors.reset}`
-      );
-      for (let i = 0; i < previewCount; i++) {
-        const lineNum = String(i + 1).padStart(4, " ");
-        console.log(`    ${colors.gray}${lineNum}${colors.reset} ${colors.green}+${colors.reset} ${lines[i]}`);
-      }
-      if (totalLines > previewCount) {
-        console.log(`    ${colors.gray}     ... (${totalLines - previewCount} more lines)${colors.reset}`);
+      if (fileExists && currentContent) {
+        // Show diff for existing file
+        console.log(
+          `  ${colors.gray}└ Overwrite ${colors.bold}${input.path}${colors.reset}${colors.gray} (${totalLines} lines)${colors.reset}`
+        );
+        console.log();
+        const summary = DiffRenderer.summarizeChanges(currentContent, input.content);
+        console.log(`    ${colors.gray}Changes: ${summary}${colors.reset}`);
+        console.log();
+        const diff = DiffRenderer.renderUnified(currentContent, input.content, {
+          contextLines: 3,
+          maxLines: 50,
+          compactMode: true
+        });
+        console.log(diff);
+      } else {
+        // Show preview for new file
+        const previewCount = Math.min(15, totalLines);
+        console.log(
+          `  ${colors.gray}└ Create ${colors.bold}${input.path}${colors.reset}${colors.gray} (${totalLines} lines)${colors.reset}`
+        );
+        for (let i = 0; i < previewCount; i++) {
+          const lineNum = String(i + 1).padStart(4, " ");
+          console.log(`    ${colors.gray}${lineNum}${colors.reset} ${colors.green}+${colors.reset} ${lines[i]}`);
+        }
+        if (totalLines > previewCount) {
+          console.log(`    ${colors.gray}     ... (${totalLines - previewCount} more lines)${colors.reset}`);
+        }
       }
 
       const confirmed = await confirmAction("Apply changes?");
@@ -235,46 +254,18 @@ const editFileDefinition: ToolDefinition = {
         newContent = currentContent.replaceAll(input.old_str, input.new_str);
       }
 
-      const oldLines = input.old_str.split("\n");
-      const newLines = input.new_str.split("\n");
-      const addCount = newLines.filter((l) => l.trim()).length;
-      const removeCount = oldLines.filter((l) => l.trim()).length;
-
-      const allLines = currentContent.split("\n");
-      let startLineNum = 1;
-      if (input.old_str) {
-        const idx = currentContent.indexOf(input.old_str);
-        if (idx >= 0) {
-          startLineNum = currentContent.substring(0, idx).split("\n").length;
-        }
-      }
-
+      const summary = DiffRenderer.summarizeChanges(currentContent, newContent);
       console.log(
-        `  ${colors.gray}└ Updated ${colors.bold}${input.path}${colors.reset}${colors.gray} with ${colors.green}${addCount} addition${addCount !== 1 ? "s" : ""}${colors.gray} and ${colors.red}${removeCount} removal${removeCount !== 1 ? "s" : ""}${colors.reset}`
+        `  ${colors.gray}└ Updated ${colors.bold}${input.path}${colors.reset}${colors.gray} - Changes: ${summary}${colors.reset}`
       );
+      console.log();
 
-      const maxPreview = 8;
-      let lineNum = startLineNum;
-
-      const oldPreview = oldLines.slice(0, maxPreview);
-      for (const line of oldPreview) {
-        const ln = String(lineNum).padStart(4, " ");
-        console.log(`    ${colors.gray}${ln}${colors.reset} ${colors.red}-${colors.reset} ${colors.red}${line}${colors.reset}`);
-      }
-      if (oldLines.length > maxPreview) {
-        console.log(`    ${colors.gray}     ... (${oldLines.length - maxPreview} more removals)${colors.reset}`);
-      }
-
-      lineNum = startLineNum;
-      const newPreview = newLines.slice(0, maxPreview);
-      for (const line of newPreview) {
-        const ln = String(lineNum).padStart(4, " ");
-        console.log(`    ${colors.gray}${ln}${colors.reset} ${colors.green}+${colors.reset} ${colors.green}${line}${colors.reset}`);
-        lineNum++;
-      }
-      if (newLines.length > maxPreview) {
-        console.log(`    ${colors.gray}     ... (${newLines.length - maxPreview} more additions)${colors.reset}`);
-      }
+      const diff = DiffRenderer.renderUnified(currentContent, newContent, {
+        contextLines: 3,
+        maxLines: 30,
+        compactMode: false
+      });
+      console.log(diff);
 
       const confirmed = await confirmAction("Apply changes?");
       if (confirmed) {

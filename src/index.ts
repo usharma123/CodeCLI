@@ -11,6 +11,8 @@ import { getAgentManager } from "./core/agent-system/agent-manager.js";
 import { getSharedContext } from "./core/agent-system/agent-context.js";
 import { FileSystemAgent } from "./core/agents/filesystem.js";
 import { AnalysisAgent } from "./core/agents/analysis.js";
+import { initializeClIgnore } from "./utils/clignore.js";
+import { getSessionManager } from "./core/session-manager.js";
 
 dotenv.config();
 
@@ -20,6 +22,12 @@ async function main() {
   const verboseTools =
     argv.includes("--verbose-tools") ||
     process.env.TOOLS_VERBOSE === "1";
+
+  // Parse session flags
+  const sessionFlag = argv.find(arg => arg.startsWith("--session="));
+  const sessionId = sessionFlag ? sessionFlag.split("=")[1] : null;
+  const resumeSession = argv.includes("--resume");
+  const noSession = argv.includes("--no-session");
 
   if (!apiKey) {
     console.error(
@@ -38,6 +46,50 @@ async function main() {
     streamCommandOutput: false,
   });
   setAgentInstance(agent);
+
+  // Initialize .clignore
+  try {
+    await initializeClIgnore(process.cwd());
+    console.log(`${colors.gray}.clignore initialized${colors.reset}`);
+  } catch (error) {
+    console.warn(`${colors.yellow}Warning: Could not initialize .clignore: ${error}${colors.reset}`);
+  }
+
+  // Initialize session management
+  const sessionManager = getSessionManager();
+  await sessionManager.initialize();
+
+  if (!noSession) {
+    try {
+      if (sessionId) {
+        // Load specific session
+        const session = await sessionManager.loadSession(sessionId);
+        console.log(`${colors.green}✓ Loaded session: ${sessionId}${colors.reset}`);
+        console.log(`${colors.gray}  Created: ${new Date(session.metadata.createdAt).toLocaleString()}${colors.reset}`);
+        console.log(`${colors.gray}  Messages: ${session.metadata.messageCount}${colors.reset}\n`);
+      } else if (resumeSession) {
+        // Resume last session for this project
+        const session = await sessionManager.findRecentSessionForProject(process.cwd());
+        if (session) {
+          sessionManager.setCurrentSession(session);
+          console.log(`${colors.green}✓ Resumed session: ${session.metadata.id}${colors.reset}`);
+          console.log(`${colors.gray}  Last modified: ${new Date(session.metadata.lastModified).toLocaleString()}${colors.reset}\n`);
+        } else {
+          console.log(`${colors.gray}No previous session found, creating new session${colors.reset}\n`);
+          sessionManager.createSession(process.cwd());
+        }
+      } else {
+        // Create new session
+        const session = sessionManager.createSession(process.cwd());
+        console.log(`${colors.gray}Session: ${session.metadata.id}${colors.reset}\n`);
+      }
+    } catch (error) {
+      console.warn(`${colors.yellow}Warning: Session initialization failed: ${error}${colors.reset}\n`);
+      sessionManager.createSession(process.cwd());
+    }
+  } else {
+    console.log(`${colors.gray}Session persistence disabled${colors.reset}\n`);
+  }
 
   // Initialize exploration agents if enabled
   if (isSubAgentsEnabled()) {

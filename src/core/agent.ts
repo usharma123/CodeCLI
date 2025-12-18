@@ -7,6 +7,7 @@ import { renderMarkdownToAnsi } from "../utils/markdown.js";
 import { emitStatus } from "./status.js";
 import { emitToolOutput } from "./output.js";
 import { formatToolArgs, formatToolName, formatResultSummary } from "./tool-display.js";
+import { logWithSeverity } from "./severity.js";
 
 interface AgentOptions {
   verboseTools?: boolean;
@@ -294,7 +295,7 @@ ${colors.reset}`);
       `${colors.gray}File changes require your approval before being applied${colors.reset}`
     );
     console.log(
-      `${colors.gray}Using Kimi 2.0 via OpenRouter${colors.reset}\n`
+      `${colors.gray}Using Gemini 3 Flash Preview via OpenRouter${colors.reset}\n`
     );
 
     process.on("SIGINT", () => {
@@ -365,7 +366,7 @@ ${colors.reset}`);
       emitStatus({ phase: "thinking", message: "Thinking…" });
       const { message, elapsedSeconds, streamedContent } =
         await this.createCompletion({
-          model: "moonshotai/kimi-k2-thinking",
+          model: "google/gemini-3-flash-preview",
           messages: this.messages,
           tools: openAITools,
           tool_choice: "auto",
@@ -394,7 +395,7 @@ ${colors.reset}`);
 
         try {
           const { message: reasoningMsg } = await this.createCompletion({
-            model: "moonshotai/kimi-k2-thinking",
+            model: "google/gemini-3-flash-preview",
             messages: this.messages,
             tools: [], // No tools for reasoning phase
             temperature: 0.3,
@@ -442,7 +443,7 @@ ${colors.reset}`);
           emitStatus({ phase: "thinking", message: "Thinking (retry)…" });
           const { message: fallbackMessage, streamedContent: fallbackStreamed } =
             await this.createCompletion({
-              model: "moonshotai/kimi-k2-thinking",
+              model: "google/gemini-3-flash-preview",
               messages: this.messages,
               tools: openAITools,
               tool_choice: "auto",
@@ -746,7 +747,7 @@ Please analyze the error and retry with corrected parameters. Common issues:
 
       try {
         const { message: midReasoning } = await this.createCompletion({
-          model: "moonshotai/kimi-k2-thinking",
+          model: "google/gemini-3-flash-preview",
           messages: this.messages,
           tools: [],
           temperature: 0.3,
@@ -790,7 +791,7 @@ Please analyze the error and retry with corrected parameters. Common issues:
       emitStatus({ phase: "summarizing", message: "Summarizing…" });
       const { message: followUpMessage, streamedContent } =
         await this.createCompletion({
-          model: "moonshotai/kimi-k2-thinking",
+          model: "google/gemini-3-flash-preview",
           messages: this.messages,
           tools: openAITools,
           tool_choice: "auto",

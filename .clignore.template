@@ -1,0 +1,90 @@
+# CodeCLI Ignore Patterns
+# Files and directories matching these patterns will be excluded from file operations
+# Syntax is similar to .gitignore
+
+# Dependencies
+node_modules/
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+target/
+.gradle/
+.m2-repo/
+vendor/
+
+# Build outputs
+dist/
+build/
+*.class
+*.jar
+*.war
+*.ear
+out/
+*.o
+*.so
+*.exe
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs & Temp files
+*.log
+*.tmp
+.cache/
+.coverage
+.pytest_cache/
+*.pid
+
+# Secrets (IMPORTANT - DO NOT REMOVE!)
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets/
+credentials.json
+config/secrets.yaml
+*.p12
+*.pfx
+
+# Test coverage reports
+coverage/
+.nyc_output/
+htmlcov/
+
+# Large binary files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.pdf
+*.mp4
+*.mov
+*.avi
+*.mp3
+*.wav
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.svg
+*.ico
+
+# Version control
+.git/
+.svn/
+.hg/
+
+# Package manager locks (optional - comment out if needed)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+# bun.lockb
