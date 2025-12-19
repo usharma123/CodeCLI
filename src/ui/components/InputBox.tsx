@@ -44,7 +44,8 @@ export function InputBox({
     ? "shell"
     : null;
 
-  // Mode-based styling (subtle)
+  // Mode-based styling (subtle) - only change border color, not prompt
+  // This avoids duplication since the input already contains the mode character
   const borderColor = inputMode === "command"
     ? "blue"
     : inputMode === "file"
@@ -52,14 +53,6 @@ export function InputBox({
     : inputMode === "shell"
     ? "yellow"
     : "gray";
-
-  const promptChar = inputMode === "command"
-    ? "/"
-    : inputMode === "file"
-    ? "@"
-    : inputMode === "shell"
-    ? "$"
-    : ">";
 
   return (
     <Box flexDirection="column">
@@ -72,7 +65,7 @@ export function InputBox({
 
       <Box borderStyle="single" borderColor={borderColor} paddingX={1}>
         <Text color={inputMode ? borderColor : "gray"}>
-          {promptChar}{" "}
+          {">"}{" "}
         </Text>
         <TextInput
           key={`${resetToken}-${inputKey}`}

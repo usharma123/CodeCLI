@@ -27,7 +27,8 @@ export function InputBox({ onSubmit, isDisabled = false, sessionNum, resetToken 
             : currentInput.startsWith("!")
                 ? "shell"
                 : null;
-    // Mode-based styling (subtle)
+    // Mode-based styling (subtle) - only change border color, not prompt
+    // This avoids duplication since the input already contains the mode character
     const borderColor = inputMode === "command"
         ? "blue"
         : inputMode === "file"
@@ -35,14 +36,7 @@ export function InputBox({ onSubmit, isDisabled = false, sessionNum, resetToken 
             : inputMode === "shell"
                 ? "yellow"
                 : "gray";
-    const promptChar = inputMode === "command"
-        ? "/"
-        : inputMode === "file"
-            ? "@"
-            : inputMode === "shell"
-                ? "$"
-                : ">";
-    return (_jsxs(Box, { flexDirection: "column", children: [showSlashHelp && (_jsx(SlashCommandHelp, { commands: allCommands, filter: currentInput.length > 1 ? currentInput : undefined })), _jsxs(Box, { borderStyle: "single", borderColor: borderColor, paddingX: 1, children: [_jsxs(Text, { color: inputMode ? borderColor : "gray", children: [promptChar, " "] }), _jsx(TextInput, { placeholder: "ask anything...", onSubmit: handleSubmit, onChange: handleChange, isDisabled: isDisabled }, `${resetToken}-${inputKey}`)] }), _jsx(Box, { paddingLeft: 1, children: _jsxs(Text, { dimColor: true, children: ["session ", sessionNum, currentInput.length > 80 && ` ${icons.bullet} ${currentInput.length} chars`] }) })] }));
+    return (_jsxs(Box, { flexDirection: "column", children: [showSlashHelp && (_jsx(SlashCommandHelp, { commands: allCommands, filter: currentInput.length > 1 ? currentInput : undefined })), _jsxs(Box, { borderStyle: "single", borderColor: borderColor, paddingX: 1, children: [_jsxs(Text, { color: inputMode ? borderColor : "gray", children: [">", " "] }), _jsx(TextInput, { placeholder: "ask anything...", onSubmit: handleSubmit, onChange: handleChange, isDisabled: isDisabled }, `${resetToken}-${inputKey}`)] }), _jsx(Box, { paddingLeft: 1, children: _jsxs(Text, { dimColor: true, children: ["session ", sessionNum, currentInput.length > 80 && ` ${icons.bullet} ${currentInput.length} chars`] }) })] }));
 }
 export function MinimalInput({ onSubmit, placeholder = "...", isDisabled = false, }) {
     const [inputKey, setInputKey] = useState(0);
