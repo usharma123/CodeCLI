@@ -3,6 +3,7 @@ import { Box, Text } from "ink";
 import { TextInput } from "@inkjs/ui";
 import { SlashCommandHelp } from "./SlashCommandHelp.js";
 import { getSlashCommandRegistry } from "../../core/slash-commands.js";
+import { icons } from "../theme.js";
 
 interface InputBoxProps {
   onSubmit: (value: string) => void;
@@ -22,8 +23,8 @@ export function InputBox({
 
   const handleSubmit = (submittedValue: string) => {
     onSubmit(submittedValue);
-    setInputKey((prev) => prev + 1); // Force remount to clear input
-    setCurrentInput(""); // Reset input tracking
+    setInputKey((prev) => prev + 1);
+    setCurrentInput("");
   };
 
   const handleChange = (value: string) => {
@@ -34,6 +35,32 @@ export function InputBox({
   const registry = getSlashCommandRegistry();
   const allCommands = registry.listCommands();
 
+  // Detect input mode
+  const inputMode = currentInput.startsWith("/")
+    ? "command"
+    : currentInput.startsWith("@")
+    ? "file"
+    : currentInput.startsWith("!")
+    ? "shell"
+    : null;
+
+  // Mode-based styling (subtle)
+  const borderColor = inputMode === "command"
+    ? "blue"
+    : inputMode === "file"
+    ? "green"
+    : inputMode === "shell"
+    ? "yellow"
+    : "gray";
+
+  const promptChar = inputMode === "command"
+    ? "/"
+    : inputMode === "file"
+    ? "@"
+    : inputMode === "shell"
+    ? "$"
+    : ">";
+
   return (
     <Box flexDirection="column">
       {showSlashHelp && (
@@ -43,20 +70,58 @@ export function InputBox({
         />
       )}
 
-      <Box borderStyle="round" borderColor="cyan" paddingX={1}>
-        <Text color="gray">→ </Text>
+      <Box borderStyle="single" borderColor={borderColor} paddingX={1}>
+        <Text color={inputMode ? borderColor : "gray"}>
+          {promptChar}{" "}
+        </Text>
         <TextInput
           key={`${resetToken}-${inputKey}`}
-          placeholder="Plan, search, build anything"
+          placeholder="ask anything..."
           onSubmit={handleSubmit}
           onChange={handleChange}
           isDisabled={isDisabled}
         />
       </Box>
-      <Box paddingLeft={1} gap={1}>
-        <Text dimColor>Session {sessionNum}</Text>
-        <Text dimColor>/ commands · @ files · ! shell</Text>
+
+      {/* Minimal status line */}
+      <Box paddingLeft={1}>
+        <Text dimColor>
+          session {sessionNum}
+          {currentInput.length > 80 && ` ${icons.bullet} ${currentInput.length} chars`}
+        </Text>
       </Box>
+    </Box>
+  );
+}
+
+// Minimal input variant
+interface MinimalInputProps {
+  onSubmit: (value: string) => void;
+  placeholder?: string;
+  isDisabled?: boolean;
+}
+
+export function MinimalInput({
+  onSubmit,
+  placeholder = "...",
+  isDisabled = false,
+}: MinimalInputProps) {
+  const [inputKey, setInputKey] = useState(0);
+
+  const handleSubmit = (value: string) => {
+    onSubmit(value);
+    setInputKey((prev) => prev + 1);
+  };
+
+  return (
+    <Box>
+      <Text dimColor>{icons.chevron} </Text>
+      <TextInput
+        key={inputKey}
+        placeholder={placeholder}
+        onSubmit={handleSubmit}
+        isDisabled={isDisabled}
+      />
     </Box>
   );
 }

@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { Box, Text, Static, useApp, useInput } from "ink";
-import { Spinner } from "@inkjs/ui";
 import { InputBox } from "./components/InputBox.js";
 import { Confirm } from "./components/Confirm.js";
 import { TodoList } from "./components/TodoList.js";
 import { ToolOutputDisplay } from "./components/ToolOutputDisplay.js";
+import { StatusBar } from "./components/StatusBar.js";
 import { onStatus, getStatus } from "../core/status.js";
 import { getLastTruncatedOutput } from "../core/output.js";
 import type { AIAgent } from "../core/agent.js";
@@ -12,28 +12,21 @@ import { getSlashCommandRegistry } from "../core/slash-commands.js";
 import { getSessionManager } from "../core/session-manager.js";
 import { getTokenTracker } from "../core/token-tracker.js";
 import { getDryRunManager } from "../core/dry-run.js";
-
-const HEADER = `
-  ██████╗  ██████╗  ██████╗ ████████╗███████╗████████╗██████╗  █████╗ ██████╗
-  ██╔══██╗██╔═══██╗██╔═══██╗╚══██╔══╝██╔════╝╚══██╔══╝██╔══██╗██╔══██╗██╔══██╗
-  ██████╔╝██║   ██║██║   ██║   ██║   ███████╗   ██║   ██████╔╝███████║██████╔╝
-  ██╔══██╗██║   ██║██║   ██║   ██║   ╚════██║   ██║   ██╔══██╗██╔══██║██╔═══╝
-  ██████╔╝╚██████╔╝╚██████╔╝   ██║   ███████║   ██║   ██║  ██║██║  ██║██║
-  ╚═════╝  ╚═════╝  ╚═════╝    ╚═╝   ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝
-`;
+import { brand, icons, createSeparator } from "./theme.js";
 
 interface AppProps {
   onSubmit: (input: string) => Promise<void>;
   onConfirmRequest?: (handler: (message: string) => Promise<boolean>) => void;
-  agentRef?: React.RefObject<AIAgent>;
+  agentRef?: React.RefObject<AIAgent | null>;
 }
 
 export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
   const { exit } = useApp();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStartTime, setProcessingStartTime] = useState<number | null>(null);
   const [sessionNum] = useState(1);
   const [statusMessage, setStatusMessage] = useState<string>(
-    getStatus().message || "Thinking..."
+    getStatus().message || "thinking..."
   );
   const [confirmState, setConfirmState] = useState<{
     message: string;
@@ -89,21 +82,18 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
   React.useEffect(() => {
     const interval = setInterval(() => {
       try {
-        // Update session ID
         const sessionMgr = getSessionManager();
         const session = sessionMgr.getCurrentSession();
         if (session) {
           setSessionId(session.metadata.id);
         }
 
-        // Update token stats
         const tracker = getTokenTracker();
         setTokenStats({
           total: tracker.getTotalTokens(),
           cost: tracker.getTotalCost()
         });
 
-        // Update dry-run status
         const dryRun = getDryRunManager();
         setIsDryRun(dryRun.isEnabled());
       } catch (err) {
@@ -132,13 +122,12 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
     (input, key) => {
       const isCtrlC = (key.ctrl && input === "c") || input === "\u0003";
       if (isCtrlC) {
-        console.log("\n\nGoodbye!");
+        console.log("\n");
         exit();
       }
 
       const isCtrlO = (key.ctrl && input === "o") || input === "\u000f";
 
-      // Handle expanded output view
       if (expandedOutputId) {
         if (isCtrlO || key.escape || input === "q" || input === "Q") {
           setExpandedOutputId(null);
@@ -147,7 +136,6 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
         return;
       }
 
-      // Ctrl+O: Expand truncated output
       if (isCtrlO) {
         setExpandedOutputId((current) => {
           const lastTruncated = getLastTruncatedOutput();
@@ -162,7 +150,6 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
   const handleSubmit = async (value: string) => {
     if (!value.trim() || isProcessing) return;
 
-    // Check for slash commands
     const cmdRegistry = getSlashCommandRegistry();
     let finalInput = value;
 
@@ -171,110 +158,106 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
         const parsed = cmdRegistry.parseCommand(value);
         if (parsed) {
           finalInput = cmdRegistry.expandCommand(parsed.command, parsed.args);
-          console.log(`\n💡 Expanded /${parsed.command.name} → "${finalInput.substring(0, 60)}..."\n`);
+          console.log(`\n${icons.arrow} /${parsed.command.name}\n`);
         }
       } catch (error: any) {
-        console.log(`\n❌ ${error.message}\n`);
+        console.log(`\n${icons.error} ${error.message}\n`);
         return;
       }
     }
 
     setIsProcessing(true);
+    setProcessingStartTime(Date.now());
     try {
       await onSubmit(finalInput);
     } finally {
       setIsProcessing(false);
+      setProcessingStartTime(null);
     }
   };
 
+  // Get working directory (last 2 segments)
+  const cwd = process.cwd().split('/').slice(-2).join('/');
+
   return (
     <Box flexDirection="row">
-      {/* Main content area */}
       <Box flexDirection="column" flexGrow={1}>
         <Static items={["header"]}>
           {() => (
             <Box key="header" flexDirection="column">
-              <Text color="cyan" bold>{HEADER}</Text>
+              {/* Logo */}
+              <Text color="cyan" bold>{brand.logo}</Text>
 
-              {/* Status Banner */}
-              {isDryRun && (
-                <Box marginBottom={1}>
-                  <Text backgroundColor="yellow" color="black" bold> [DRY RUN MODE] </Text>
-                  <Text color="yellow"> No changes will be applied</Text>
-                </Box>
-              )}
-
-              {/* System Info */}
-              <Box flexDirection="column" marginBottom={1}>
-                <Box>
-                  <Text color="green">✓</Text>
-                  <Text> Safe mode enabled </Text>
-                  <Text dimColor>(Ctrl+C to quit)</Text>
-                </Box>
-                <Box>
-                  <Text color="cyan">●</Text>
-                  <Text> Claude Sonnet 4.5 via OpenRouter</Text>
-                </Box>
-                <Box>
-                  <Text color="magenta">📁</Text>
-                  <Text> {process.cwd()}</Text>
-                </Box>
+              {/* Status line */}
+              <Box marginBottom={1}>
+                <Text dimColor>{brand.tagline}</Text>
               </Box>
 
-              {/* Session Info */}
-              {(sessionId || tokenStats.total > 0) && (
-                <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1} marginBottom={1}>
-                  {sessionId && (
-                    <Box>
-                      <Text color="yellow">Session:</Text>
-                      <Text> {sessionId}</Text>
-                    </Box>
-                  )}
-                  {tokenStats.total > 0 && (
-                    <Box>
-                      <Text color="blue">Usage:</Text>
-                      <Text> {tokenStats.total.toLocaleString()} tokens</Text>
-                      <Text dimColor> | </Text>
-                      <Text color="green">${tokenStats.cost.toFixed(4)}</Text>
-                    </Box>
-                  )}
-                </Box>
-              )}
+              {/* Info bar - single line, clean */}
+              <Box marginBottom={1}>
+                {isDryRun && (
+                  <>
+                    <Text color="yellow">[dry-run]</Text>
+                    <Text dimColor> {icons.pipe} </Text>
+                  </>
+                )}
+                <Text dimColor>model:</Text>
+                <Text color="cyan"> sonnet-4.5</Text>
+                <Text dimColor> {icons.pipe} </Text>
+                <Text dimColor>cwd:</Text>
+                <Text> {cwd}</Text>
+                {sessionId && (
+                  <>
+                    <Text dimColor> {icons.pipe} </Text>
+                    <Text dimColor>session:</Text>
+                    <Text color="blue"> {sessionId.substring(0, 8)}</Text>
+                  </>
+                )}
+                {tokenStats.total > 0 && (
+                  <>
+                    <Text dimColor> {icons.pipe} </Text>
+                    <Text dimColor>tokens:</Text>
+                    <Text> {tokenStats.total.toLocaleString()}</Text>
+                  </>
+                )}
+                {tokenStats.cost > 0 && (
+                  <>
+                    <Text dimColor> {icons.pipe} </Text>
+                    <Text color="green">${tokenStats.cost.toFixed(4)}</Text>
+                  </>
+                )}
+              </Box>
 
-              {/* Quick Reference */}
-              <Box flexDirection="column" borderStyle="single" borderColor="cyan" paddingX={1} marginBottom={1}>
-                <Text bold color="cyan">Quick Reference</Text>
-                <Box>
-                  <Text color="yellow">/</Text>
-                  <Text> Slash commands - Type / to see all commands</Text>
-                </Box>
-                <Box>
-                  <Text color="yellow">Ctrl+C</Text>
-                  <Text> Exit the application</Text>
-                </Box>
-                <Box>
-                  <Text color="yellow">Ctrl+O</Text>
-                  <Text> Expand truncated output</Text>
-                </Box>
+              {/* Keyboard shortcuts - minimal */}
+              <Box marginBottom={1}>
+                <Text dimColor>
+                  ^c quit {icons.bullet} ^o output {icons.bullet} / commands {icons.bullet} @ files {icons.bullet} ! shell
+                </Text>
               </Box>
 
               {/* Separator */}
-              <Text color="gray">{'─'.repeat(80)}</Text>
+              <Text dimColor>{createSeparator(70)}</Text>
               <Text> </Text>
             </Box>
           )}
         </Static>
 
+        {/* Processing status */}
         {isProcessing && (
-          <Box marginBottom={1}>
-            <Spinner label={statusMessage || "Thinking..."} />
-          </Box>
+          <StatusBar
+            message={statusMessage || "thinking..."}
+            isProcessing={isProcessing}
+            startTime={processingStartTime || undefined}
+          />
         )}
 
+        {/* Todo list */}
         {todos.length > 0 && <TodoList todos={todos} />}
 
+        {/* Expanded tool output */}
         <ToolOutputDisplay expandedOutputId={expandedOutputId} />
 
+        {/* Confirmation dialog */}
         {confirmState && (
           <Box marginBottom={1}>
             <Confirm
@@ -285,6 +268,7 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
           </Box>
         )}
 
+        {/* Input */}
         <InputBox
           onSubmit={handleSubmit}
           isDisabled={isProcessing || !!confirmState || !!expandedOutputId}

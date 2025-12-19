@@ -7,7 +7,8 @@ import {
 import { colors } from "../../utils/colors.js";
 import * as fs from "fs/promises";
 import * as path from "path";
-import pdfParse from "pdf-parse";
+import * as pdfParseModule from "pdf-parse";
+const pdfParse = (pdfParseModule as any).default || pdfParseModule;
 
 const parsePRDDefinition: ToolDefinition = {
   name: "parse_prd",

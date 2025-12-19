@@ -1,7 +1,8 @@
 import { colors } from "../../utils/colors.js";
 import * as fs from "fs/promises";
 import * as path from "path";
-import pdfParse from "pdf-parse";
+import * as pdfParseModule from "pdf-parse";
+const pdfParse = pdfParseModule.default || pdfParseModule;
 const parsePRDDefinition = {
     name: "parse_prd",
     description: "Parse a Product Requirements Document (PRD) to extract testable requirements. Supports markdown, text, and PDF files. Converts requirements into structured test cases.",

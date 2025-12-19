@@ -1,7 +1,8 @@
 import { colors } from "../../utils/colors.js";
 import * as fs from "fs/promises";
 import * as path from "path";
-import pdfParse from "pdf-parse";
+import * as pdfParseModule from "pdf-parse";
+const pdfParse = pdfParseModule.default || pdfParseModule;
 const extractTasksFromPRDDefinition = {
     name: "extract_tasks_from_prd",
     description: "Extract actionable tasks from a PRD/PDF document. Analyzes requirements and converts them into structured implementation and test tasks with appropriate granularity.",

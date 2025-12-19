@@ -10,6 +10,7 @@ An AI-powered coding assistant CLI built with TypeScript/Bun. Uses OpenRouter AP
 - **Project Scaffolding**: Bootstrap projects (API, chatbot, React, static sites)
 - **Codebase Analysis**: Generate Mermaid flowcharts, explore codebases, analyze architecture
 - **Spring Boot Support**: Auto-detection and component-aware test generation
+- **PRD-to-Code Workflow**: Automatically parse Product Requirements Documents (PDF/MD/TXT) into actionable tasks and test suites
 - **Terminal UI**: React/Ink-based interactive interface with task tracking
 
 ## Quick Start
