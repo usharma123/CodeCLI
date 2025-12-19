@@ -263,7 +263,7 @@ Smart testing workflow:
 ${colors.reset}`);
         console.log(`${colors.gray}Safe mode enabled (ctrl+c to quit)${colors.reset}`);
         console.log(`${colors.gray}File changes require your approval before being applied${colors.reset}`);
-        console.log(`${colors.gray}Using Gemini 3 Flash Preview via OpenRouter${colors.reset}\n`);
+        console.log(`${colors.gray}Using GPT-5.1 Codex Mini via OpenRouter${colors.reset}\n`);
         process.on("SIGINT", () => {
             console.log("\n\nGoodbye!");
             if (this.rl) {
@@ -318,7 +318,7 @@ ${colors.reset}`);
             }));
             emitStatus({ phase: "thinking", message: "Thinking…" });
             const { message, elapsedSeconds, streamedContent } = await this.createCompletion({
-                model: "google/gemini-3-flash-preview",
+                model: "openai/gpt-5.1-codex-mini",
                 messages: this.messages,
                 tools: openAITools,
                 tool_choice: "auto",
@@ -340,7 +340,7 @@ ${colors.reset}`);
                 emitStatus({ phase: "thinking", message: "Planning approach…" });
                 try {
                     const { message: reasoningMsg } = await this.createCompletion({
-                        model: "google/gemini-3-flash-preview",
+                        model: "openai/gpt-5.1-codex-mini",
                         messages: this.messages,
                         tools: [], // No tools for reasoning phase
                         temperature: 0.3,
@@ -380,7 +380,7 @@ ${colors.reset}`);
                     console.log(`  ${colors.gray}└ Retrying with tool enforcement...${colors.reset}`);
                     emitStatus({ phase: "thinking", message: "Thinking (retry)…" });
                     const { message: fallbackMessage, streamedContent: fallbackStreamed } = await this.createCompletion({
-                        model: "google/gemini-3-flash-preview",
+                        model: "openai/gpt-5.1-codex-mini",
                         messages: this.messages,
                         tools: openAITools,
                         tool_choice: "auto",
@@ -643,7 +643,7 @@ Please analyze the error and retry with corrected parameters. Common issues:
             this.messages.push(reasoningPrompt);
             try {
                 const { message: midReasoning } = await this.createCompletion({
-                    model: "google/gemini-3-flash-preview",
+                    model: "openai/gpt-5.1-codex-mini",
                     messages: this.messages,
                     tools: [],
                     temperature: 0.3,
@@ -682,7 +682,7 @@ Please analyze the error and retry with corrected parameters. Common issues:
             // Get follow-up response after tool execution (with tools enabled for continuation)
             emitStatus({ phase: "summarizing", message: "Summarizing…" });
             const { message: followUpMessage, streamedContent } = await this.createCompletion({
-                model: "google/gemini-3-flash-preview",
+                model: "openai/gpt-5.1-codex-mini",
                 messages: this.messages,
                 tools: openAITools,
                 tool_choice: "auto",

@@ -295,7 +295,7 @@ ${colors.reset}`);
       `${colors.gray}File changes require your approval before being applied${colors.reset}`
     );
     console.log(
-      `${colors.gray}Using Gemini 3 Flash Preview via OpenRouter${colors.reset}\n`
+      `${colors.gray}Using GPT-5.1 Codex Mini via OpenRouter${colors.reset}\n`
     );
 
     process.on("SIGINT", () => {
@@ -366,7 +366,7 @@ ${colors.reset}`);
       emitStatus({ phase: "thinking", message: "Thinking…" });
       const { message, elapsedSeconds, streamedContent } =
         await this.createCompletion({
-          model: "google/gemini-3-flash-preview",
+          model: "openai/gpt-5.1-codex-mini",
           messages: this.messages,
           tools: openAITools,
           tool_choice: "auto",
@@ -395,7 +395,7 @@ ${colors.reset}`);
 
         try {
           const { message: reasoningMsg } = await this.createCompletion({
-            model: "google/gemini-3-flash-preview",
+            model: "openai/gpt-5.1-codex-mini",
             messages: this.messages,
             tools: [], // No tools for reasoning phase
             temperature: 0.3,
@@ -443,7 +443,7 @@ ${colors.reset}`);
           emitStatus({ phase: "thinking", message: "Thinking (retry)…" });
           const { message: fallbackMessage, streamedContent: fallbackStreamed } =
             await this.createCompletion({
-              model: "google/gemini-3-flash-preview",
+              model: "openai/gpt-5.1-codex-mini",
               messages: this.messages,
               tools: openAITools,
               tool_choice: "auto",
@@ -747,7 +747,7 @@ Please analyze the error and retry with corrected parameters. Common issues:
 
       try {
         const { message: midReasoning } = await this.createCompletion({
-          model: "google/gemini-3-flash-preview",
+          model: "openai/gpt-5.1-codex-mini",
           messages: this.messages,
           tools: [],
           temperature: 0.3,
@@ -791,7 +791,7 @@ Please analyze the error and retry with corrected parameters. Common issues:
       emitStatus({ phase: "summarizing", message: "Summarizing…" });
       const { message: followUpMessage, streamedContent } =
         await this.createCompletion({
-          model: "google/gemini-3-flash-preview",
+          model: "openai/gpt-5.1-codex-mini",
           messages: this.messages,
           tools: openAITools,
           tool_choice: "auto",

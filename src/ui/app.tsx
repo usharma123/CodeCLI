@@ -202,7 +202,7 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
                   </>
                 )}
                 <Text dimColor>model:</Text>
-                <Text color="cyan"> sonnet-4.5</Text>
+                <Text color="cyan"> gpt-5.1-codex-mini</Text>
                 <Text dimColor> {icons.pipe} </Text>
                 <Text dimColor>cwd:</Text>
                 <Text> {cwd}</Text>

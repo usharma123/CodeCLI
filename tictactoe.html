@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tic Tac Toe</title>
-    <style>
+        <style>
         * {
             margin: 0;
             padding: 0;
@@ -12,199 +12,159 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+            background: radial-gradient(circle at 20% 20%, #3f3f3f, #070707 65%);
+            color: #f4f4f4;
             -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
         }
 
         .container {
             text-align: center;
-            background: #ffffff;
-            padding: 50px 60px;
-            border-radius: 24px;
-            box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6), 
-                        0 10px 30px rgba(0, 0, 0, 0.4);
-            max-width: 500px;
-            backdrop-filter: blur(10px);
+            background: rgba(10, 10, 10, 0.95);
+            padding: 54px 48px;
+            border-radius: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.65);
+            max-width: 580px;
+            width: 92%;
         }
 
         h1 {
-            color: #000000;
-            margin-bottom: 15px;
-            font-size: 2.8em;
-            font-weight: 200;
-            letter-spacing: 10px;
+            color: #fdfdfd;
+            margin-bottom: 14px;
+            font-size: 1.1em;
+            font-weight: 400;
+            letter-spacing: 0.45em;
             text-transform: uppercase;
+            opacity: 0.8;
         }
 
         .status {
-            font-size: 1em;
-            margin: 25px 0;
-            color: #444444;
-            font-weight: 400;
+            font-size: 0.85em;
+            margin: 24px 0;
+            color: rgba(255, 255, 255, 0.85);
+            font-weight: 300;
             min-height: 30px;
-            letter-spacing: 3px;
+            letter-spacing: 0.3em;
             text-transform: uppercase;
-            transition: all 0.3s ease;
         }
 
         .board {
             display: grid;
-            grid-template-columns: repeat(3, 115px);
-            grid-template-rows: repeat(3, 115px);
-            gap: 12px;
-            margin: 35px auto;
+            grid-template-columns: repeat(3, 100px);
+            grid-template-rows: repeat(3, 100px);
+            gap: 18px;
+            margin: 30px auto;
             justify-content: center;
-            padding: 0;
         }
 
         .cell {
-            background: #fafafa;
-            border: 2px solid #e8e8e8;
-            font-size: 3.5em;
-            font-weight: 200;
+            background: #0f0f0f;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 2.4em;
+            font-weight: 300;
             cursor: pointer;
-            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-            color: #000000;
-            border-radius: 16px;
+            transition: all 0.3s ease;
+            color: #f5f5f5;
+            border-radius: 18px;
             display: flex;
             align-items: center;
             justify-content: center;
             position: relative;
-            overflow: hidden;
-        }
-
-        .cell::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: radial-gradient(circle at center, rgba(0, 0, 0, 0.03) 0%, transparent 70%);
-            opacity: 0;
-            transition: opacity 0.35s ease;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
         }
 
         .cell:hover:not(.taken) {
-            background: #ffffff;
-            border-color: #000000;
-            transform: translateY(-4px);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-        }
-
-        .cell:hover:not(.taken)::before {
-            opacity: 1;
+            background: linear-gradient(145deg, #1b1b1b, #0a0a0a);
+            border-color: rgba(255, 255, 255, 0.35);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 25px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
         }
 
         .cell.taken {
-            cursor: not-allowed;
+            cursor: default;
         }
 
         .cell.x {
-            color: #000000;
-            animation: popIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            color: #ffffff;
+            text-shadow: 0 0 8px rgba(255, 255, 255, 0.35);
+            animation: fadeIn 0.4s ease-out;
         }
 
         .cell.o {
-            color: #000000;
-            animation: popIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            color: #f0f0f0;
+            text-shadow: 0 0 12px rgba(255, 255, 255, 0.25);
+            animation: fadeIn 0.4s ease-out;
         }
 
         .cell.winner {
-            background: #000000;
-            color: #ffffff;
-            border-color: #000000;
-            animation: winPulse 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+            background: #ffffff;
+            color: #050505;
+            border-color: #ffffff;
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.45);
+            animation: winnerPulse 1.2s ease-in-out infinite alternate;
         }
 
-        @keyframes popIn {
-            0% {
-                transform: scale(0);
-                opacity: 0;
-            }
-            50% {
-                transform: scale(1.1);
-            }
-            100% {
-                transform: scale(1);
-                opacity: 1;
-            }
+        @keyframes winnerPulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.04); }
         }
 
-        @keyframes winPulse {
-            0%, 100% {
-                transform: scale(1);
-            }
-            50% {
-                transform: scale(1.05);
-            }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.85); }
+            to { opacity: 1; transform: scale(1); }
         }
 
         .reset-btn {
-            background: #000000;
-            color: #ffffff;
-            border: none;
-            padding: 14px 48px;
-            font-size: 0.85em;
+            background: transparent;
+            color: #f5f5f5;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            padding: 12px 40px;
+            font-size: 0.7em;
             cursor: pointer;
-            margin-top: 25px;
-            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-            letter-spacing: 4px;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+            letter-spacing: 0.3em;
             text-transform: uppercase;
-            font-weight: 400;
-            border-radius: 50px;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+            border-radius: 100px;
         }
 
         .reset-btn:hover {
-            background: #333333;
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-        }
-
-        .reset-btn:active {
-            transform: translateY(0);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            background: #ffffff;
+            color: #050505;
+            border-color: #ffffff;
+            box-shadow: 0 6px 20px rgba(255, 255, 255, 0.3);
         }
 
         .score-board {
             display: flex;
-            justify-content: space-around;
-            margin-top: 40px;
-            padding-top: 30px;
-            border-top: 1px solid #e8e8e8;
+            justify-content: space-between;
+            margin-top: 45px;
+            padding-top: 28px;
+            border-top: 1px solid rgba(255, 255, 255, 0.18);
         }
 
         .score {
-            text-align: center;
-            transition: transform 0.3s ease;
-        }
-
-        .score:hover {
-            transform: translateY(-2px);
+            flex: 1;
         }
 
         .score-label {
-            font-size: 0.7em;
-            color: #888888;
+            font-size: 0.65em;
+            color: rgba(255, 255, 255, 0.45);
             margin-bottom: 8px;
-            letter-spacing: 2px;
+            letter-spacing: 0.25em;
             text-transform: uppercase;
-            font-weight: 400;
         }
 
         .score-value {
-            font-size: 2.5em;
-            font-weight: 200;
-            color: #000000;
-            transition: all 0.3s ease;
+            font-size: 1.9em;
+            font-weight: 400;
+            color: #fdfdfd;
         }
     </style>
 </head>

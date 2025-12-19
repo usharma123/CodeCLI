@@ -166,7 +166,7 @@ export abstract class BaseAgent {
     taskId?: string;
   } = {}): Promise<any> {
     const request: any = {
-      model: "anthropic/claude-sonnet-4.5",
+      model: "openai/gpt-5.1-codex-mini",
       messages: this.getTaskMessages(options.taskId),
       temperature: options.temperature || 0.7,
       max_tokens: options.maxTokens || 4096,

@@ -30,6 +30,11 @@ export const MODEL_COSTS = {
         model: "openai/gpt-4-turbo",
         inputCostPer1k: 0.01,
         outputCostPer1k: 0.03
+    },
+    "openai/gpt-5.1-codex-mini": {
+        model: "openai/gpt-5.1-codex-mini",
+        inputCostPer1k: 0.0015,
+        outputCostPer1k: 0.006
     }
 };
 // Default fallback for unknown models
