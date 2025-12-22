@@ -29,6 +29,7 @@ const extractTasksFromPRDDefinition: ToolDefinition = {
       },
     },
     required: ["prd_file"],
+    additionalProperties: false,
   },
   function: async (input: ExtractTasksFromPRDInput) => {
     try {

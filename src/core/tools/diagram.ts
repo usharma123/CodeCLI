@@ -395,6 +395,7 @@ export const diagramTools: ToolDefinition[] = [
         },
       },
       required: [],
+      additionalProperties: false,
     },
     function: async (input: GenerateMermaidDiagramInput): Promise<string> => {
       const rootDir = (input.root_dir || process.cwd()).trim() || process.cwd();

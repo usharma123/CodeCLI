@@ -12,3 +12,4 @@ target/
 *.class
 .claude
 .m2-repo
+.codecli/

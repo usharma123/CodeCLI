@@ -10,6 +10,7 @@ import { colors } from "../../utils/colors.js";
 import { runShellCommand } from "../util-run.js";
 import * as fs from "fs";
 import * as path from "path";
+import { TestStateManager, TestRunState } from './test-state.js';
 
 /**
  * Parses Python coverage.xml (Cobertura format) and returns coverage metrics
@@ -119,6 +120,7 @@ const runTestsDefinition: ToolDefinition = {
         description: "Optional: specific project subdirectory for Java (e.g., 'spring-currencyconverter')",
       },
     },
+    additionalProperties: false,
   },
   function: async (input: RunTestsInput) => {
     try {
@@ -300,6 +302,7 @@ const analyzeTestFailuresDefinition: ToolDefinition = {
       },
     },
     required: ["test_output", "language"],
+    additionalProperties: false,
   },
   function: async (input: AnalyzeTestFailuresInput) => {
     try {
@@ -465,6 +468,70 @@ const parseSurefireReports = (surefireDir: string): { total: number; passed: num
   return { total, passed: total - failed, failed };
 };
 
+// Helper function to discover test files
+const discoverTestFiles = (language: 'python' | 'java', projectPath?: string): string[] => {
+  const files: string[] = [];
+
+  try {
+    if (language === 'python') {
+      const testDir = path.join(process.cwd(), 'tests/python');
+      if (fs.existsSync(testDir)) {
+        const findTests = (dir: string): void => {
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory() && entry.name !== '__pycache__' && entry.name !== '.pytest_cache') {
+              findTests(fullPath);
+            } else if (entry.isFile() && entry.name.startsWith('test_') && entry.name.endsWith('.py')) {
+              files.push(path.relative(process.cwd(), fullPath));
+            }
+          }
+        };
+        findTests(testDir);
+      }
+    } else if (language === 'java') {
+      const baseDir = projectPath
+        ? path.join(process.cwd(), 'tests/java', projectPath, 'src/test/java')
+        : path.join(process.cwd(), 'tests/java');
+
+      if (fs.existsSync(baseDir)) {
+        const findTests = (dir: string): void => {
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory() && entry.name !== 'target') {
+              findTests(fullPath);
+            } else if (entry.isFile() && entry.name.endsWith('Test.java')) {
+              files.push(path.relative(process.cwd(), fullPath));
+            }
+          }
+        };
+        findTests(baseDir);
+      }
+    }
+  } catch (error) {
+    console.error(`Warning: Could not discover test files: ${error}`);
+  }
+
+  return files.sort();
+};
+
+// Helper to get current git commit
+async function getCurrentGitCommit(): Promise<string | undefined> {
+  try {
+    const { stdout } = await runShellCommand(
+      'git rev-parse HEAD',
+      process.cwd(),
+      5000,
+      process.env,
+      false
+    );
+    return stdout.trim();
+  } catch {
+    return undefined;
+  }
+}
+
 const getCoverageDefinition: ToolDefinition = {
   name: "get_coverage",
   description:
@@ -483,11 +550,16 @@ const getCoverageDefinition: ToolDefinition = {
       },
     },
     required: ["language"],
+    additionalProperties: false,
   },
   function: async (input: GetCoverageInput) => {
     try {
       const language = input.language;
       const projectPath = (input as { language: string; project_path?: string }).project_path;
+
+      // Initialize state manager for tracking test changes
+      const stateManager = new TestStateManager();
+      const previousRun = stateManager.getLastRun(language, projectPath);
 
       // Check dependencies first
       const depCheck = await checkTestDependencies(language);
@@ -714,6 +786,10 @@ const getCoverageDefinition: ToolDefinition = {
         result += stderrPreview;
       }
 
+      // Note: State tracking and report generation will be added here in next commit
+      // This requires extracting test counts and coverage metrics from the result string
+      // or refactoring to capture them as we parse
+
       return result;
     } catch (error) {
       throw new Error(`Failed to get coverage: ${error}`);
@@ -739,6 +815,7 @@ const detectChangedFilesDefinition: ToolDefinition = {
         description: "Filter by language (default: all)",
       },
     },
+    additionalProperties: false,
   },
   function: async (input: DetectChangedFilesInput) => {
     try {

@@ -42,6 +42,7 @@ const readFileDefinition: ToolDefinition = {
       },
     },
     required: ["path"],
+    additionalProperties: false,
   },
   function: async (input: ReadFileInput) => {
     try {
@@ -68,6 +69,7 @@ const listFilesDefinition: ToolDefinition = {
         description: "Optional relative path to list files from.",
       },
     },
+    additionalProperties: false,
   },
   function: async (input: ListFilesInput) => {
     const dir = input.path || ".";
@@ -115,6 +117,7 @@ const writeFileDefinition: ToolDefinition = {
       },
     },
     required: ["path", "content"],
+    additionalProperties: false,
   },
   function: async (input: WriteFileInput) => {
     getAgentInstance();
@@ -217,6 +220,7 @@ const editFileDefinition: ToolDefinition = {
       },
     },
     required: ["path", "old_str", "new_str"],
+    additionalProperties: false,
   },
   function: async (input: EditFileInput) => {
     if (!input.path || input.old_str === input.new_str) {
@@ -306,6 +310,7 @@ const patchFileDefinition: ToolDefinition = {
       },
     },
     required: ["path", "patch"],
+    additionalProperties: false,
   },
   function: async (input: PatchFileInput) => {
     if (!input.path || !input.patch) {

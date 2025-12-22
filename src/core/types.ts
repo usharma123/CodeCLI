@@ -5,6 +5,7 @@ export interface ToolDefinition {
     type: string;
     properties: Record<string, any>;
     required?: string[];
+    additionalProperties?: boolean;
   };
   function: (input: any) => Promise<string>;
 }

@@ -48,6 +48,7 @@ const runCommandDefinition = {
             },
         },
         required: ["command"],
+        additionalProperties: false,
     },
     function: async (input) => {
         if (!input.command) {

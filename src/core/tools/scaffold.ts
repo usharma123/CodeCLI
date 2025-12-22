@@ -533,6 +533,7 @@ const scaffoldProjectDefinition: ToolDefinition = {
       },
     },
     required: ["template"],
+    additionalProperties: false,
   },
   function: async (input: ScaffoldProjectInput) => {
     const { baseDir, files, description } = buildTemplateFiles(input);

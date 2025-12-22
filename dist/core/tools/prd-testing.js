@@ -20,6 +20,7 @@ const parsePRDDefinition = {
             },
         },
         required: ["prd_file"],
+        additionalProperties: false,
     },
     function: async (input) => {
         try {
@@ -155,6 +156,7 @@ const generateTestsFromPRDDefinition = {
             },
         },
         required: ["test_cases_file", "language", "test_suite"],
+        additionalProperties: false,
     },
     function: async (input) => {
         try {
@@ -268,6 +270,7 @@ const generatePerformanceTestDefinition = {
             },
         },
         required: ["target_url", "test_type"],
+        additionalProperties: false,
     },
     function: async (input) => {
         try {

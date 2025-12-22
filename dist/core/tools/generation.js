@@ -25,6 +25,7 @@ const generateTestsDefinition = {
             },
         },
         required: ["file_path", "language"],
+        additionalProperties: false,
     },
     function: async (input) => {
         try {
@@ -229,6 +230,7 @@ const analyzeCoverageGapsDefinition = {
             },
         },
         required: ["language"],
+        additionalProperties: false,
     },
     function: async (input) => {
         try {
@@ -282,6 +284,7 @@ const generateRegressionTestDefinition = {
             },
         },
         required: ["bug_description", "fixed_file", "language"],
+        additionalProperties: false,
     },
     function: async (input) => {
         try {

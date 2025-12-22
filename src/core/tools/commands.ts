@@ -62,6 +62,7 @@ const runCommandDefinition: ToolDefinition = {
       },
     },
     required: ["command"],
+    additionalProperties: false,
   },
   function: async (input: RunCommandInput) => {
     if (!input.command) {

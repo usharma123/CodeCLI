@@ -24,6 +24,7 @@ const generateIntegrationTestDefinition = {
             },
         },
         required: ["components", "language", "test_scenario"],
+        additionalProperties: false,
     },
     function: async (input) => {
         try {
@@ -204,6 +205,7 @@ const generateE2ETestDefinition = {
             },
         },
         required: ["user_journey", "app_type"],
+        additionalProperties: false,
     },
     function: async (input) => {
         try {
@@ -330,6 +332,7 @@ const generateAPITestDefinition = {
             },
         },
         required: ["endpoints", "language"],
+        additionalProperties: false,
     },
     function: async (input) => {
         try {

@@ -33,6 +33,7 @@ const generateIntegrationTestDefinition: ToolDefinition = {
       },
     },
     required: ["components", "language", "test_scenario"],
+    additionalProperties: false,
   },
   function: async (input: GenerateIntegrationTestInput) => {
     try {
@@ -226,6 +227,7 @@ const generateE2ETestDefinition: ToolDefinition = {
       },
     },
     required: ["user_journey", "app_type"],
+    additionalProperties: false,
   },
   function: async (input: GenerateE2ETestInput) => {
     try {
@@ -361,6 +363,7 @@ const generateAPITestDefinition: ToolDefinition = {
       },
     },
     required: ["endpoints", "language"],
+    additionalProperties: false,
   },
   function: async (input: GenerateAPITestInput) => {
     try {

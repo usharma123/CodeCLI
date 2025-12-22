@@ -28,6 +28,7 @@ const parsePRDDefinition: ToolDefinition = {
       },
     },
     required: ["prd_file"],
+    additionalProperties: false,
   },
   function: async (input: ParsePRDInput) => {
     try {
@@ -177,6 +178,7 @@ const generateTestsFromPRDDefinition: ToolDefinition = {
       },
     },
     required: ["test_cases_file", "language", "test_suite"],
+    additionalProperties: false,
   },
   function: async (input: GenerateTestsFromPRDInput) => {
     try {
@@ -299,6 +301,7 @@ const generatePerformanceTestDefinition: ToolDefinition = {
       },
     },
     required: ["target_url", "test_type"],
+    additionalProperties: false,
   },
   function: async (input: GeneratePerformanceTestInput) => {
     try {

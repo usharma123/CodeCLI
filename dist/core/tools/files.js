@@ -30,6 +30,7 @@ const readFileDefinition = {
             },
         },
         required: ["path"],
+        additionalProperties: false,
     },
     function: async (input) => {
         try {
@@ -56,6 +57,7 @@ const listFilesDefinition = {
                 description: "Optional relative path to list files from.",
             },
         },
+        additionalProperties: false,
     },
     function: async (input) => {
         const dir = input.path || ".";
@@ -106,6 +108,7 @@ const writeFileDefinition = {
             },
         },
         required: ["path", "content"],
+        additionalProperties: false,
     },
     function: async (input) => {
         getAgentInstance();
@@ -201,6 +204,7 @@ const editFileDefinition = {
             },
         },
         required: ["path", "old_str", "new_str"],
+        additionalProperties: false,
     },
     function: async (input) => {
         if (!input.path || input.old_str === input.new_str) {
@@ -281,6 +285,7 @@ const patchFileDefinition = {
             },
         },
         required: ["path", "patch"],
+        additionalProperties: false,
     },
     function: async (input) => {
         if (!input.path || !input.patch) {

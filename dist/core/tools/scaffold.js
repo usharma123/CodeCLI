@@ -482,6 +482,7 @@ const scaffoldProjectDefinition = {
             },
         },
         required: ["template"],
+        additionalProperties: false,
     },
     function: async (input) => {
         const { baseDir, files, description } = buildTemplateFiles(input);

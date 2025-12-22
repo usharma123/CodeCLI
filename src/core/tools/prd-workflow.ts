@@ -30,6 +30,7 @@ const processPRDWithTasksDefinition: ToolDefinition = {
       },
     },
     required: ["prd_file"],
+    additionalProperties: false,
   },
   function: async (input: ProcessPRDWithTasksInput) => {
     try {

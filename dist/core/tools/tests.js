@@ -3,6 +3,7 @@ import { colors } from "../../utils/colors.js";
 import { runShellCommand } from "../util-run.js";
 import * as fs from "fs";
 import * as path from "path";
+import { TestStateManager } from './test-state.js';
 /**
  * Parses Python coverage.xml (Cobertura format) and returns coverage metrics
  */
@@ -81,6 +82,7 @@ const runTestsDefinition = {
                 description: "Optional: specific project subdirectory for Java (e.g., 'spring-currencyconverter')",
             },
         },
+        additionalProperties: false,
     },
     function: async (input) => {
         try {
@@ -239,6 +241,7 @@ const analyzeTestFailuresDefinition = {
             },
         },
         required: ["test_output", "language"],
+        additionalProperties: false,
     },
     function: async (input) => {
         try {
@@ -385,6 +388,64 @@ const parseSurefireReports = (surefireDir) => {
     }
     return { total, passed: total - failed, failed };
 };
+// Helper function to discover test files
+const discoverTestFiles = (language, projectPath) => {
+    const files = [];
+    try {
+        if (language === 'python') {
+            const testDir = path.join(process.cwd(), 'tests/python');
+            if (fs.existsSync(testDir)) {
+                const findTests = (dir) => {
+                    const entries = fs.readdirSync(dir, { withFileTypes: true });
+                    for (const entry of entries) {
+                        const fullPath = path.join(dir, entry.name);
+                        if (entry.isDirectory() && entry.name !== '__pycache__' && entry.name !== '.pytest_cache') {
+                            findTests(fullPath);
+                        }
+                        else if (entry.isFile() && entry.name.startsWith('test_') && entry.name.endsWith('.py')) {
+                            files.push(path.relative(process.cwd(), fullPath));
+                        }
+                    }
+                };
+                findTests(testDir);
+            }
+        }
+        else if (language === 'java') {
+            const baseDir = projectPath
+                ? path.join(process.cwd(), 'tests/java', projectPath, 'src/test/java')
+                : path.join(process.cwd(), 'tests/java');
+            if (fs.existsSync(baseDir)) {
+                const findTests = (dir) => {
+                    const entries = fs.readdirSync(dir, { withFileTypes: true });
+                    for (const entry of entries) {
+                        const fullPath = path.join(dir, entry.name);
+                        if (entry.isDirectory() && entry.name !== 'target') {
+                            findTests(fullPath);
+                        }
+                        else if (entry.isFile() && entry.name.endsWith('Test.java')) {
+                            files.push(path.relative(process.cwd(), fullPath));
+                        }
+                    }
+                };
+                findTests(baseDir);
+            }
+        }
+    }
+    catch (error) {
+        console.error(`Warning: Could not discover test files: ${error}`);
+    }
+    return files.sort();
+};
+// Helper to get current git commit
+async function getCurrentGitCommit() {
+    try {
+        const { stdout } = await runShellCommand('git rev-parse HEAD', process.cwd(), 5000, process.env, false);
+        return stdout.trim();
+    }
+    catch {
+        return undefined;
+    }
+}
 const getCoverageDefinition = {
     name: "get_coverage",
     description: "Generate coverage report for Python or Java projects and summarize key metrics.",
@@ -402,11 +463,15 @@ const getCoverageDefinition = {
             },
         },
         required: ["language"],
+        additionalProperties: false,
     },
     function: async (input) => {
         try {
             const language = input.language;
             const projectPath = input.project_path;
+            // Initialize state manager for tracking test changes
+            const stateManager = new TestStateManager();
+            const previousRun = stateManager.getLastRun(language, projectPath);
             // Check dependencies first
             const depCheck = await checkTestDependencies(language);
             if (!depCheck.available) {
@@ -597,6 +662,9 @@ const getCoverageDefinition = {
                     : stderr;
                 result += stderrPreview;
             }
+            // Note: State tracking and report generation will be added here in next commit
+            // This requires extracting test counts and coverage metrics from the result string
+            // or refactoring to capture them as we parse
             return result;
         }
         catch (error) {
@@ -620,6 +688,7 @@ const detectChangedFilesDefinition = {
                 description: "Filter by language (default: all)",
             },
         },
+        additionalProperties: false,
     },
     function: async (input) => {
         try {

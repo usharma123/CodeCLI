@@ -41,7 +41,6 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
   const [tokenStats, setTokenStats] = useState({ total: 0, cost: 0 });
   const [isDryRun, setIsDryRun] = useState(false);
 
-  const [modelName, setModelName] = useState<string>("claude-sonnet-4.5");
   // Register confirmation handler
   React.useEffect(() => {
     if (onConfirmRequest) {
@@ -68,8 +67,6 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
         try {
           const todoState = agentRef.current!.getTodos();
           setTodos(todoState.todos);
-          const model = agentRef.current!.getModel();
-          setModelName(model);
         } catch (err) {
           // Silently ignore polling errors
         }
@@ -205,7 +202,7 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
                   </>
                 )}
                 <Text dimColor>model:</Text>
-                <Text color="cyan"> {modelName}</Text>
+                <Text color="cyan"> gpt-5.1-codex-mini</Text>
                 <Text dimColor> {icons.pipe} </Text>
                 <Text dimColor>cwd:</Text>
                 <Text> {cwd}</Text>

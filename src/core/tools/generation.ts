@@ -43,6 +43,7 @@ const generateTestsDefinition: ToolDefinition = {
       },
     },
     required: ["file_path", "language"],
+    additionalProperties: false,
   },
   function: async (input: GenerateTestsInput) => {
     try {
@@ -299,6 +300,7 @@ const analyzeCoverageGapsDefinition: ToolDefinition = {
       },
     },
     required: ["language"],
+    additionalProperties: false,
   },
   function: async (input: AnalyzeCoverageGapsInput) => {
     try {
@@ -359,6 +361,7 @@ const generateRegressionTestDefinition: ToolDefinition = {
       },
     },
     required: ["bug_description", "fixed_file", "language"],
+    additionalProperties: false,
   },
   function: async (input: GenerateRegressionTestInput) => {
     try {

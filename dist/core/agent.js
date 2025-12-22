@@ -27,6 +27,8 @@ class AIAgent {
     currentTodos = { todos: [], lastUpdated: 0 };
     reasoningCheckpoints = [];
     enableIntermediateReasoning = true;
+    // Model configuration
+    model = "anthropic/claude-sonnet-4.5";
     constructor(apiKey, tools, createReadline = true, options = {}) {
         // Configure OpenAI client to use OpenRouter's API
         this.client = new OpenAI({
@@ -202,6 +204,39 @@ Smart testing workflow:
 4. generate_tests for uncovered code
 5. When fixing bugs, use generate_regression_test to prevent regressions`,
         });
+        // Validate tool schemas on startup
+        this.validateToolSchemas();
+    }
+    // Validate tool schemas to ensure they meet API requirements
+    validateToolSchemas() {
+        console.log(`${colors.gray}Validating ${this.tools.length} tool schemas...${colors.reset}`);
+        const issues = [];
+        for (const tool of this.tools) {
+            const params = tool.parameters;
+            // Check for additionalProperties constraint
+            if (params.additionalProperties === undefined) {
+                issues.push(`⚠️  Tool '${tool.name}' missing 'additionalProperties' constraint`);
+            }
+            // Check required fields exist in properties
+            if (params.required && Array.isArray(params.required)) {
+                for (const req of params.required) {
+                    if (!params.properties[req]) {
+                        issues.push(`❌ Tool '${tool.name}' requires undefined property '${req}'`);
+                    }
+                }
+            }
+            // Check for empty/undefined descriptions
+            if (!tool.description || tool.description.length < 10) {
+                issues.push(`⚠️  Tool '${tool.name}' has insufficient description`);
+            }
+        }
+        if (issues.length > 0) {
+            console.warn(`${colors.yellow}Schema validation found ${issues.length} issue(s):${colors.reset}`);
+            issues.forEach(i => console.warn(`  ${i}`));
+        }
+        else {
+            console.log(`${colors.green}✓ All tool schemas valid${colors.reset}`);
+        }
     }
     // Estimate token count (rough approximation: 1 token ≈ 4 characters)
     estimateTokens(messages) {
@@ -318,7 +353,7 @@ ${colors.reset}`);
             }));
             emitStatus({ phase: "thinking", message: "Thinking…" });
             const { message, elapsedSeconds, streamedContent } = await this.createCompletion({
-                model: "openai/gpt-5.1-codex-mini",
+                model: "anthropic/claude-sonnet-4.5",
                 messages: this.messages,
                 tools: openAITools,
                 tool_choice: "auto",
@@ -340,7 +375,7 @@ ${colors.reset}`);
                 emitStatus({ phase: "thinking", message: "Planning approach…" });
                 try {
                     const { message: reasoningMsg } = await this.createCompletion({
-                        model: "openai/gpt-5.1-codex-mini",
+                        model: "anthropic/claude-sonnet-4.5",
                         messages: this.messages,
                         tools: [], // No tools for reasoning phase
                         temperature: 0.3,
@@ -380,7 +415,7 @@ ${colors.reset}`);
                     console.log(`  ${colors.gray}└ Retrying with tool enforcement...${colors.reset}`);
                     emitStatus({ phase: "thinking", message: "Thinking (retry)…" });
                     const { message: fallbackMessage, streamedContent: fallbackStreamed } = await this.createCompletion({
-                        model: "openai/gpt-5.1-codex-mini",
+                        model: "anthropic/claude-sonnet-4.5",
                         messages: this.messages,
                         tools: openAITools,
                         tool_choice: "auto",
@@ -424,6 +459,19 @@ ${colors.reset}`);
             }
         }
         catch (error) {
+            // Identify schema validation errors (don't retry)
+            const isSchemaError = error?.status === 400 &&
+                (error?.message?.toLowerCase().includes('schema') ||
+                    error?.message?.toLowerCase().includes('additionalproperties') ||
+                    error?.message?.toLowerCase().includes('invalid parameters'));
+            if (isSchemaError) {
+                console.error(`${colors.red}Schema Validation Error - Code Fix Required${colors.reset}`);
+                console.error(`The API rejected tool definitions. Check that all tools have:`);
+                console.error(`  1. additionalProperties: false`);
+                console.error(`  2. Valid parameter types`);
+                console.error(`  3. Required fields defined in properties`);
+                throw error; // Don't retry schema errors
+            }
             // Retry on rate limits (429) and server errors (500, 502, 503, 504)
             const retryableStatuses = [429, 500, 502, 503, 504];
             const shouldRetry = error?.status && retryableStatuses.includes(error.status) && this.retryCount < this.maxRetries;
@@ -539,7 +587,23 @@ Received (truncated): ${JSON.stringify(functionArgs, null, 2)}`,
             catch (parseError) {
                 const errorMsg = parseError instanceof Error ? parseError.message : String(parseError);
                 console.log(`  ${colors.gray}└ ${colors.red}Parse error: ${errorMsg}${colors.reset}`);
-                console.log(`${colors.gray}Raw arguments: ${toolCall.function.arguments}${colors.reset}\n`);
+                // Show context around error position
+                const argsStr = toolCall.function.arguments;
+                const posMatch = errorMsg.match(/position (\d+)/);
+                if (posMatch && typeof argsStr === 'string') {
+                    const pos = parseInt(posMatch[1]);
+                    const start = Math.max(0, pos - 50);
+                    const end = Math.min(argsStr.length, pos + 50);
+                    const snippet = argsStr.substring(start, end);
+                    const caretPos = Math.min(50, pos - start);
+                    console.log(`\n${colors.gray}Context around error position:${colors.reset}`);
+                    console.log(`${colors.gray}${snippet}${colors.reset}`);
+                    console.log(`${colors.gray}${' '.repeat(caretPos)}^${colors.reset}`);
+                    console.log(`${colors.gray}Character: ${argsStr[pos] || 'EOF'}${colors.reset}\n`);
+                }
+                else {
+                    console.log(`${colors.gray}Raw arguments (first 500 chars): ${argsStr?.substring(0, 500)}${colors.reset}\n`);
+                }
                 // Send detailed error back to the model so it can fix itself
                 toolCallResults.push({
                     tool_call_id: toolCall.id,
@@ -643,7 +707,7 @@ Please analyze the error and retry with corrected parameters. Common issues:
             this.messages.push(reasoningPrompt);
             try {
                 const { message: midReasoning } = await this.createCompletion({
-                    model: "openai/gpt-5.1-codex-mini",
+                    model: "anthropic/claude-sonnet-4.5",
                     messages: this.messages,
                     tools: [],
                     temperature: 0.3,
@@ -680,9 +744,9 @@ Please analyze the error and retry with corrected parameters. Common issues:
                 },
             }));
             // Get follow-up response after tool execution (with tools enabled for continuation)
-            emitStatus({ phase: "summarizing", message: "Summarizing…" });
+            emitStatus({ phase: "thinking", message: "Thinking…" });
             const { message: followUpMessage, streamedContent } = await this.createCompletion({
-                model: "openai/gpt-5.1-codex-mini",
+                model: "anthropic/claude-sonnet-4.5",
                 messages: this.messages,
                 tools: openAITools,
                 tool_choice: "auto",
@@ -766,66 +830,102 @@ Please analyze the error and retry with corrected parameters. Common issues:
     getTodos() {
         return this.currentTodos;
     }
+    // Public method to get current model for UI display
+    getModel() {
+        return this.model;
+    }
     async createCompletion(request) {
         const start = Date.now();
-        if (!this.streamAssistantResponses) {
-            const completion = await this.client.chat.completions.create(request);
-            const message = completion.choices[0].message;
-            const content = message.content ?? "";
+        try {
+            if (!this.streamAssistantResponses) {
+                const completion = await this.client.chat.completions.create(request);
+                const message = completion.choices[0].message;
+                const content = message.content ?? "";
+                return {
+                    message,
+                    elapsedSeconds: (Date.now() - start) / 1000,
+                    streamedContent: content,
+                };
+            }
+            const stream = await this.client.chat.completions.create({
+                ...request,
+                stream: true,
+            });
+            let content = "";
+            const toolCallsByIndex = [];
+            for await (const chunk of stream) {
+                const delta = chunk.choices?.[0]?.delta;
+                if (!delta)
+                    continue;
+                if (delta.content) {
+                    content += delta.content;
+                    process.stdout.write(delta.content);
+                }
+                if (delta.tool_calls) {
+                    for (const call of delta.tool_calls) {
+                        const index = call.index ?? 0;
+                        if (!toolCallsByIndex[index]) {
+                            toolCallsByIndex[index] = {
+                                id: call.id,
+                                type: call.type ?? "function",
+                                function: { name: "", arguments: "" },
+                            };
+                        }
+                        if (call.id)
+                            toolCallsByIndex[index].id = call.id;
+                        if (call.function?.name) {
+                            toolCallsByIndex[index].function.name = call.function.name;
+                        }
+                        if (call.function?.arguments) {
+                            toolCallsByIndex[index].function.arguments += call.function.arguments;
+                        }
+                    }
+                }
+            }
+            process.stdout.write("\n");
+            const message = { role: "assistant" };
+            if (content)
+                message.content = content;
+            const toolCalls = toolCallsByIndex.filter(Boolean);
+            if (toolCalls.length > 0) {
+                message.tool_calls = toolCalls;
+            }
             return {
                 message,
                 elapsedSeconds: (Date.now() - start) / 1000,
                 streamedContent: content,
             };
         }
-        const stream = await this.client.chat.completions.create({
-            ...request,
-            stream: true,
-        });
-        let content = "";
-        const toolCallsByIndex = [];
-        for await (const chunk of stream) {
-            const delta = chunk.choices?.[0]?.delta;
-            if (!delta)
-                continue;
-            if (delta.content) {
-                content += delta.content;
-                process.stdout.write(delta.content);
+        catch (error) {
+            // Comprehensive error logging
+            console.error(`\n${colors.red}═══ API Error Details ═══${colors.reset}`);
+            console.error(`Status: ${error?.status || 'unknown'}`);
+            console.error(`Message: ${error?.message || 'no message'}`);
+            // Log raw error object for validation failures
+            if (error?.error) {
+                console.error(`\nRaw API Error:`);
+                console.error(JSON.stringify(error.error, null, 2));
             }
-            if (delta.tool_calls) {
-                for (const call of delta.tool_calls) {
-                    const index = call.index ?? 0;
-                    if (!toolCallsByIndex[index]) {
-                        toolCallsByIndex[index] = {
-                            id: call.id,
-                            type: call.type ?? "function",
-                            function: { name: "", arguments: "" },
-                        };
-                    }
-                    if (call.id)
-                        toolCallsByIndex[index].id = call.id;
-                    if (call.function?.name) {
-                        toolCallsByIndex[index].function.name = call.function.name;
-                    }
-                    if (call.function?.arguments) {
-                        toolCallsByIndex[index].function.arguments += call.function.arguments;
-                    }
+            // Special handling for tool validation errors (400 status)
+            if (error?.status === 400 && (error?.message?.includes('tool') ||
+                error?.message?.includes('parameter') ||
+                error?.message?.includes('schema'))) {
+                console.error(`\n${colors.yellow}Tool Validation Failed${colors.reset}`);
+                console.error(`This suggests the tool call JSON doesn't match the API's expected schema.`);
+                // Show which tools were in the request
+                if (request.tools && request.tools.length > 0) {
+                    console.error(`\nTools in request: ${request.tools.map((t) => t.function.name).join(', ')}`);
+                }
+                // Show last assistant message if it had tool calls
+                const lastMsg = this.messages[this.messages.length - 1];
+                if (lastMsg?.tool_calls) {
+                    console.error(`\nLast tool call that may have triggered this:`);
+                    console.error(JSON.stringify(lastMsg.tool_calls[0], null, 2));
                 }
             }
+            console.error(`${colors.red}═══════════════════════${colors.reset}\n`);
+            throw error; // Re-throw for existing error handling
         }
-        process.stdout.write("\n");
-        const message = { role: "assistant" };
-        if (content)
-            message.content = content;
-        const toolCalls = toolCallsByIndex.filter(Boolean);
-        if (toolCalls.length > 0) {
-            message.tool_calls = toolCalls;
-        }
-        return {
-            message,
-            elapsedSeconds: (Date.now() - start) / 1000,
-            streamedContent: content,
-        };
     }
     maybePrintFormattedAfterStream(content) {
         if (!content)

@@ -345,6 +345,7 @@ export const diagramTools = [
                 },
             },
             required: [],
+            additionalProperties: false,
         },
         function: async (input) => {
             const rootDir = (input.root_dir || process.cwd()).trim() || process.cwd();

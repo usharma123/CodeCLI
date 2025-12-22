@@ -42,7 +42,8 @@ Complete current tasks before starting new ones.`,
           }
         }
       },
-      required: ["todos"]
+      required: ["todos"],
+      additionalProperties: false,
     },
     function: async (input: TodoWriteInput) => {
       const agent = getAgentInstance();

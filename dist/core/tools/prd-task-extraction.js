@@ -20,6 +20,7 @@ const extractTasksFromPRDDefinition = {
             },
         },
         required: ["prd_file"],
+        additionalProperties: false,
     },
     function: async (input) => {
         try {

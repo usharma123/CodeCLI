@@ -119,7 +119,7 @@ export class BaseAgent {
      */
     async createCompletion(options = {}) {
         const request = {
-            model: "openai/gpt-5.1-codex-mini",
+            model: "anthropic/claude-sonnet-4.5",
             messages: this.getTaskMessages(options.taskId),
             temperature: options.temperature || 0.7,
             max_tokens: options.maxTokens || 4096,
