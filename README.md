@@ -1,6 +1,6 @@
 # CodeCLI
 
-An AI-powered coding assistant CLI built with TypeScript/Bun. Uses OpenRouter API with Claude Sonnet 4.5 to help you write, test, and understand code through natural language commands.
+An AI-powered coding assistant CLI built with TypeScript/Bun. Uses OpenRouter API with MiniMax M2.1 to help you write, test, and understand code through natural language commands.
 
 ## Features
 
@@ -12,6 +12,7 @@ An AI-powered coding assistant CLI built with TypeScript/Bun. Uses OpenRouter AP
 - **Spring Boot Support**: Auto-detection and component-aware test generation
 - **PRD-to-Code Workflow**: Automatically parse Product Requirements Documents (PDF/MD/TXT) into actionable tasks and test suites
 - **Terminal UI**: React/Ink-based interactive interface with task tracking
+- **Cost-Optimized Model**: Uses MiniMax M2.1 with native reasoning for high performance at lower cost
 
 ## Quick Start
 
@@ -19,12 +20,14 @@ An AI-powered coding assistant CLI built with TypeScript/Bun. Uses OpenRouter AP
 # Install dependencies
 bun install
 
-# Set up API key
+# Set up API key (MiniMax M2.1 via OpenRouter)
 echo "OPENROUTER_API_KEY=sk-or-v1-your-key" > .env
 
 # Run the agent
 bun start
 ```
+
+> **Note**: Default model is MiniMax M2.1 (~95% cheaper than Claude). Update `this.model` in `src/core/agent.ts` to switch models.
 
 ## Usage Examples
 
@@ -35,6 +38,17 @@ bun start
 > Run all tests and fix any failures
 > Show me a flowchart of module dependencies
 ```
+
+## Model Pricing
+
+The CLI tracks token usage and costs automatically. Default model pricing (MiniMax M2.1):
+
+| Model | Input ($/1K tokens) | Output ($/1K tokens) |
+|-------|---------------------|----------------------|
+| minimax/minimax-m2.1 | $0.0001 | $0.00028 |
+| anthropic/claude-sonnet-4.5 | $0.003 | $0.015 |
+
+Token usage is displayed after each agent run in the terminal.
 
 ## Architecture
 
@@ -67,7 +81,7 @@ The AI Coding Agent processes requests in several coordinated steps to ensure ac
 2. **Context Management**: The agent trims history and context to fit within model limits, preserving important parts like system prompts and recent exchanges.
 3. **Intent & Planning**: The agent asks the LLM to determine intent—does the request need tool use (code analysis, test generation, etc.) or can it be answered directly?
 4. **Plan Explanation**: When a tool action is needed, the agent requests a concise plan from the LLM and updates you (the user) with a plain language summary.
-5. **Tool Call Drafting**: The agent instructs the LLM to draft the required tool calls as structured JSON.
+5. **Tool Call Drafting**: The agent instructs the LLM to draft the required tool calls as structured JSON using the configured model.
 6. **Repair & Validation**: The agent auto-fixes common LLM issues (like malformed or truncated JSON) and validates tool input for correctness and type safety.
 7. **Tool Execution / Dispatch**:
    - **Local Tools**: Simple operations (`read_file`, `run_cmd`) are executed directly.
@@ -94,17 +108,17 @@ The AI Coding Agent processes requests in several coordinated steps to ensure ac
 - **Runtime**: Bun
 - **Language**: TypeScript (ESM)
 - **UI**: Ink (React for CLIs)
-- **AI**: OpenRouter API (Claude Sonnet 4.5)
+- **AI**: OpenRouter API (MiniMax M2.1)
 - **Testing**: PyTest (Python), JUnit 5 (Java)
 
 
 
 
- Remaining Work (15%):
-  The full integration requires refactoring the get_coverage function to:
-  - Capture test counts and coverage metrics in variables (not just in result string)
-  - Build TestRunState object after parsing
-  - Compare with previous run and inject warnings
-  - Auto-generate TEST_REPORT.md
+## Recent Changes
 
-  Current Status: The infrastructure is in place (TestStateManager, helper functions, imports), but the get_coverage function needs refactoring to properly integrate state tracking.
+### v2.0 - Cost Optimization Update
+- **Model Switch**: Default model changed from Claude Sonnet 4.5 to MiniMax M2.1
+  - ~95% cost reduction on input tokens
+  - ~98% cost reduction on output tokens
+- **Simplified Reasoning**: Replaced custom multi-step reasoning flow with native reasoning via API
+- **Updated Pricing**: Added MiniMax M2.1 token costs to tracker

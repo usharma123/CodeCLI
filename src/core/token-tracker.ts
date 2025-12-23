@@ -51,6 +51,11 @@ export const MODEL_COSTS: Record<string, CostConfig> = {
     model: "openai/gpt-5.1-codex-mini",
     inputCostPer1k: 0.0015,
     outputCostPer1k: 0.006
+  },
+  "minimax/minimax-m2.1": {
+    model: "minimax/minimax-m2.1",
+    inputCostPer1k: 0.0001,
+    outputCostPer1k: 0.00028
   }
 };
 

@@ -26,9 +26,8 @@ class AIAgent {
     // Todo list and reasoning state
     currentTodos = { todos: [], lastUpdated: 0 };
     reasoningCheckpoints = [];
-    enableIntermediateReasoning = true;
     // Model configuration
-    model = "anthropic/claude-sonnet-4.5";
+    model = "minimax/minimax-m2.1";
     constructor(apiKey, tools, createReadline = true, options = {}) {
         // Configure OpenAI client to use OpenRouter's API
         this.client = new OpenAI({
@@ -57,9 +56,6 @@ class AIAgent {
         }
         if (typeof options.streamAssistantResponses === "boolean") {
             this.streamAssistantResponses = options.streamAssistantResponses;
-        }
-        if (typeof options.enableIntermediateReasoning === "boolean") {
-            this.enableIntermediateReasoning = options.enableIntermediateReasoning;
         }
         // Add system prompt to encourage tool usage
         this.messages.push({
@@ -298,7 +294,7 @@ Smart testing workflow:
 ${colors.reset}`);
         console.log(`${colors.gray}Safe mode enabled (ctrl+c to quit)${colors.reset}`);
         console.log(`${colors.gray}File changes require your approval before being applied${colors.reset}`);
-        console.log(`${colors.gray}Using GPT-5.1 Codex Mini via OpenRouter${colors.reset}\n`);
+        console.log(`${colors.gray}Using ${this.model} via OpenRouter${colors.reset}\n`);
         process.on("SIGINT", () => {
             console.log("\n\nGoodbye!");
             if (this.rl) {
@@ -352,57 +348,41 @@ ${colors.reset}`);
                 },
             }));
             emitStatus({ phase: "thinking", message: "Thinking…" });
-            const { message, elapsedSeconds, streamedContent } = await this.createCompletion({
-                model: "anthropic/claude-sonnet-4.5",
+            const { message, elapsedSeconds, streamedContent, reasoningDetails } = await this.createCompletion({
+                model: this.model,
                 messages: this.messages,
                 tools: openAITools,
                 tool_choice: "auto",
                 temperature: 0.3,
                 max_tokens: 16384,
+                reasoning: {
+                    max_tokens: 2000,
+                },
             });
-            const elapsed = elapsedSeconds.toFixed(1);
-            if (!this.streamAssistantResponses) {
-                console.log(`${colors.green}●${colors.reset} ${colors.gray}Response (${elapsed}s)${colors.reset}`);
-            }
-            // Add intermediate reasoning if tools are about to be called
-            if (message.tool_calls && message.tool_calls.length > 0 && this.enableIntermediateReasoning) {
-                this.messages.push(message); // Original assistant message with tool calls
-                const reasoningPrompt = {
-                    role: "user",
-                    content: `In 1 sentence, explain what you're about to do and why. Be direct and concise - no formatting, bullets, or redundant phrases like "What I learned" or "What's next".`
-                };
-                this.messages.push(reasoningPrompt);
-                emitStatus({ phase: "thinking", message: "Planning approach…" });
-                try {
-                    const { message: reasoningMsg } = await this.createCompletion({
-                        model: "anthropic/claude-sonnet-4.5",
-                        messages: this.messages,
-                        tools: [], // No tools for reasoning phase
-                        temperature: 0.3,
-                        max_tokens: 150
-                    });
-                    if (reasoningMsg.content) {
-                        // Display reasoning with styled blockquote and proper markdown rendering
-                        const renderedContent = renderMarkdownToAnsi(reasoningMsg.content.trim());
-                        const reasoningLines = renderedContent.split('\n');
+            // Display reasoning if available (native reasoning from the model)
+            if (reasoningDetails && reasoningDetails.length > 0) {
+                for (const detail of reasoningDetails) {
+                    if (detail.type === "reasoning.text" && detail.text) {
+                        const renderedReasoning = renderMarkdownToAnsi(detail.text.trim());
+                        const reasoningLines = renderedReasoning.split('\n');
                         console.log(`\n${colors.cyan}┌─ Reasoning${colors.reset}`);
                         reasoningLines.forEach((line) => {
                             console.log(`${colors.cyan}│${colors.reset} ${line}`);
                         });
                         console.log(`${colors.cyan}└─${colors.reset}\n`);
-                        this.reasoningCheckpoints.push({
-                            phase: "analysis",
-                            reasoning: reasoningMsg.content,
-                            timestamp: Date.now()
-                        });
+                    }
+                    else if (detail.type === "reasoning.summary" && detail.summary) {
+                        console.log(`${colors.gray}Reasoning: ${detail.summary}${colors.reset}`);
                     }
                 }
-                catch (error) {
-                    console.log(`${colors.gray}(Skipping reasoning due to API error)${colors.reset}`);
-                }
-                // Remove reasoning prompt from history
-                this.messages.pop();
-                // Continue with tool execution
+            }
+            const elapsed = elapsedSeconds.toFixed(1);
+            if (!this.streamAssistantResponses) {
+                console.log(`${colors.green}●${colors.reset} ${colors.gray}Response (${elapsed}s)${colors.reset}`);
+            }
+            // If tools are about to be called, push message (with reasoning_details preserved) and execute
+            if (message.tool_calls && message.tool_calls.length > 0) {
+                this.messages.push(message); // Message includes reasoning_details from API response
                 emitStatus({ phase: "running_tools", message: "Running tools…" });
                 await this.handleToolCalls(message.tool_calls);
                 return;
@@ -414,14 +394,25 @@ ${colors.reset}`);
                 if (mentionsTools) {
                     console.log(`  ${colors.gray}└ Retrying with tool enforcement...${colors.reset}`);
                     emitStatus({ phase: "thinking", message: "Thinking (retry)…" });
-                    const { message: fallbackMessage, streamedContent: fallbackStreamed } = await this.createCompletion({
-                        model: "anthropic/claude-sonnet-4.5",
+                    const { message: fallbackMessage, streamedContent: fallbackStreamed, reasoningDetails: fallbackReasoning } = await this.createCompletion({
+                        model: this.model,
                         messages: this.messages,
                         tools: openAITools,
                         tool_choice: "auto",
                         temperature: 0.3,
                         max_tokens: 16384,
+                        reasoning: {
+                            max_tokens: 2000,
+                        },
                     });
+                    // Display fallback reasoning if available
+                    if (fallbackReasoning && fallbackReasoning.length > 0) {
+                        for (const detail of fallbackReasoning) {
+                            if (detail.type === "reasoning.text" && detail.text) {
+                                console.log(`${colors.gray}Reasoning: ${detail.text.substring(0, 200)}...${colors.reset}`);
+                            }
+                        }
+                    }
                     this.messages.push(fallbackMessage);
                     // Continue with fallback response
                     if (fallbackMessage.tool_calls && fallbackMessage.tool_calls.length > 0) {
@@ -698,41 +689,6 @@ Please analyze the error and retry with corrected parameters. Common issues:
         for (const result of toolCallResults) {
             this.messages.push(result);
         }
-        // Add mid-execution reasoning if enabled
-        if (this.enableIntermediateReasoning && toolCallResults.length > 0) {
-            const reasoningPrompt = {
-                role: "user",
-                content: `In 1 brief sentence, state what you'll do next ONLY if it's a new/different step. If you're continuing the same task or done, just say "Continuing..." or "Task complete." No formatting or labels.`
-            };
-            this.messages.push(reasoningPrompt);
-            try {
-                const { message: midReasoning } = await this.createCompletion({
-                    model: "anthropic/claude-sonnet-4.5",
-                    messages: this.messages,
-                    tools: [],
-                    temperature: 0.3,
-                    max_tokens: 150
-                });
-                if (midReasoning.content) {
-                    const renderedContent = renderMarkdownToAnsi(midReasoning.content.trim());
-                    const statusLines = renderedContent.split('\n');
-                    console.log(`\n${colors.yellow}┌─ Status${colors.reset}`);
-                    statusLines.forEach((line) => {
-                        console.log(`${colors.yellow}│${colors.reset} ${line}`);
-                    });
-                    console.log(`${colors.yellow}└─${colors.reset}\n`);
-                    this.reasoningCheckpoints.push({
-                        phase: "execution",
-                        reasoning: midReasoning.content,
-                        timestamp: Date.now()
-                    });
-                }
-            }
-            catch (error) {
-                console.log(`${colors.gray}(Skipping status update due to API error)${colors.reset}`);
-            }
-            this.messages.pop();
-        }
         try {
             // Prepare tools for OpenAI format
             const openAITools = this.tools.map((tool) => ({
@@ -745,14 +701,31 @@ Please analyze the error and retry with corrected parameters. Common issues:
             }));
             // Get follow-up response after tool execution (with tools enabled for continuation)
             emitStatus({ phase: "thinking", message: "Thinking…" });
-            const { message: followUpMessage, streamedContent } = await this.createCompletion({
-                model: "anthropic/claude-sonnet-4.5",
+            const { message: followUpMessage, streamedContent, reasoningDetails: followUpReasoning } = await this.createCompletion({
+                model: this.model,
                 messages: this.messages,
                 tools: openAITools,
                 tool_choice: "auto",
                 temperature: 0.3,
                 max_tokens: 16384,
+                reasoning: {
+                    max_tokens: 2000,
+                },
             });
+            // Display follow-up reasoning if available
+            if (followUpReasoning && followUpReasoning.length > 0) {
+                for (const detail of followUpReasoning) {
+                    if (detail.type === "reasoning.text" && detail.text) {
+                        const renderedReasoning = renderMarkdownToAnsi(detail.text.trim());
+                        const reasoningLines = renderedReasoning.split('\n');
+                        console.log(`\n${colors.cyan}┌─ Reasoning${colors.reset}`);
+                        reasoningLines.forEach((line) => {
+                            console.log(`${colors.cyan}│${colors.reset} ${line}`);
+                        });
+                        console.log(`${colors.cyan}└─${colors.reset}\n`);
+                    }
+                }
+            }
             this.messages.push(followUpMessage);
             // Check if the model wants to call more tools
             if (followUpMessage.tool_calls && followUpMessage.tool_calls.length > 0) {
@@ -841,10 +814,13 @@ Please analyze the error and retry with corrected parameters. Common issues:
                 const completion = await this.client.chat.completions.create(request);
                 const message = completion.choices[0].message;
                 const content = message.content ?? "";
+                // Capture reasoning_details from the response (OpenRouter extension)
+                const reasoningDetails = message.reasoning_details;
                 return {
                     message,
                     elapsedSeconds: (Date.now() - start) / 1000,
                     streamedContent: content,
+                    reasoningDetails,
                 };
             }
             const stream = await this.client.chat.completions.create({
@@ -853,6 +829,8 @@ Please analyze the error and retry with corrected parameters. Common issues:
             });
             let content = "";
             const toolCallsByIndex = [];
+            // Accumulate reasoning_details from streaming delta chunks (OpenRouter extension)
+            const reasoningDetailsByIndex = [];
             for await (const chunk of stream) {
                 const delta = chunk.choices?.[0]?.delta;
                 if (!delta)
@@ -860,6 +838,45 @@ Please analyze the error and retry with corrected parameters. Common issues:
                 if (delta.content) {
                     content += delta.content;
                     process.stdout.write(delta.content);
+                }
+                // Accumulate reasoning_details from delta chunks
+                // Format: { type: "reasoning.text", text: "...", index: 0, id: "...", format: "..." }
+                if (delta.reasoning_details) {
+                    for (const detail of delta.reasoning_details) {
+                        const index = detail.index ?? 0;
+                        if (!reasoningDetailsByIndex[index]) {
+                            // Initialize new reasoning detail entry
+                            reasoningDetailsByIndex[index] = {
+                                type: detail.type,
+                                id: detail.id,
+                                format: detail.format,
+                                index: index,
+                                text: "",
+                                summary: "",
+                                data: "",
+                                signature: detail.signature,
+                            };
+                        }
+                        // Accumulate text for reasoning.text type
+                        if (detail.text) {
+                            reasoningDetailsByIndex[index].text += detail.text;
+                        }
+                        // Accumulate summary for reasoning.summary type
+                        if (detail.summary) {
+                            reasoningDetailsByIndex[index].summary += detail.summary;
+                        }
+                        // Accumulate data for reasoning.encrypted type
+                        if (detail.data) {
+                            reasoningDetailsByIndex[index].data += detail.data;
+                        }
+                        // Update other fields if provided
+                        if (detail.id)
+                            reasoningDetailsByIndex[index].id = detail.id;
+                        if (detail.type)
+                            reasoningDetailsByIndex[index].type = detail.type;
+                        if (detail.signature)
+                            reasoningDetailsByIndex[index].signature = detail.signature;
+                    }
                 }
                 if (delta.tool_calls) {
                     for (const call of delta.tool_calls) {
@@ -890,10 +907,36 @@ Please analyze the error and retry with corrected parameters. Common issues:
             if (toolCalls.length > 0) {
                 message.tool_calls = toolCalls;
             }
+            // Build final reasoning_details array from accumulated data
+            const reasoningDetails = reasoningDetailsByIndex.filter(Boolean).map(detail => {
+                // Clean up empty fields based on type
+                const cleaned = {
+                    type: detail.type,
+                    id: detail.id,
+                    format: detail.format,
+                    index: detail.index,
+                };
+                if (detail.type === "reasoning.text" && detail.text) {
+                    cleaned.text = detail.text;
+                    cleaned.signature = detail.signature;
+                }
+                else if (detail.type === "reasoning.summary" && detail.summary) {
+                    cleaned.summary = detail.summary;
+                }
+                else if (detail.type === "reasoning.encrypted" && detail.data) {
+                    cleaned.data = detail.data;
+                }
+                return cleaned;
+            });
+            // Attach reasoning_details to message for history preservation
+            if (reasoningDetails.length > 0) {
+                message.reasoning_details = reasoningDetails;
+            }
             return {
                 message,
                 elapsedSeconds: (Date.now() - start) / 1000,
                 streamedContent: content,
+                reasoningDetails: reasoningDetails.length > 0 ? reasoningDetails : undefined,
             };
         }
         catch (error) {

@@ -2,33 +2,7 @@ WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
 WARNING: sun.misc.Unsafe::staticFieldBase has been called by com.google.inject.internal.aop.HiddenClassDefiner (file:/opt/homebrew/Cellar/maven/3.9.11/libexec/lib/guice-5.1.0-classes.jar)
 WARNING: Please consider reporting this to the maintainers of class com.google.inject.internal.aop.HiddenClassDefiner
 WARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release
-[INFO] Scanning for projects...
-[INFO] 
-[INFO] -----------------------< com.codeCLI:java-tests >-----------------------
-[INFO] Building CodeCLI Java Tests 1.0.0
-[INFO]   from pom.xml
-[INFO] --------------------------------[ jar ]---------------------------------
-[INFO] 
-[INFO] --- jacoco:0.8.11:prepare-agent (prepare-agent) @ java-tests ---
-[INFO] argLine set to -javaagent:/Users/utsavsharma/.m2/repository/org/jacoco/org.jacoco.agent/0.8.11/org.jacoco.agent-0.8.11-runtime.jar=destfile=/Users/utsavsharma/Documents/GitHub/CodeCLI/tests/java/target/jacoco.exec
-[INFO] 
-[INFO] --- resources:3.3.1:resources (default-resources) @ java-tests ---
-[INFO] skip non existing resourceDirectory /Users/utsavsharma/Documents/GitHub/CodeCLI/tests/java/src/main/resources
-[INFO] 
-[INFO] --- compiler:3.11.0:compile (default-compile) @ java-tests ---
-[INFO] Changes detected - recompiling the module! :source
-[INFO] Compiling 6 source files with javac [debug target 11] to target/classes
-[INFO] -------------------------------------------------------------
-[WARNING] COMPILATION WARNING : 
-[INFO] -------------------------------------------------------------
-[WARNING] location of system modules is not set in conjunction with -source 11
-  not setting the location of system modules may lead to class files that cannot run on JDK 11
-    --release 11 is recommended instead of -source 11 -target 11 because it sets the location of system modules automatically
-[INFO] 1 warning
-[INFO] -------------------------------------------------------------
-[INFO] -------------------------------------------------------------
 [ERROR] COMPILATION ERROR : 
-[INFO] -------------------------------------------------------------
 [ERROR] /Users/utsavsharma/Documents/GitHub/CodeCLI/tests/java/spring-currencyconverter/src/main/java/com/codecli/currency/CurrencyConverterApplication.java:[3,32] package org.springframework.boot does not exist
 [ERROR] /Users/utsavsharma/Documents/GitHub/CodeCLI/tests/java/spring-currencyconverter/src/main/java/com/codecli/currency/CurrencyConverterApplication.java:[4,46] package org.springframework.boot.autoconfigure does not exist
 [ERROR] /Users/utsavsharma/Documents/GitHub/CodeCLI/tests/java/spring-currencyconverter/src/main/java/com/codecli/currency/CurrencyConverterApplication.java:[6,2] cannot find symbol
@@ -36,14 +10,6 @@ WARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release
 [ERROR] /Users/utsavsharma/Documents/GitHub/CodeCLI/tests/java/spring-currencyconverter/src/main/java/com/codecli/currency/CurrencyConverterApplication.java:[10,9] cannot find symbol
   symbol:   variable SpringApplication
   location: class com.codecli.currency.CurrencyConverterApplication
-[INFO] 4 errors 
-[INFO] -------------------------------------------------------------
-[INFO] ------------------------------------------------------------------------
-[INFO] BUILD FAILURE
-[INFO] ------------------------------------------------------------------------
-[INFO] Total time:  0.504 s
-[INFO] Finished at: 2025-12-17T12:38:15-05:00
-[INFO] ------------------------------------------------------------------------
 [ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.11.0:compile (default-compile) on project java-tests: Compilation failure: Compilation failure: 
 [ERROR] /Users/utsavsharma/Documents/GitHub/CodeCLI/tests/java/spring-currencyconverter/src/main/java/com/codecli/currency/CurrencyConverterApplication.java:[3,32] package org.springframework.boot does not exist
 [ERROR] /Users/utsavsharma/Documents/GitHub/CodeCLI/tests/java/spring-currencyconverter/src/main/java/com/codecli/currency/CurrencyConverterApplication.java:[4,46] package org.springframework.boot.autoconfigure does not exist
