@@ -8,11 +8,12 @@ An AI-powered coding assistant CLI built with TypeScript/Bun. Uses OpenRouter AP
 - **Multi-Agent Architecture**: Main agent delegates to specialized sub-agents (FileSystemAgent, AnalysisAgent) for heavy operations
 - **Testing Framework**: AI-powered test generation, execution, and failure analysis for Python & Java
 - **Project Scaffolding**: Bootstrap projects (API, chatbot, React, static sites)
-- **Codebase Analysis**: Generate Mermaid flowcharts, explore codebases, analyze architecture
+- **Codebase Analysis**: Generate Mermaid flowcharts (PNG/SVG/ascii), explore codebases, analyze architecture
 - **Spring Boot Support**: Auto-detection and component-aware test generation
 - **PRD-to-Code Workflow**: Automatically parse Product Requirements Documents (PDF/MD/TXT) into actionable tasks and test suites
 - **Terminal UI**: React/Ink-based interactive interface with task tracking
 - **Cost-Optimized Model**: Uses MiniMax M2.1 with native reasoning for high performance at lower cost
+- **Interactive Games**: Built-in Tic Tac Toe game (2-player or vs AI with 3 difficulty levels)
 
 ## Quick Start
 
@@ -70,8 +71,9 @@ CodeCLI/
 │   └── ui/                     # Ink/React terminal UI
 ├── tests/                       # Multi-language test suites
 ├── scripts/                     # Test runners & utilities
-└── docs/                        # Feature guides
-
+├── docs/                        # Feature guides
+├── diagrams/                    # Generated Mermaid diagrams
+└── tictactoe.html              # Interactive Tic Tac Toe game
 ```
 ## Agent Workflow
 
@@ -115,6 +117,19 @@ The AI Coding Agent processes requests in several coordinated steps to ensure ac
 
 
 ## Recent Changes
+
+### v2.1 - Diagram Tool & Game Features
+- **Enhanced Diagram Tool**: Added PNG/SVG image export support for Mermaid diagrams
+  - Configurable output format (ascii/png/svg) and resolution (width/height)
+  - Multiple theme options: default, dark, forest, neutral
+  - Mermaid CLI integration via mmdc for high-quality rendering
+  - Generated diagrams saved to `diagrams/` directory
+- **Tic Tac Toe Game**: Added interactive browser-based game
+  - Two modes: 2 Players and Player vs AI
+  - Three difficulty levels: Easy, Medium, Hard
+  - Dark/light theme toggle
+  - Score tracking and confetti celebration animation
+  - Responsive design for mobile devices
 
 ### v2.0 - Cost Optimization Update
 - **Model Switch**: Default model changed from Claude Sonnet 4.5 to MiniMax M2.1

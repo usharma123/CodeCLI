@@ -1,6 +1,120 @@
-import { readdir, readFile, stat } from "fs/promises";
+import { readdir, readFile, stat, writeFile, mkdir } from "fs/promises";
 import path from "path";
+import { spawn } from "child_process";
 import { renderMermaidToAscii, } from "../../utils/diagram-renderer.js";
+/**
+ * Render Mermaid diagram to PNG/SVG using mmdc CLI
+ */
+async function renderMermaidToImage(mermaidCode, outputPath, options) {
+    const { format, theme, backgroundColor = "transparent", width = 1920, height = 1080 } = options;
+    // Extract the mermaid code from the markdown code block
+    const codeMatch = mermaidCode.match(/```mermaid\n([\s\S]*?)\n```/);
+    const pureCode = codeMatch ? codeMatch[1] : mermaidCode;
+    // Create temp directory for input file
+    const tempDir = path.join(process.cwd(), ".diagrams-temp");
+    const tempInputPath = path.join(tempDir, `input-${Date.now()}.mmd`);
+    try {
+        // Ensure temp directory exists
+        await mkdir(tempDir, { recursive: true });
+        // Write mermaid code to temp file
+        await writeFile(tempInputPath, pureCode, "utf8");
+        // Ensure output directory exists
+        const outputDir = path.dirname(outputPath);
+        await mkdir(outputDir, { recursive: true });
+        // Create config for mmdc
+        const configPath = path.join(tempDir, `config-${Date.now()}.json`);
+        const config = {
+            theme,
+            backgroundColor,
+            width,
+            height,
+        };
+        await writeFile(configPath, JSON.stringify(config), "utf8");
+        // Run mmdc
+        return new Promise((resolve) => {
+            let resolved = false; // Track if promise already resolved to prevent double resolution
+            const args = [
+                "-i", tempInputPath,
+                "-o", outputPath,
+                "-t", theme,
+                "-b", backgroundColor,
+                "-w", String(width),
+                "-H", String(height),
+            ];
+            // Try to find mmdc in node_modules/.bin first, then fall back to npx
+            const mmdc = spawn("npx", ["--yes", "mmdc", ...args], {
+                cwd: process.cwd(),
+                stdio: ["pipe", "pipe", "pipe"],
+            });
+            const MAX_BUFFER_SIZE = 1024 * 1024; // 1MB limit to prevent unbounded memory growth
+            let stderr = "";
+            let stdout = "";
+            mmdc.stdout?.on("data", (data) => {
+                if (stdout.length < MAX_BUFFER_SIZE) {
+                    stdout += data.toString();
+                }
+            });
+            mmdc.stderr?.on("data", (data) => {
+                if (stderr.length < MAX_BUFFER_SIZE) {
+                    stderr += data.toString();
+                }
+            });
+            // Cleanup function to prevent double resolution
+            const cleanup = async (result) => {
+                if (!resolved) {
+                    resolved = true;
+                    clearTimeout(timeoutId);
+                    // Clean up temp files
+                    try {
+                        const { unlink } = await import("fs/promises");
+                        await unlink(tempInputPath).catch(() => { });
+                        await unlink(configPath).catch(() => { });
+                    }
+                    catch {
+                        // Ignore cleanup errors
+                    }
+                    resolve(result);
+                }
+            };
+            mmdc.on("error", (err) => {
+                cleanup({
+                    success: false,
+                    error: `Failed to spawn mmdc: ${err.message}. Make sure @mermaid-js/mermaid-cli is installed.`,
+                });
+            });
+            mmdc.on("close", async (code) => {
+                if (code === 0) {
+                    await cleanup({
+                        success: true,
+                        path: outputPath,
+                    });
+                }
+                else {
+                    await cleanup({
+                        success: false,
+                        error: stderr || stdout || `mmdc exited with code ${code}`,
+                    });
+                }
+            });
+            // Set a timeout with forced kill
+            const timeoutId = setTimeout(() => {
+                if (!resolved) {
+                    mmdc.kill("SIGKILL"); // Force kill the process
+                    cleanup({
+                        success: false,
+                        error: "Rendering timed out after 60 seconds",
+                    });
+                }
+            }, 60000);
+        });
+    }
+    catch (err) {
+        return {
+            success: false,
+            error: `Failed to prepare rendering: ${err instanceof Error ? err.message : String(err)}`,
+        };
+    }
+}
 const defaultIgnoredDirs = new Set([
     ".git",
     "node_modules",
@@ -74,9 +188,10 @@ function parseImports(relPath, content) {
         const sideEffectImport = /\bimport\s+["']([^"']+)["']/g;
         const requireImport = /\brequire\(\s*["']([^"']+)["']\s*\)/g;
         const dynamicImport = /\bimport\(\s*["']([^"']+)["']\s*\)/g;
+        // Use matchAll() to avoid infinite loop with regex.exec() and global flag
         for (const regex of [fromImport, sideEffectImport, requireImport, dynamicImport]) {
-            let match;
-            while ((match = regex.exec(content))) {
+            const matches = content.matchAll(regex);
+            for (const match of matches) {
                 imports.push(match[1]);
             }
         }
@@ -85,18 +200,21 @@ function parseImports(relPath, content) {
     if (ext === ".py") {
         const fromImport = /^\s*from\s+([.\w]+)\s+import\s+/gm;
         const directImport = /^\s*import\s+([.\w]+)(?:\s+as\s+\w+)?/gm;
-        let match;
-        while ((match = fromImport.exec(content)))
+        // Use matchAll() to avoid infinite loop with regex.exec() and global flag
+        for (const match of content.matchAll(fromImport)) {
             imports.push(match[1]);
-        while ((match = directImport.exec(content)))
+        }
+        for (const match of content.matchAll(directImport)) {
             imports.push(match[1]);
+        }
         return uniq(imports);
     }
     if (ext === ".java") {
         const javaImport = /^\s*import\s+([\w.]+)\s*;/gm;
-        let match;
-        while ((match = javaImport.exec(content)))
+        // Use matchAll() to avoid infinite loop with regex.exec() and global flag
+        for (const match of content.matchAll(javaImport)) {
             imports.push(match[1]);
+        }
         return uniq(imports);
     }
     return [];
@@ -139,11 +257,12 @@ async function resolveLocalImport(rootAbs, fromAbs, fromRel, spec) {
             path.join(rootAbs, candidateRel + ".py"),
             path.join(rootAbs, candidateRel, "__init__.py"),
         ];
-        for (const abs of candidates) {
-            if (await pathExists(abs))
-                return path.resolve(abs);
-        }
-        return null;
+        // Check all candidates in parallel and return first match
+        const results = await Promise.all(candidates.map(async (abs) => {
+            const exists = await pathExists(abs);
+            return exists ? path.resolve(abs) : null;
+        }));
+        return results.find(r => r !== null) || null;
     }
     // JS/TS resolution (handles ".js" imports in TS source)
     if (!spec.startsWith("."))
@@ -160,11 +279,13 @@ async function resolveLocalImport(rootAbs, fromAbs, fromRel, spec) {
         fileCandidates.push(withoutExt + tryExt);
         fileCandidates.push(path.join(withoutExt, "index" + tryExt));
     }
-    for (const abs of uniq(fileCandidates)) {
-        if (await pathExists(abs))
-            return path.resolve(abs);
-    }
-    return null;
+    // Check all file candidates in parallel and return first match
+    const uniqueCandidates = uniq(fileCandidates);
+    const results = await Promise.all(uniqueCandidates.map(async (abs) => {
+        const exists = await pathExists(abs);
+        return exists ? path.resolve(abs) : null;
+    }));
+    return results.find(r => r !== null) || null;
 }
 function pickEntrypoints(files, maxEntrypoints) {
     const score = (relPath) => {
@@ -341,7 +462,21 @@ export const diagramTools = [
                 },
                 render_ascii: {
                     type: "boolean",
-                    description: "Render diagram as ASCII art in terminal (requires mermaid-ascii to be installed). Default: true.",
+                    description: "Render diagram as ASCII art in terminal (requires mermaid-ascii to be installed). Default: true. Ignored if output_format is set.",
+                },
+                output_format: {
+                    type: "string",
+                    enum: ["ascii", "png", "svg"],
+                    description: "Output format: 'ascii' for terminal rendering, 'png' or 'svg' for image files. Default: 'ascii'.",
+                },
+                output_path: {
+                    type: "string",
+                    description: "Custom output path for PNG/SVG files. Default: ./diagrams/diagram-{timestamp}.{format}",
+                },
+                theme: {
+                    type: "string",
+                    enum: ["default", "dark", "forest", "neutral"],
+                    description: "Mermaid theme for PNG/SVG rendering. Default: 'default'.",
                 },
             },
             required: [],
@@ -357,8 +492,11 @@ export const diagramTools = [
             const maxEdges = Math.min(Math.max(input.max_edges ?? 60, 10), 500);
             const maxEntrypoints = Math.min(Math.max(input.max_entrypoints ?? 3, 1), 10);
             const showCounts = Boolean(input.show_edge_counts);
-            const renderAscii = input.render_ascii !== false; // Default to true
             const maxFileBytes = 250_000;
+            // Output format handling - output_format takes precedence over render_ascii
+            const outputFormat = input.output_format || (input.render_ascii === false ? "ascii" : "ascii");
+            const renderAscii = outputFormat === "ascii" && input.render_ascii !== false;
+            const theme = input.theme || "default";
             if (!(await pathExists(rootAbs))) {
                 return `Error: root_dir does not exist: ${rootAbs}`;
             }
@@ -378,47 +516,56 @@ export const diagramTools = [
             }
             const groupEdgeCounts = new Map();
             const entryEdgeSet = new Set();
-            for (const file of recordsByAbs.values()) {
-                let content;
-                try {
-                    content = await readFile(file.absPath, "utf8");
-                }
-                catch {
-                    continue;
-                }
-                if (!content || isProbablyBinaryFile(content))
-                    continue;
-                const specs = parseImports(file.relPath, content);
-                for (const spec of specs) {
-                    const resolved = await resolveLocalImport(rootAbs, file.absPath, file.relPath, spec);
-                    if (!resolved)
-                        continue;
-                    const target = recordsByAbs.get(path.resolve(resolved));
-                    if (!target)
-                        continue;
-                    const fromGroup = file.group;
-                    const toGroup = target.group;
-                    if (!fromGroup || !toGroup || fromGroup === toGroup)
-                        continue;
-                    const key = `${fromGroup}→${toGroup}`;
-                    groupEdgeCounts.set(key, (groupEdgeCounts.get(key) || 0) + 1);
-                }
+            // Process files in parallel batches to avoid overwhelming the system
+            const BATCH_SIZE = 50;
+            const allFileRecords = Array.from(recordsByAbs.values());
+            for (let i = 0; i < allFileRecords.length; i += BATCH_SIZE) {
+                const batch = allFileRecords.slice(i, i + BATCH_SIZE);
+                await Promise.all(batch.map(async (file) => {
+                    let content;
+                    try {
+                        content = await readFile(file.absPath, "utf8");
+                    }
+                    catch {
+                        return;
+                    }
+                    if (!content || isProbablyBinaryFile(content))
+                        return;
+                    const specs = parseImports(file.relPath, content);
+                    // Resolve all imports for this file in parallel
+                    const resolvedImports = await Promise.all(specs.map(spec => resolveLocalImport(rootAbs, file.absPath, file.relPath, spec)));
+                    for (const resolved of resolvedImports) {
+                        if (!resolved)
+                            continue;
+                        const target = recordsByAbs.get(path.resolve(resolved));
+                        if (!target)
+                            continue;
+                        const fromGroup = file.group;
+                        const toGroup = target.group;
+                        if (!fromGroup || !toGroup || fromGroup === toGroup)
+                            continue;
+                        const key = `${fromGroup}→${toGroup}`;
+                        groupEdgeCounts.set(key, (groupEdgeCounts.get(key) || 0) + 1);
+                    }
+                }));
             }
             const entryFiles = pickEntrypoints(Array.from(recordsByAbs.values()), maxEntrypoints);
             const entryRelPaths = entryFiles.map((f) => f.relPath);
-            for (const ep of entryFiles) {
+            // Process entrypoints in parallel
+            await Promise.all(entryFiles.map(async (ep) => {
                 let content;
                 try {
                     content = await readFile(ep.absPath, "utf8");
                 }
                 catch {
-                    continue;
+                    return;
                 }
                 if (!content || isProbablyBinaryFile(content))
-                    continue;
+                    return;
                 const specs = parseImports(ep.relPath, content);
-                for (const spec of specs) {
-                    const resolved = await resolveLocalImport(rootAbs, ep.absPath, ep.relPath, spec);
+                // Resolve all imports for this entrypoint in parallel
+                const resolvedImports = await Promise.all(specs.map(spec => resolveLocalImport(rootAbs, ep.absPath, ep.relPath, spec)));
+                for (const resolved of resolvedImports) {
                     if (!resolved)
                         continue;
                     const target = recordsByAbs.get(path.resolve(resolved));
@@ -429,7 +576,7 @@ export const diagramTools = [
                         continue;
                     entryEdgeSet.add(`${ep.relPath}→${toGroup}`);
                 }
-            }
+            }));
             const groupEdges = Array.from(groupEdgeCounts.entries())
                 .map(([k, weight]) => {
                 const [from, to] = k.split("→");
@@ -460,6 +607,28 @@ export const diagramTools = [
                 notes.push(`Note: file scan hit max_files=${maxFiles}`);
             notes.push(`Grouping: ${grouping}`);
             notes.push(`Edges: ${groupEdges.length} group edge(s), ${entryEdges.length} entry edge(s)`);
+            // Handle PNG/SVG image rendering
+            if (outputFormat === "png" || outputFormat === "svg") {
+                const timestamp = Date.now();
+                const defaultPath = path.join(process.cwd(), "diagrams", `diagram-${timestamp}.${outputFormat}`);
+                const outputPath = input.output_path || defaultPath;
+                const imageResult = await renderMermaidToImage(diagram, outputPath, {
+                    format: outputFormat,
+                    theme,
+                    backgroundColor: theme === "dark" ? "#1e1e1e" : "white",
+                });
+                if (imageResult.success && imageResult.path) {
+                    notes.push(`Rendered: ${outputFormat.toUpperCase()} image`);
+                    notes.push(`Theme: ${theme}`);
+                    notes.push(`Output: ${imageResult.path}`);
+                    return `${notes.join("\n")}\n\n✓ Diagram generated successfully!\n  Path: ${imageResult.path}\n  Format: ${outputFormat.toUpperCase()}\n  Theme: ${theme}\n\nTo view the diagram, open the file in an image viewer or browser.`;
+                }
+                else {
+                    notes.push(`Error: Image rendering failed - ${imageResult.error || "unknown error"}`);
+                    notes.push(`Falling back to raw Mermaid code output.`);
+                    return `${notes.join("\n")}\n\n${diagram}\n\nNote: You can paste this Mermaid code into https://mermaid.live to view the diagram.`;
+                }
+            }
             // Optionally render as ASCII art
             if (renderAscii) {
                 const asciiResult = await renderMermaidToAscii(diagram);

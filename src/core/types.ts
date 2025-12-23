@@ -265,4 +265,10 @@ export interface GenerateMermaidDiagramInput {
   show_edge_counts?: boolean;
   /** Render diagram as ASCII art using mermaid-ascii (requires mermaid-ascii to be installed) */
   render_ascii?: boolean;
+  /** Output format: "ascii" for terminal, "png" or "svg" for image files (default: "ascii") */
+  output_format?: "ascii" | "png" | "svg";
+  /** Custom output path for PNG/SVG files (default: ./diagrams/diagram-{timestamp}.{format}) */
+  output_path?: string;
+  /** Mermaid theme for PNG/SVG rendering (default: "default") */
+  theme?: "default" | "dark" | "forest" | "neutral";
 }

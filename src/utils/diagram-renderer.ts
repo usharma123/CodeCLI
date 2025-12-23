@@ -190,8 +190,12 @@ function layoutNodes(diagram: ParsedDiagram): void {
     levels.set(root, 0);
   }
 
+  // Use Set for O(1) membership checking instead of Array.includes() O(n)
+  const queued = new Set(queue);
+
   while (queue.length > 0) {
     const current = queue.shift()!;
+    queued.delete(current);  // Remove from set when dequeued
     const currentLevel = levels.get(current) || 0;
 
     for (const edge of edges) {
@@ -199,8 +203,9 @@ function layoutNodes(diagram: ParsedDiagram): void {
         const existingLevel = levels.get(edge.to);
         if (existingLevel === undefined || existingLevel < currentLevel + 1) {
           levels.set(edge.to, currentLevel + 1);
-          if (!queue.includes(edge.to)) {
+          if (!queued.has(edge.to)) {  // O(1) lookup instead of O(n)
             queue.push(edge.to);
+            queued.add(edge.to);  // Add to set
           }
         }
       }
