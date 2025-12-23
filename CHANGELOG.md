@@ -2,6 +2,162 @@
 
 All notable changes to CodeCLI are documented in this file.
 
+## [Unreleased] - January 2025
+
+### Added - Session Management & Persistence 💾
+
+#### Session Manager
+- **`src/core/session-manager.ts`**: New module for conversation session persistence
+  - Auto-save conversations to `~/.codecli/sessions/`
+  - Session ID generation (timestamp-based)
+  - Load specific sessions via `--session=<id>` flag
+  - Resume recent sessions via `--resume` flag
+  - Token tracking per session (estimated tokens and cost)
+  - Session export summary (`exportSummary()`)
+  - History tracking for project sessions
+  - Global singleton via `getSessionManager()`
+
+#### CLI Integration
+- New flags: `--session=<id>`, `--resume`, `--no-session`
+- Automatic session creation on startup
+- Session metadata display (created time, message count)
+- Warning display on session initialization failures
+
+### Added - Severity Logging System 📊
+
+#### Severity Module
+- **`src/core/severity.ts`**: Structured logging with severity levels
+  - Levels: `debug`, `info`, `success`, `warning`, `error`, `critical`
+  - Configurable minimum severity via `setMinSeverityLevel()`
+  - Color-coded output with icons
+  - `logWithSeverity()` function for unified logging
+  - `shouldLog()` filter based on configured level
+
+#### Log Levels
+| Level | Icon | Use Case |
+|-------|------|----------|
+| debug | D | Detailed debugging info |
+| info | i | General information |
+| success | ✓ | Successful operations |
+| warning | ! | Non-critical issues |
+| error | ✗ | Errors |
+| critical | !! | Critical failures |
+
+### Added - Context Compaction Manager 🔄
+
+#### Token Optimization
+- **`src/core/context-compaction.ts`**: Automatic conversation summarization for long-running tasks
+  - `ContextCompactionManager` class for token optimization
+  - `generateSummary()` creates structured conversation summaries
+  - `compactConversation()` reduces context while preserving key information
+  - `ConversationSummary` interface with task description, completed work, current state
+  - Automatic compaction at 90% token limit
+  - Warnings at 75% token limit
+
+#### Configuration
+- `DEFAULT_COMPACTION_CONFIG`:
+  - `maxTokens`: 150,000 (conservative limit)
+  - `warningThreshold`: 0.75 (75%)
+  - `summaryModel`: 'minimax/minimax-m2.1'
+  - `preserveMessageCount`: 5 (keep last 5 exchanges)
+
+#### Token Tracking
+- Integration with `TokenTracker` for real-time usage
+- Tokens saved calculation for compaction operations
+- Compacted message history: system message → summary → recent messages
+
+### Added - Test State Management 📈
+
+#### Test History Tracking
+- **`src/core/tools/test-state.ts`**: Track and compare test runs over time
+  - `TestStateManager` class for test state persistence
+  - `saveRun()` / `getHistory()` for test run tracking
+  - `compareRuns()` to detect changes between runs
+  - `TestRunState` interface with test counts and coverage
+  - Keeps last 50 runs to prevent unbounded growth
+
+#### Comparison Features
+- Test count delta detection (new tests added/removed)
+- Coverage change tracking (line and branch)
+- Warning generation for:
+  - Tests removed
+  - Coverage decreased
+  - First run comparison
+- Visual indicators: `✓` for additions, `⚠️` for removals/decreases
+
+### Added - Agent Event System 🎯
+
+#### Event Types
+- **`src/core/agent-system/agent-events.ts`**: Real-time event system for multi-agent coordination
+  - **Status Events**: `idle`, `thinking`, `running_tools`, `waiting_approval`, `completed`, `error`
+  - **Task Events**: `started`, `completed`, `failed` with metrics
+  - **Communication Events**: `delegation`, `result`, `coordination` between agents
+  - **Metrics Events**: task counts, duration, tool calls, tokens used
+  - **Lifecycle Events**: `registered`, `unregistered` for agent management
+
+#### Event Emitter
+- `AgentEventEmitter` singleton with history tracking
+- History limits: 100 status/task events per agent, 200 communication events
+- Helper functions: `onAgentStatus()`, `onAgentTask()`, `onAgentCommunication()`, `onAgentMetrics()`, `onAgentLifecycle()`
+- `getActiveAgents()` for monitoring currently active sub-agents
+
+### Added - Agent Protocol & Context 🔗
+
+#### Agent Protocol
+- **`src/core/agent-system/agent-protocol.ts`**: Standardized task/result structures
+  - `generateTaskId()` for unique task identification
+  - `createAgentTask()` for structured task creation with type, description, context
+  - `createAgentResult()` for standardized result formatting with metrics
+  - Support for priority, timeout, and dependencies
+
+#### Shared Context
+- **`src/core/agent-system/agent-context.ts`**: Shared state between agents
+  - `SharedContext` class with file caching (LRU eviction)
+  - `getCachedFile()` with configurable TTL (default 5 seconds)
+  - `invalidateFile()` after writes
+  - Shared memory via `setContextKey()` / `getContextKey()`
+  - Conversation history with per-agent filtering
+  - `createAgentContext()` for agent initialization
+  - Global singleton via `getSharedContext()`
+
+### Added - Specialized Sub-Agents 🤖
+
+#### FileSystemAgent
+- **`src/core/agents/filesystem.ts`**: Specialist for file operations
+  - Capabilities: large-scale exploration, bulk operations, directory analysis
+  - System prompt optimized for pattern finding and result aggregation
+  - Supports 5 concurrent tasks
+  - Task type detection: `filesystem` or file-related keywords
+
+#### AnalysisAgent
+- **`src/core/agents/analysis.ts`**: Specialist for code analysis
+  - Capabilities: architecture analysis, PRD parsing, code review
+  - Tools: PRD testing, test generation, requirement extraction
+  - Supports 2 concurrent tasks (more compute-intensive)
+  - Task type detection: `analysis` or analysis-related keywords
+
+#### Sub-Agent Tools
+- **`src/core/tools/sub-agent-tools.ts`**: Main agent interface to sub-agents
+  - `explore_codebase`: ⚡ Heavy operation for large-scale pattern searching
+  - `analyze_code_implementation`: ⚡ Deep architectural analysis
+  - `bulk_file_operations`: ⚡ Parallel multi-file operations (5+ files)
+  - Automatic JSON result parsing and plain string output
+
+### Added - Demo Applications 🎮
+
+#### Ludo Game
+- **`ludo-game/index.html`**: Full-featured browser-based Ludo game
+  - 4-player support (Red, Green, Yellow, Blue)
+  - Dice rolling with animation
+  - Piece movement with capture mechanics
+  - Safe spots and home paths
+  - Win condition: First to get all 4 pieces home
+  - Scoreboard and game state tracking
+  - Elegant UI with gradients, shadows, and animations
+  - Responsive design for different screen sizes
+
+---
+
 ## [Latest Updates] - December 2024
 
 ### Added - Hybrid Multi-Agent Architecture & Exploration Tools 🤖
