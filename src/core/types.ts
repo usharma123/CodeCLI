@@ -257,18 +257,15 @@ export interface BulkFileOperationsInput {
 export interface GenerateMermaidDiagramInput {
   root_dir?: string;
   direction?: "TB" | "TD" | "LR" | "RL";
-  grouping?: "auto" | "directory" | "file";
   include_tests?: boolean;
   max_files?: number;
-  max_edges?: number;
   max_entrypoints?: number;
-  show_edge_counts?: boolean;
-  /** Render diagram as ASCII art using mermaid-ascii (requires mermaid-ascii to be installed) */
-  render_ascii?: boolean;
-  /** Output format: "ascii" for terminal, "png" or "svg" for image files (default: "ascii") */
+  /** Output format: "ascii" for terminal, "png" or "svg" for image files (default: "png") */
   output_format?: "ascii" | "png" | "svg";
   /** Custom output path for PNG/SVG files (default: ./diagrams/diagram-{timestamp}.{format}) */
   output_path?: string;
-  /** Mermaid theme for PNG/SVG rendering (default: "default") */
+  /** Mermaid theme for rendering (default: "default") */
   theme?: "default" | "dark" | "forest" | "neutral";
+  /** If provided, skip codebase analysis and directly render this Mermaid code to an image */
+  mermaid_code?: string;
 }
