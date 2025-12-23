@@ -8,6 +8,7 @@ import { emitStatus } from "./status.js";
 import { emitToolOutput } from "./output.js";
 import { formatToolArgs, formatToolName, formatResultSummary } from "./tool-display.js";
 import { logWithSeverity } from "./severity.js";
+import { ContextCompactionManager } from "./context-compaction.js";
 
 interface AgentOptions {
   verboseTools?: boolean;
@@ -38,6 +39,8 @@ class AIAgent {
   private reasoningCheckpoints: import("./types.js").ReasoningCheckpoint[] = [];
   // Model configuration
   private readonly model: string = "minimax/minimax-m2.1";
+  // Context compaction manager
+  private compactionManager: ContextCompactionManager;
 
   constructor(
     apiKey: string,
@@ -57,6 +60,9 @@ class AIAgent {
     });
 
     this.tools = tools;
+
+    // Initialize context compaction manager
+    this.compactionManager = new ContextCompactionManager(this.client);
 
     // Only create readline interface if in TTY mode
     if (createReadline && process.stdin.isTTY) {
@@ -276,16 +282,42 @@ Smart testing workflow:
     return Math.ceil(totalChars / 4);
   }
 
-  // Manage context window to prevent exceeding token limits
-  private trimContextWindow(): void {
+  // Manage context window to prevent exceeding token limits with intelligent compaction
+  private async trimContextWindow(): Promise<void> {
     if (this.messages.length <= 1) return; // Keep at least system prompt
 
-    // Check if we need to trim by message count
+    const systemMessage = this.messages[0]; // Preserve system prompt
+
+    // Check if compaction is needed
+    const status = this.compactionManager.shouldCompact(this.messages);
+
+    if (status.shouldWarn && !status.shouldCompact) {
+      console.log(`${colors.yellow}⚠️  Context usage: ${(status.percentUsed * 100).toFixed(1)}%${colors.reset}`);
+    }
+
+    if (status.shouldCompact) {
+      try {
+        console.log(`${colors.cyan}🔄 Context limit approaching - performing intelligent compaction...${colors.reset}`);
+
+        const { compactedMessages, summary } =
+          await this.compactionManager.compactConversation(this.messages);
+
+        this.messages = compactedMessages;
+
+        console.log(`${colors.green}✓ Compaction complete: ${summary.tokensSaved.toLocaleString()} tokens saved${colors.reset}`);
+        console.log(`${colors.gray}  Messages: ${status.estimatedTokens.toLocaleString()} → ${this.compactionManager.shouldCompact(this.messages).estimatedTokens.toLocaleString()} tokens${colors.reset}`);
+        return;
+      } catch (error) {
+        console.error(`${colors.red}Failed to compact context, falling back to simple trimming: ${error}${colors.reset}`);
+        // Fall through to simple trimming on error
+      }
+    }
+
+    // Fallback to existing FIFO trimming if under threshold or compaction failed
     if (this.messages.length > this.maxMessagesInHistory + 1) {
       // Keep system prompt (first message) and last N messages
-      const systemPrompt = this.messages[0];
       const recentMessages = this.messages.slice(-(this.maxMessagesInHistory));
-      this.messages = [systemPrompt, ...recentMessages];
+      this.messages = [systemMessage, ...recentMessages];
       console.log(`${colors.gray}  (Trimmed conversation history to last ${this.maxMessagesInHistory} messages)${colors.reset}`);
     }
 
@@ -293,9 +325,8 @@ Smart testing workflow:
     const estimatedTokens = this.estimateTokens(this.messages);
     if (estimatedTokens > this.maxTokenEstimate) {
       // More aggressive trimming - keep system prompt and last 20 messages
-      const systemPrompt = this.messages[0];
       const recentMessages = this.messages.slice(-20);
-      this.messages = [systemPrompt, ...recentMessages];
+      this.messages = [systemMessage, ...recentMessages];
       console.log(`${colors.gray}  (Trimmed conversation history due to token limit)${colors.reset}`);
     }
 
@@ -388,7 +419,7 @@ ${colors.reset}`);
   private async processMessage(): Promise<void> {
     try {
       // Trim context window before making API call
-      this.trimContextWindow();
+      await this.trimContextWindow();
 
       // Prepare tools for OpenAI format
       const openAITools = this.tools.map((tool) => ({

@@ -532,6 +532,93 @@ async function getCurrentGitCommit(): Promise<string | undefined> {
   }
 }
 
+// Helper to generate TEST_REPORT.md
+async function generateTestReport(
+  language: 'python' | 'java',
+  projectPath: string | undefined,
+  testCounts: { total: number; passed: number; failed: number },
+  coverage?: { line: number; branch: number; instruction?: number },
+  warnings?: string[]
+): Promise<void> {
+  const reportPath = projectPath
+    ? path.join(process.cwd(), 'tests', language, projectPath, 'TEST_REPORT.md')
+    : path.join(process.cwd(), 'tests', language, 'TEST_REPORT.md');
+
+  const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  const status = testCounts.failed === 0 ? '✅ PASS' : '❌ FAIL';
+
+  let report = `# Test Report - ${language.toUpperCase()}\n\n`;
+  report += `**Generated:** ${timestamp}\n`;
+  if (projectPath) {
+    report += `**Project:** ${projectPath}\n`;
+  }
+  report += `\n## Summary\n\n`;
+  report += `| Metric | Value |\n`;
+  report += `|--------|-------|\n`;
+  report += `| Status | ${status} |\n`;
+  report += `| Total Tests | ${testCounts.total} |\n`;
+  report += `| Passed | ${testCounts.passed} |\n`;
+  report += `| Failed | ${testCounts.failed} |\n`;
+
+  if (coverage) {
+    report += `| Line Coverage | ${coverage.line.toFixed(2)}% |\n`;
+    report += `| Branch Coverage | ${coverage.branch.toFixed(2)}% |\n`;
+    if (coverage.instruction !== undefined) {
+      report += `| Instruction Coverage | ${coverage.instruction.toFixed(2)}% |\n`;
+    }
+  }
+
+  if (warnings && warnings.length > 0) {
+    report += `\n## Warnings\n\n`;
+    warnings.forEach(warning => {
+      report += `- ${warning}\n`;
+    });
+  }
+
+  report += `\n## Coverage Details\n\n`;
+  if (language === 'python') {
+    report += `- **XML Report:** tests/python/coverage.xml\n`;
+    report += `- **HTML Report:** tests/python/htmlcov/index.html\n`;
+  } else if (language === 'java') {
+    const jacocoPath = projectPath
+      ? `tests/java/${projectPath}/target/site/jacoco/index.html`
+      : 'tests/java/target/site/jacoco/index.html';
+    report += `- **XML Report:** ${jacocoPath.replace('index.html', 'jacoco.xml')}\n`;
+    report += `- **HTML Report:** ${jacocoPath}\n`;
+  }
+
+  report += `\n## Rerun Commands\n\n`;
+  report += `### Run all tests\n`;
+  report += `\`\`\`bash\n`;
+  if (projectPath) {
+    if (language === 'java') {
+      report += `cd tests/java/${projectPath} && mvn clean test\n`;
+    } else {
+      report += `bash scripts/test-runner.sh --language ${language}\n`;
+    }
+  } else {
+    report += `bash scripts/test-runner.sh --language ${language}\n`;
+  }
+  report += `\`\`\`\n\n`;
+
+  report += `### Run with coverage\n`;
+  report += `\`\`\`bash\n`;
+  if (projectPath && language === 'java') {
+    report += `cd tests/java/${projectPath} && mvn clean test jacoco:report\n`;
+  } else {
+    report += `bash scripts/test-runner.sh --language ${language} --coverage\n`;
+  }
+  report += `\`\`\`\n`;
+
+  // Ensure directory exists
+  const reportDir = path.dirname(reportPath);
+  if (!fs.existsSync(reportDir)) {
+    fs.mkdirSync(reportDir, { recursive: true });
+  }
+
+  fs.writeFileSync(reportPath, report, 'utf-8');
+}
+
 const getCoverageDefinition: ToolDefinition = {
   name: "get_coverage",
   description:
@@ -626,9 +713,29 @@ const getCoverageDefinition: ToolDefinition = {
 
       result += `Status: ${exitCode === 0 ? "PASSED" : "FAILED"}\n\n`;
 
+      // Variables to capture test counts and coverage metrics
+      let testCounts = { total: 0, passed: 0, failed: 0 };
+      let coverageMetrics: { line: number; branch: number; instruction?: number } | undefined;
+      const testFiles = discoverTestFiles(language, projectPath);
+
       if (language === "python") {
         const xmlPath = path.join(process.cwd(), "tests/python/coverage.xml");
         const htmlPath = "tests/python/htmlcov/index.html";
+
+        // Parse test counts from Python test report
+        const pythonReportPath = path.join(process.cwd(), "tests/python/test-report.json");
+        if (fs.existsSync(pythonReportPath)) {
+          try {
+            const reportData = JSON.parse(fs.readFileSync(pythonReportPath, "utf-8"));
+            if (reportData.summary) {
+              testCounts.total = reportData.summary.total || 0;
+              testCounts.passed = reportData.summary.passed || 0;
+              testCounts.failed = reportData.summary.failed || 0;
+            }
+          } catch {
+            // Ignore JSON parsing errors
+          }
+        }
 
         if (fs.existsSync(xmlPath)) {
           const coverage = parsePythonCoverageXml(xmlPath);
@@ -636,6 +743,12 @@ const getCoverageDefinition: ToolDefinition = {
           if (coverage) {
             const linePercent = (coverage.lineRate * 100).toFixed(2);
             const branchPercent = (coverage.branchRate * 100).toFixed(2);
+
+            // Capture coverage metrics
+            coverageMetrics = {
+              line: coverage.lineRate * 100,
+              branch: coverage.branchRate * 100
+            };
 
             result += `Line Coverage: ${linePercent}% (${coverage.linesCovered}/${coverage.linesValid})\n`;
 
@@ -689,7 +802,8 @@ const getCoverageDefinition: ToolDefinition = {
           : findSurefireReports(javaBaseDir);
 
         if (surefireDir && fs.existsSync(surefireDir)) {
-          const testCounts = parseSurefireReports(surefireDir);
+          const parsedTestCounts = parseSurefireReports(surefireDir);
+          testCounts = parsedTestCounts;  // Capture test counts
           result += `Tests Run: ${testCounts.total} (${testCounts.passed} passed, ${testCounts.failed} failed)\n\n`;
         }
 
@@ -708,28 +822,34 @@ const getCoverageDefinition: ToolDefinition = {
               /<counter type="LINE" missed="(\d+)" covered="(\d+)"/
             );
 
+            // Initialize coverage metrics object
+            coverageMetrics = { line: 0, branch: 0, instruction: 0 };
+
             if (instructionMatch) {
               const missed = parseInt(instructionMatch[1]);
               const covered = parseInt(instructionMatch[2]);
               const total = missed + covered;
-              const percent = ((covered / total) * 100).toFixed(2);
-              result += `Instruction Coverage: ${percent}% (${covered}/${total})\n`;
+              const percent = ((covered / total) * 100);
+              coverageMetrics.instruction = percent;
+              result += `Instruction Coverage: ${percent.toFixed(2)}% (${covered}/${total})\n`;
             }
 
             if (lineMatch) {
               const missed = parseInt(lineMatch[1]);
               const covered = parseInt(lineMatch[2]);
               const total = missed + covered;
-              const percent = ((covered / total) * 100).toFixed(2);
-              result += `Line Coverage: ${percent}% (${covered}/${total})\n`;
+              const percent = ((covered / total) * 100);
+              coverageMetrics.line = percent;
+              result += `Line Coverage: ${percent.toFixed(2)}% (${covered}/${total})\n`;
             }
 
             if (branchMatch) {
               const missed = parseInt(branchMatch[1]);
               const covered = parseInt(branchMatch[2]);
               const total = missed + covered;
-              const percent = ((covered / total) * 100).toFixed(2);
-              result += `Branch Coverage: ${percent}% (${covered}/${total})\n`;
+              const percent = ((covered / total) * 100);
+              coverageMetrics.branch = percent;
+              result += `Branch Coverage: ${percent.toFixed(2)}% (${covered}/${total})\n`;
             }
 
             result += `\nCoverage Report: ${xmlPath}\n`;
@@ -776,6 +896,52 @@ const getCoverageDefinition: ToolDefinition = {
         result += `4. Check for untested exception handlers\n`;
       }
 
+      // Build TestRunState and track changes
+      if (testCounts.total > 0) {
+        const currentRun: TestRunState = {
+          language,
+          timestamp: Date.now(),
+          testCounts,
+          coverage: coverageMetrics,
+          testFiles,
+          projectPath,
+          commitHash: await getCurrentGitCommit()
+        };
+
+        // Compare with previous run
+        const comparison = stateManager.compareRuns(currentRun, previousRun);
+
+        // Inject warnings into result
+        if (comparison.warnings.length > 0) {
+          result += `\n--- TEST CHANGES ---\n`;
+          comparison.warnings.forEach(warning => {
+            result += `${warning}\n`;
+          });
+          result += `\n`;
+        }
+
+        // Save current run
+        stateManager.saveRun(currentRun);
+
+        // Generate TEST_REPORT.md
+        try {
+          await generateTestReport(
+            language,
+            projectPath,
+            testCounts,
+            coverageMetrics,
+            comparison.warnings
+          );
+
+          const reportPath = projectPath
+            ? `tests/${language}/${projectPath}/TEST_REPORT.md`
+            : `tests/${language}/TEST_REPORT.md`;
+          result += `\n📊 Test report generated: ${reportPath}\n`;
+        } catch (error) {
+          result += `\n⚠️  Warning: Could not generate TEST_REPORT.md: ${error}\n`;
+        }
+      }
+
       // Only show errors if tests failed and there's meaningful error info
       if (stderr.trim() && exitCode !== 0 && !stderr.includes("BUILD SUCCESS")) {
         result += `\n--- ERRORS ---\n`;
@@ -785,10 +951,6 @@ const getCoverageDefinition: ToolDefinition = {
           : stderr;
         result += stderrPreview;
       }
-
-      // Note: State tracking and report generation will be added here in next commit
-      // This requires extracting test counts and coverage metrics from the result string
-      // or refactoring to capture them as we parse
 
       return result;
     } catch (error) {
