@@ -1,0 +1,89 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                     AI CODING AGENT - SYSTEM ARCHITECTURE                      ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+                                    USER INPUT
+                                        │
+                                        ▼
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                          INTERFACE LAYER                                 │
+    │  ┌──────────────┐     ┌──────────────┐     ┌──────────────────────┐     │
+    │  │  Terminal UI │ ──▶ │  Output      │ ──▶ │  Status Bar          │     │
+    │  │  (Ink/React) │     │  Display     │     │  (Session, Cost)     │     │
+    │  └──────────────┘     └──────────────┘     └──────────────────────┘     │
+    └─────────────────────────────────────────────────────────────────────────┘
+                                        │
+                                        ▼
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                             AGENT CORE                                   │
+    │                                                                          │
+    │     ┌────────────────┐         ┌────────────────┐        ┌───────────┐  │
+    │     │  Todo Manager  │ ──────▶ │  LLM Brain     │ ◀───── │  Context  │  │
+    │     │  (Planning)    │         │  (OpenRouter)  │        │  Memory   │  │
+    │     └────────────────┘         └────────────────┘        └───────────┘  │
+    │                                                                          │
+    └─────────────────────────────────────────────────────────────────────────┘
+                                        │
+                                        ▼
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                           TOOL REGISTRY                                   │
+    │                                                                          │
+    │  ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────────────────┐  │
+    │  │  Files   │   │ Commands │   │ Testing  │   │  Diagrams & Analysis │  │
+    │  │ read     │   │ run      │   │ run_tests│   │  mermaid, explore    │  │
+    │  │ write    │   │ shell    │   │ coverage │   │  PRD tools           │  │
+    │  │ edit     │   │ install  │   │ generate │   │                      │  │
+    │  └──────────┘   └──────────┘   └──────────┘   └──────────────────────┘  │
+    │                                                                          │
+    └─────────────────────────────────────────────────────────────────────────┘
+                                        │
+                                        ▼
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                          RESULTS LAYER                                   │
+    │  ┌──────────────────┐                 ┌──────────────────────────────┐  │
+    │  │  Session Manager │                 │  Token Tracker (Cost)        │  │
+    │  └──────────────────┘                 └──────────────────────────────┘  │
+    └─────────────────────────────────────────────────────────────────────────┘
+
+
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                              EXECUTION FLOW                                    ║
+╠════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                 ║
+║   1. User types request in CLI                                                  ║
+║                                                                                 ║
+║   2. Terminal UI sends input to LLM Brain                                       ║
+║                                                                                 ║
+║   3. LLM Brain analyzes request:                                                ║
+║      • Plans tasks with Todo Manager                                           ║
+║      • Retrieves relevant context from memory                                  ║
+║      • Decides which tools to invoke                                           ║
+║                                                                                 ║
+║   4. Tools execute and return results                                           ║
+║                                                                                 ║
+║   5. Results flow to Output Display                                            ║
+║                                                                                 ║
+║   6. Status bar updates (session, token count, cost)                            ║
+║                                                                                 ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                            AVAILABLE TOOLS                                     ║
+╠════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                 ║
+║  FILE OPERATIONS          │  COMMAND EXECUTION    │  TESTING TOOLS            ║
+║  ────────────────────────┼───────────────────────┼─────────────────────────   ║
+║  • read_file             │  • run_command        │  • run_tests              ║
+║  • write_file            │  • shell commands     │  • analyze_test_failures  ║
+║  • edit_file             │  • npm/py install     │  • get_coverage           ║
+║  • list_files            │  • build scripts      │  • generate_tests         ║
+║  • patch_file            │                       │  • generate_regression    ║
+║                                                                                 ║
+║  ANALYSIS & DIAGRAMS     │  SCAFFOLDING          │  PRD WORKFLOW             ║
+║  ────────────────────────┼───────────────────────┼─────────────────────────   ║
+║  • generate_mermaid      │  • scaffold_project   │  • parse_prd              ║
+║  • explore_codebase      │  • Spring Boot comp   │  • extract_tasks_from_prd ║
+║  • analyze_code_impl     │  • API templates      │  • process_prd_with_tasks ║
+║                                                                                 ║
+╚════════════════════════════════════════════════════════════════════════════════╝
