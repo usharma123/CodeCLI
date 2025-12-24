@@ -10,6 +10,7 @@ interface InputBoxProps {
   isDisabled?: boolean;
   sessionNum: number;
   resetToken?: number;
+  isPlanningMode?: boolean;
 }
 
 export function InputBox({
@@ -17,6 +18,7 @@ export function InputBox({
   isDisabled = false,
   sessionNum,
   resetToken = 0,
+  isPlanningMode = false,
 }: InputBoxProps) {
   const [inputKey, setInputKey] = useState(0);
   const [currentInput, setCurrentInput] = useState("");
@@ -46,13 +48,21 @@ export function InputBox({
 
   // Mode-based styling (subtle) - only change border color, not prompt
   // This avoids duplication since the input already contains the mode character
-  const borderColor = inputMode === "command"
+  const borderColor = isPlanningMode
+    ? "magenta"
+    : inputMode === "command"
     ? "blue"
     : inputMode === "file"
     ? "green"
     : inputMode === "shell"
     ? "yellow"
     : "gray";
+
+  const placeholder = isPlanningMode
+    ? "describe what you want to build..."
+    : "ask anything...";
+
+  const promptIcon = isPlanningMode ? icons.section : ">";
 
   return (
     <Box flexDirection="column">
@@ -64,12 +74,12 @@ export function InputBox({
       )}
 
       <Box borderStyle="single" borderColor={borderColor} paddingX={1}>
-        <Text color={inputMode ? borderColor : "gray"}>
-          {">"}{" "}
+        <Text color={isPlanningMode ? "magenta" : inputMode ? borderColor : "gray"}>
+          {promptIcon}{" "}
         </Text>
         <TextInput
           key={`${resetToken}-${inputKey}`}
-          placeholder="ask anything..."
+          placeholder={placeholder}
           onSubmit={handleSubmit}
           onChange={handleChange}
           isDisabled={isDisabled}
@@ -78,10 +88,16 @@ export function InputBox({
 
       {/* Minimal status line */}
       <Box paddingLeft={1}>
-        <Text dimColor>
-          session {sessionNum}
-          {currentInput.length > 80 && ` ${icons.bullet} ${currentInput.length} chars`}
-        </Text>
+        {isPlanningMode ? (
+          <Text color="magenta">
+            planning mode {icons.bullet} describe your task, then press enter
+          </Text>
+        ) : (
+          <Text dimColor>
+            session {sessionNum}
+            {currentInput.length > 80 && ` ${icons.bullet} ${currentInput.length} chars`}
+          </Text>
+        )}
       </Box>
     </Box>
   );

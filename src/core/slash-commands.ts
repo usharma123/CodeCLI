@@ -83,6 +83,14 @@ export const BUILT_IN_COMMANDS: SlashCommand[] = [
     description: "List all available slash commands",
     category: "custom",
     parameterized: false
+  },
+  {
+    name: "plan",
+    aliases: ["p"],
+    template: "",  // Special handling - mode toggle
+    description: "Enter planning mode (next input becomes a plan request)",
+    category: "session",
+    parameterized: false
   }
 ];
 

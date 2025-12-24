@@ -5,7 +5,7 @@ import { TextInput } from "@inkjs/ui";
 import { SlashCommandHelp } from "./SlashCommandHelp.js";
 import { getSlashCommandRegistry } from "../../core/slash-commands.js";
 import { icons } from "../theme.js";
-export function InputBox({ onSubmit, isDisabled = false, sessionNum, resetToken = 0, }) {
+export function InputBox({ onSubmit, isDisabled = false, sessionNum, resetToken = 0, isPlanningMode = false, }) {
     const [inputKey, setInputKey] = useState(0);
     const [currentInput, setCurrentInput] = useState("");
     const handleSubmit = (submittedValue) => {
@@ -29,14 +29,20 @@ export function InputBox({ onSubmit, isDisabled = false, sessionNum, resetToken 
                 : null;
     // Mode-based styling (subtle) - only change border color, not prompt
     // This avoids duplication since the input already contains the mode character
-    const borderColor = inputMode === "command"
-        ? "blue"
-        : inputMode === "file"
-            ? "green"
-            : inputMode === "shell"
-                ? "yellow"
-                : "gray";
-    return (_jsxs(Box, { flexDirection: "column", children: [showSlashHelp && (_jsx(SlashCommandHelp, { commands: allCommands, filter: currentInput.length > 1 ? currentInput : undefined })), _jsxs(Box, { borderStyle: "single", borderColor: borderColor, paddingX: 1, children: [_jsxs(Text, { color: inputMode ? borderColor : "gray", children: [">", " "] }), _jsx(TextInput, { placeholder: "ask anything...", onSubmit: handleSubmit, onChange: handleChange, isDisabled: isDisabled }, `${resetToken}-${inputKey}`)] }), _jsx(Box, { paddingLeft: 1, children: _jsxs(Text, { dimColor: true, children: ["session ", sessionNum, currentInput.length > 80 && ` ${icons.bullet} ${currentInput.length} chars`] }) })] }));
+    const borderColor = isPlanningMode
+        ? "magenta"
+        : inputMode === "command"
+            ? "blue"
+            : inputMode === "file"
+                ? "green"
+                : inputMode === "shell"
+                    ? "yellow"
+                    : "gray";
+    const placeholder = isPlanningMode
+        ? "describe what you want to build..."
+        : "ask anything...";
+    const promptIcon = isPlanningMode ? icons.section : ">";
+    return (_jsxs(Box, { flexDirection: "column", children: [showSlashHelp && (_jsx(SlashCommandHelp, { commands: allCommands, filter: currentInput.length > 1 ? currentInput : undefined })), _jsxs(Box, { borderStyle: "single", borderColor: borderColor, paddingX: 1, children: [_jsxs(Text, { color: isPlanningMode ? "magenta" : inputMode ? borderColor : "gray", children: [promptIcon, " "] }), _jsx(TextInput, { placeholder: placeholder, onSubmit: handleSubmit, onChange: handleChange, isDisabled: isDisabled }, `${resetToken}-${inputKey}`)] }), _jsx(Box, { paddingLeft: 1, children: isPlanningMode ? (_jsxs(Text, { color: "magenta", children: ["planning mode ", icons.bullet, " describe your task, then press enter"] })) : (_jsxs(Text, { dimColor: true, children: ["session ", sessionNum, currentInput.length > 80 && ` ${icons.bullet} ${currentInput.length} chars`] })) })] }));
 }
 export function MinimalInput({ onSubmit, placeholder = "...", isDisabled = false, }) {
     const [inputKey, setInputKey] = useState(0);

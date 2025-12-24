@@ -27,6 +27,8 @@ class AIAgent {
     // Todo list and reasoning state
     currentTodos = { todos: [], lastUpdated: 0 };
     reasoningCheckpoints = [];
+    // Plan state for /plan mode
+    currentPlan = { plan: null, status: "idle", lastUpdated: 0 };
     // Model configuration
     model = "minimax/minimax-m2.1";
     // Context compaction manager
@@ -83,6 +85,7 @@ Available tools:
 - generate_regression_test: Create tests for fixed bugs to prevent regressions
 - generate_mermaid_diagram: Scan a codebase and output a Mermaid flowchart of high-level module flow
 - todo_write: Manage todo lists for multi-step tasks (create, update, track progress)
+- plan_write: Create implementation plans for user approval (use with /plan command)
 
 Tool selection guide:
 - For NEW files: Use write_file
@@ -116,6 +119,13 @@ Todo List Usage:
 - Only ONE todo should be "in_progress" at a time
 - Mark todos "completed" immediately after finishing each task
 - Add new todos if you discover additional work needed
+
+Plan Mode Usage (with /plan command):
+- When user invokes /plan, explore the codebase first to understand context
+- Use plan_write to create a structured implementation plan
+- The plan will be shown to the user for approval
+- User can approve, reject, or request modifications
+- On approval, plan sections are converted to todos automatically
 
 Example todo_write call:
 {
@@ -829,6 +839,94 @@ Please analyze the error and retry with corrected parameters. Common issues:
     // Public method to get current model for UI display
     getModel() {
         return this.model;
+    }
+    // Plan mode methods
+    updatePlan(plan) {
+        this.currentPlan = {
+            plan,
+            status: "pending_approval",
+            lastUpdated: Date.now()
+        };
+    }
+    getPlanState() {
+        return this.currentPlan;
+    }
+    async approvePlan() {
+        if (!this.currentPlan.plan)
+            return;
+        // Convert plan sections to todos
+        const todos = [];
+        for (const section of this.currentPlan.plan.sections) {
+            for (const task of section.tasks) {
+                todos.push({
+                    content: task,
+                    activeForm: task.replace(/^(Add|Create|Implement|Update|Fix|Remove|Write|Build|Set up)/i, (match) => {
+                        const mapping = {
+                            'Add': 'Adding',
+                            'Create': 'Creating',
+                            'Implement': 'Implementing',
+                            'Update': 'Updating',
+                            'Fix': 'Fixing',
+                            'Remove': 'Removing',
+                            'Write': 'Writing',
+                            'Build': 'Building',
+                            'Set up': 'Setting up'
+                        };
+                        return mapping[match] || match + 'ing';
+                    }),
+                    status: "pending"
+                });
+            }
+        }
+        // Set first todo to in_progress
+        if (todos.length > 0) {
+            todos[0].status = "in_progress";
+        }
+        // Update todos
+        this.updateTodos(todos);
+        // Mark plan as approved and notify agent
+        this.currentPlan.status = "approved";
+        this.currentPlan.lastUpdated = Date.now();
+        // Add approval message to conversation
+        this.messages.push({
+            role: "user",
+            content: `Plan approved. Proceed with implementation. The plan has been converted to ${todos.length} todo items. Start with the first task.`
+        });
+        // Continue processing
+        await this.processMessage();
+    }
+    rejectPlan() {
+        this.currentPlan = {
+            plan: null,
+            status: "rejected",
+            lastUpdated: Date.now()
+        };
+        // Add rejection message to conversation
+        this.messages.push({
+            role: "user",
+            content: "Plan rejected. Please ask what I would like to do instead."
+        });
+    }
+    async modifyPlan(instructions) {
+        this.currentPlan.status = "modifying";
+        this.currentPlan.modificationRequest = instructions;
+        this.currentPlan.lastUpdated = Date.now();
+        // Add modification request to conversation
+        this.messages.push({
+            role: "user",
+            content: `Please modify the plan based on these instructions: ${instructions}\n\nCreate a new plan using the plan_write tool.`
+        });
+        // Clear the current plan to allow new one
+        this.currentPlan.plan = null;
+        // Continue processing
+        await this.processMessage();
+    }
+    clearPlan() {
+        this.currentPlan = {
+            plan: null,
+            status: "idle",
+            lastUpdated: Date.now()
+        };
     }
     async createCompletion(request) {
         const start = Date.now();

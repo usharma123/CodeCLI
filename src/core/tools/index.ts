@@ -9,6 +9,7 @@ import { prdTestingTools } from "./prd-testing.js";
 import { prdTaskExtractionTools } from "./prd-task-extraction.js";
 import { prdWorkflowTools } from "./prd-workflow.js";
 import { todoTools } from "./todos.js";
+import { planTools } from "./plan.js";
 import { subAgentTools } from "./sub-agent-tools.js";
 import { diagramTools } from "./diagram.js";
 import { setAgentInstance } from "./shared.js";
@@ -25,6 +26,7 @@ export const toolDefinitions: ToolDefinition[] = [
   ...prdTaskExtractionTools,
   ...prdWorkflowTools,
   ...todoTools,
+  ...planTools,
   ...diagramTools,
   // Sub-agent tools (hybrid architecture) for exploration
   ...(isSubAgentsEnabled() ? subAgentTools : []),

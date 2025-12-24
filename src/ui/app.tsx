@@ -5,9 +5,11 @@ import { Confirm } from "./components/Confirm.js";
 import { TodoList } from "./components/TodoList.js";
 import { ToolOutputDisplay } from "./components/ToolOutputDisplay.js";
 import { StatusBar } from "./components/StatusBar.js";
+import { PlanConfirm } from "./components/PlanConfirm.js";
 import { onStatus, getStatus } from "../core/status.js";
 import { getLastTruncatedOutput } from "../core/output.js";
 import type { AIAgent } from "../core/agent.js";
+import type { Plan } from "../core/types.js";
 import { getSlashCommandRegistry } from "../core/slash-commands.js";
 import { getSessionManager } from "../core/session-manager.js";
 import { getTokenTracker } from "../core/token-tracker.js";
@@ -41,6 +43,10 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
   const [tokenStats, setTokenStats] = useState({ total: 0, cost: 0 });
   const [isDryRun, setIsDryRun] = useState(false);
 
+  // Plan mode state
+  const [pendingPlan, setPendingPlan] = useState<Plan | null>(null);
+  const [isPlanningMode, setIsPlanningMode] = useState(false);
+
   const [modelName, setModelName] = useState<string>("claude-sonnet-4.5");
   // Register confirmation handler
   React.useEffect(() => {
@@ -60,7 +66,7 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
     return unsubscribe;
   }, []);
 
-  // Poll for todo updates
+  // Poll for todo and plan updates
   React.useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
     if (agentRef?.current) {
@@ -70,6 +76,15 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
           setTodos(todoState.todos);
           const model = agentRef.current!.getModel();
           setModelName(model);
+
+          // Check for pending plan
+          const planState = agentRef.current!.getPlanState();
+          if (planState.status === "pending_approval" && planState.plan) {
+            setPendingPlan(planState.plan);
+            setIsProcessing(false); // Stop processing indicator while waiting for approval
+          } else if (planState.status !== "pending_approval") {
+            setPendingPlan(null);
+          }
         } catch (err) {
           // Silently ignore polling errors
         }
@@ -121,6 +136,36 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
     }
   };
 
+  // Plan approval handlers
+  const handlePlanApprove = async () => {
+    if (agentRef?.current && pendingPlan) {
+      setPendingPlan(null);
+      setIsProcessing(true);
+      setProcessingStartTime(Date.now());
+      await agentRef.current.approvePlan();
+      setIsProcessing(false);
+      setProcessingStartTime(null);
+    }
+  };
+
+  const handlePlanReject = () => {
+    if (agentRef?.current) {
+      agentRef.current.rejectPlan();
+      setPendingPlan(null);
+    }
+  };
+
+  const handlePlanModify = async (instructions: string) => {
+    if (agentRef?.current) {
+      setPendingPlan(null);
+      setIsProcessing(true);
+      setProcessingStartTime(Date.now());
+      await agentRef.current.modifyPlan(instructions);
+      setIsProcessing(false);
+      setProcessingStartTime(null);
+    }
+  };
+
   useInput(
     (input, key) => {
       const isCtrlC = (key.ctrl && input === "c") || input === "\u0003";
@@ -156,9 +201,16 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
     const cmdRegistry = getSlashCommandRegistry();
     let finalInput = value;
 
+    // Check for /plan command - toggle planning mode
     if (cmdRegistry.isSlashCommand(value)) {
+      const parsed = cmdRegistry.parseCommand(value);
+      if (parsed && parsed.command.name === "plan") {
+        setIsPlanningMode(true);
+        console.log(`\n${icons.arrow} Entering planning mode. Describe what you want to build:\n`);
+        return;
+      }
+
       try {
-        const parsed = cmdRegistry.parseCommand(value);
         if (parsed) {
           finalInput = cmdRegistry.expandCommand(parsed.command, parsed.args);
           console.log(`\n${icons.arrow} /${parsed.command.name}\n`);
@@ -167,6 +219,21 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
         console.log(`\n${icons.error} ${error.message}\n`);
         return;
       }
+    }
+
+    // If in planning mode, wrap input with planning instructions
+    if (isPlanningMode) {
+      finalInput = `Enter planning mode. Explore the codebase and create a detailed implementation plan for: ${value}
+
+Use the plan_write tool to display the plan for my approval. The plan should have:
+- A clear title and summary
+- Sections representing phases of work
+- Specific tasks within each section
+- Files that will be created or modified
+
+Do NOT start implementation until I approve the plan.`;
+      setIsPlanningMode(false);
+      console.log(`\n${icons.section} Planning: ${value}\n`);
     }
 
     setIsProcessing(true);
@@ -271,12 +338,25 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
           </Box>
         )}
 
+        {/* Plan confirmation dialog */}
+        {pendingPlan && (
+          <Box marginBottom={1}>
+            <PlanConfirm
+              plan={pendingPlan}
+              onApprove={handlePlanApprove}
+              onReject={handlePlanReject}
+              onModify={handlePlanModify}
+            />
+          </Box>
+        )}
+
         {/* Input */}
         <InputBox
           onSubmit={handleSubmit}
-          isDisabled={isProcessing || !!confirmState || !!expandedOutputId}
+          isDisabled={isProcessing || !!confirmState || !!expandedOutputId || !!pendingPlan}
           sessionNum={sessionNum}
           resetToken={inputResetToken}
+          isPlanningMode={isPlanningMode}
         />
       </Box>
     </Box>

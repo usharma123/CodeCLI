@@ -6,6 +6,7 @@ import { Confirm } from "./components/Confirm.js";
 import { TodoList } from "./components/TodoList.js";
 import { ToolOutputDisplay } from "./components/ToolOutputDisplay.js";
 import { StatusBar } from "./components/StatusBar.js";
+import { PlanConfirm } from "./components/PlanConfirm.js";
 import { onStatus, getStatus } from "../core/status.js";
 import { getLastTruncatedOutput } from "../core/output.js";
 import { getSlashCommandRegistry } from "../core/slash-commands.js";
@@ -27,6 +28,9 @@ export function App({ onSubmit, onConfirmRequest, agentRef }) {
     const [sessionId, setSessionId] = useState("");
     const [tokenStats, setTokenStats] = useState({ total: 0, cost: 0 });
     const [isDryRun, setIsDryRun] = useState(false);
+    // Plan mode state
+    const [pendingPlan, setPendingPlan] = useState(null);
+    const [isPlanningMode, setIsPlanningMode] = useState(false);
     const [modelName, setModelName] = useState("claude-sonnet-4.5");
     // Register confirmation handler
     React.useEffect(() => {
@@ -44,7 +48,7 @@ export function App({ onSubmit, onConfirmRequest, agentRef }) {
         });
         return unsubscribe;
     }, []);
-    // Poll for todo updates
+    // Poll for todo and plan updates
     React.useEffect(() => {
         let interval = null;
         if (agentRef?.current) {
@@ -54,6 +58,15 @@ export function App({ onSubmit, onConfirmRequest, agentRef }) {
                     setTodos(todoState.todos);
                     const model = agentRef.current.getModel();
                     setModelName(model);
+                    // Check for pending plan
+                    const planState = agentRef.current.getPlanState();
+                    if (planState.status === "pending_approval" && planState.plan) {
+                        setPendingPlan(planState.plan);
+                        setIsProcessing(false); // Stop processing indicator while waiting for approval
+                    }
+                    else if (planState.status !== "pending_approval") {
+                        setPendingPlan(null);
+                    }
                 }
                 catch (err) {
                     // Silently ignore polling errors
@@ -100,6 +113,33 @@ export function App({ onSubmit, onConfirmRequest, agentRef }) {
             setConfirmState(null);
         }
     };
+    // Plan approval handlers
+    const handlePlanApprove = async () => {
+        if (agentRef?.current && pendingPlan) {
+            setPendingPlan(null);
+            setIsProcessing(true);
+            setProcessingStartTime(Date.now());
+            await agentRef.current.approvePlan();
+            setIsProcessing(false);
+            setProcessingStartTime(null);
+        }
+    };
+    const handlePlanReject = () => {
+        if (agentRef?.current) {
+            agentRef.current.rejectPlan();
+            setPendingPlan(null);
+        }
+    };
+    const handlePlanModify = async (instructions) => {
+        if (agentRef?.current) {
+            setPendingPlan(null);
+            setIsProcessing(true);
+            setProcessingStartTime(Date.now());
+            await agentRef.current.modifyPlan(instructions);
+            setIsProcessing(false);
+            setProcessingStartTime(null);
+        }
+    };
     useInput((input, key) => {
         const isCtrlC = (key.ctrl && input === "c") || input === "\u0003";
         if (isCtrlC) {
@@ -127,9 +167,15 @@ export function App({ onSubmit, onConfirmRequest, agentRef }) {
             return;
         const cmdRegistry = getSlashCommandRegistry();
         let finalInput = value;
+        // Check for /plan command - toggle planning mode
         if (cmdRegistry.isSlashCommand(value)) {
+            const parsed = cmdRegistry.parseCommand(value);
+            if (parsed && parsed.command.name === "plan") {
+                setIsPlanningMode(true);
+                console.log(`\n${icons.arrow} Entering planning mode. Describe what you want to build:\n`);
+                return;
+            }
             try {
-                const parsed = cmdRegistry.parseCommand(value);
                 if (parsed) {
                     finalInput = cmdRegistry.expandCommand(parsed.command, parsed.args);
                     console.log(`\n${icons.arrow} /${parsed.command.name}\n`);
@@ -139,6 +185,20 @@ export function App({ onSubmit, onConfirmRequest, agentRef }) {
                 console.log(`\n${icons.error} ${error.message}\n`);
                 return;
             }
+        }
+        // If in planning mode, wrap input with planning instructions
+        if (isPlanningMode) {
+            finalInput = `Enter planning mode. Explore the codebase and create a detailed implementation plan for: ${value}
+
+Use the plan_write tool to display the plan for my approval. The plan should have:
+- A clear title and summary
+- Sections representing phases of work
+- Specific tasks within each section
+- Files that will be created or modified
+
+Do NOT start implementation until I approve the plan.`;
+            setIsPlanningMode(false);
+            console.log(`\n${icons.section} Planning: ${value}\n`);
         }
         setIsProcessing(true);
         setProcessingStartTime(Date.now());
@@ -152,5 +212,5 @@ export function App({ onSubmit, onConfirmRequest, agentRef }) {
     };
     // Get working directory (last 2 segments)
     const cwd = process.cwd().split('/').slice(-2).join('/');
-    return (_jsx(Box, { flexDirection: "row", children: _jsxs(Box, { flexDirection: "column", flexGrow: 1, children: [_jsx(Static, { items: ["header"], children: () => (_jsxs(Box, { flexDirection: "column", children: [_jsx(Text, { color: "cyan", bold: true, children: brand.logo }), _jsx(Box, { marginBottom: 1, children: _jsx(Text, { dimColor: true, children: brand.tagline }) }), _jsxs(Box, { marginBottom: 1, children: [isDryRun && (_jsxs(_Fragment, { children: [_jsx(Text, { color: "yellow", children: "[dry-run]" }), _jsxs(Text, { dimColor: true, children: [" ", icons.pipe, " "] })] })), _jsx(Text, { dimColor: true, children: "model:" }), _jsxs(Text, { color: "cyan", children: [" ", modelName] }), _jsxs(Text, { dimColor: true, children: [" ", icons.pipe, " "] }), _jsx(Text, { dimColor: true, children: "cwd:" }), _jsxs(Text, { children: [" ", cwd] }), sessionId && (_jsxs(_Fragment, { children: [_jsxs(Text, { dimColor: true, children: [" ", icons.pipe, " "] }), _jsx(Text, { dimColor: true, children: "session:" }), _jsxs(Text, { color: "blue", children: [" ", sessionId.substring(0, 8)] })] })), tokenStats.total > 0 && (_jsxs(_Fragment, { children: [_jsxs(Text, { dimColor: true, children: [" ", icons.pipe, " "] }), _jsx(Text, { dimColor: true, children: "tokens:" }), _jsxs(Text, { children: [" ", tokenStats.total.toLocaleString()] })] })), tokenStats.cost > 0 && (_jsxs(_Fragment, { children: [_jsxs(Text, { dimColor: true, children: [" ", icons.pipe, " "] }), _jsxs(Text, { color: "green", children: ["$", tokenStats.cost.toFixed(4)] })] }))] }), _jsx(Box, { marginBottom: 1, children: _jsxs(Text, { dimColor: true, children: ["^c quit ", icons.bullet, " ^o output ", icons.bullet, " / commands ", icons.bullet, " @ files ", icons.bullet, " ! shell"] }) }), _jsx(Text, { dimColor: true, children: createSeparator(70) }), _jsx(Text, { children: " " })] }, "header")) }), isProcessing && (_jsx(StatusBar, { message: statusMessage || "thinking...", isProcessing: isProcessing, startTime: processingStartTime || undefined })), todos.length > 0 && _jsx(TodoList, { todos: todos }), _jsx(ToolOutputDisplay, { expandedOutputId: expandedOutputId }), confirmState && (_jsx(Box, { marginBottom: 1, children: _jsx(Confirm, { message: confirmState.message, onConfirm: handleConfirm, onCancel: handleCancel }) })), _jsx(InputBox, { onSubmit: handleSubmit, isDisabled: isProcessing || !!confirmState || !!expandedOutputId, sessionNum: sessionNum, resetToken: inputResetToken })] }) }));
+    return (_jsx(Box, { flexDirection: "row", children: _jsxs(Box, { flexDirection: "column", flexGrow: 1, children: [_jsx(Static, { items: ["header"], children: () => (_jsxs(Box, { flexDirection: "column", children: [_jsx(Text, { color: "cyan", bold: true, children: brand.logo }), _jsx(Box, { marginBottom: 1, children: _jsx(Text, { dimColor: true, children: brand.tagline }) }), _jsxs(Box, { marginBottom: 1, children: [isDryRun && (_jsxs(_Fragment, { children: [_jsx(Text, { color: "yellow", children: "[dry-run]" }), _jsxs(Text, { dimColor: true, children: [" ", icons.pipe, " "] })] })), _jsx(Text, { dimColor: true, children: "model:" }), _jsxs(Text, { color: "cyan", children: [" ", modelName] }), _jsxs(Text, { dimColor: true, children: [" ", icons.pipe, " "] }), _jsx(Text, { dimColor: true, children: "cwd:" }), _jsxs(Text, { children: [" ", cwd] }), sessionId && (_jsxs(_Fragment, { children: [_jsxs(Text, { dimColor: true, children: [" ", icons.pipe, " "] }), _jsx(Text, { dimColor: true, children: "session:" }), _jsxs(Text, { color: "blue", children: [" ", sessionId.substring(0, 8)] })] })), tokenStats.total > 0 && (_jsxs(_Fragment, { children: [_jsxs(Text, { dimColor: true, children: [" ", icons.pipe, " "] }), _jsx(Text, { dimColor: true, children: "tokens:" }), _jsxs(Text, { children: [" ", tokenStats.total.toLocaleString()] })] })), tokenStats.cost > 0 && (_jsxs(_Fragment, { children: [_jsxs(Text, { dimColor: true, children: [" ", icons.pipe, " "] }), _jsxs(Text, { color: "green", children: ["$", tokenStats.cost.toFixed(4)] })] }))] }), _jsx(Box, { marginBottom: 1, children: _jsxs(Text, { dimColor: true, children: ["^c quit ", icons.bullet, " ^o output ", icons.bullet, " / commands ", icons.bullet, " @ files ", icons.bullet, " ! shell"] }) }), _jsx(Text, { dimColor: true, children: createSeparator(70) }), _jsx(Text, { children: " " })] }, "header")) }), isProcessing && (_jsx(StatusBar, { message: statusMessage || "thinking...", isProcessing: isProcessing, startTime: processingStartTime || undefined })), todos.length > 0 && _jsx(TodoList, { todos: todos }), _jsx(ToolOutputDisplay, { expandedOutputId: expandedOutputId }), confirmState && (_jsx(Box, { marginBottom: 1, children: _jsx(Confirm, { message: confirmState.message, onConfirm: handleConfirm, onCancel: handleCancel }) })), pendingPlan && (_jsx(Box, { marginBottom: 1, children: _jsx(PlanConfirm, { plan: pendingPlan, onApprove: handlePlanApprove, onReject: handlePlanReject, onModify: handlePlanModify }) })), _jsx(InputBox, { onSubmit: handleSubmit, isDisabled: isProcessing || !!confirmState || !!expandedOutputId || !!pendingPlan, sessionNum: sessionNum, resetToken: inputResetToken, isPlanningMode: isPlanningMode })] }) }));
 }

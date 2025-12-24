@@ -269,3 +269,34 @@ export interface GenerateMermaidDiagramInput {
   /** If provided, skip codebase analysis and directly render this Mermaid code to an image */
   mermaid_code?: string;
 }
+
+// Plan mode types
+export interface PlanSection {
+  title: string;
+  description: string;
+  tasks: string[];
+  files?: string[];
+}
+
+export interface Plan {
+  title: string;
+  summary: string;
+  sections: PlanSection[];
+  risks?: string[];
+  alternatives?: string[];
+}
+
+export interface PlanState {
+  plan: Plan | null;
+  status: "idle" | "pending_approval" | "approved" | "rejected" | "modifying";
+  lastUpdated: number;
+  modificationRequest?: string;
+}
+
+export interface PlanWriteInput {
+  title: string;
+  summary: string;
+  sections: PlanSection[];
+  risks?: string[];
+  alternatives?: string[];
+}
