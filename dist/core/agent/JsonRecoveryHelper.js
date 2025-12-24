@@ -1,0 +1,172 @@
+/**
+ * JsonRecoveryHelper - Handles parsing and recovery of malformed JSON from tool calls
+ *
+ * Single Responsibility: Parse JSON arguments and recover from common truncation issues
+ */
+import { colors } from "../../utils/colors.js";
+export class JsonRecoveryHelper {
+    /**
+     * Detect if write_file arguments appear to be truncated
+     */
+    detectWriteFileTruncation(rawArgs) {
+        const openQuotes = (rawArgs.match(/"/g) || []).length;
+        const openBraces = (rawArgs.match(/\{/g) || []).length;
+        const closeBraces = (rawArgs.match(/\}/g) || []).length;
+        const hasPathKey = rawArgs.includes('"path"');
+        const hasContentKey = rawArgs.includes('"content"');
+        // If we have path but no content key, or unbalanced structure, it's truncated
+        if (hasPathKey && !hasContentKey && (openBraces > closeBraces || openQuotes % 2 !== 0)) {
+            return {
+                wasTruncated: true,
+                truncationInfo: "The response was truncated before the 'content' property could be included."
+            };
+        }
+        // If content key exists but value is incomplete (odd quotes after content key)
+        if (hasContentKey) {
+            const afterContent = rawArgs.substring(rawArgs.indexOf('"content"'));
+            const contentQuotes = (afterContent.match(/"/g) || []).length;
+            if (contentQuotes % 2 !== 0 || openBraces > closeBraces) {
+                return {
+                    wasTruncated: true,
+                    truncationInfo: "The 'content' property value was truncated mid-string."
+                };
+            }
+        }
+        return { wasTruncated: false, truncationInfo: "" };
+    }
+    /**
+     * Fix common JSON issues like trailing commas, unterminated strings, unbalanced braces
+     */
+    fixMalformedJson(rawArgs, verbose = false) {
+        if (typeof rawArgs !== 'string') {
+            return rawArgs;
+        }
+        let fixed = rawArgs;
+        // Remove any trailing commas before closing braces/brackets
+        fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
+        // Fix unterminated strings by adding closing quotes if needed
+        const openQuotes = (fixed.match(/"/g) || []).length;
+        if (openQuotes % 2 !== 0) {
+            if (verbose) {
+                console.log(`  ${colors.gray}└ ${colors.yellow}Fixing unterminated string${colors.reset}`);
+            }
+            fixed = fixed + '"';
+        }
+        // Count braces and brackets to fix missing closures (recount after quote fix)
+        const finalOpenBraces = (fixed.match(/\{/g) || []).length;
+        const finalCloseBraces = (fixed.match(/\}/g) || []).length;
+        const openBrackets = (fixed.match(/\[/g) || []).length;
+        const closeBrackets = (fixed.match(/\]/g) || []).length;
+        if (finalOpenBraces > finalCloseBraces) {
+            if (verbose) {
+                console.log(`  ${colors.gray}└ ${colors.yellow}Adding ${finalOpenBraces - finalCloseBraces} missing brace(s)${colors.reset}`);
+            }
+            fixed = fixed + '}'.repeat(finalOpenBraces - finalCloseBraces);
+        }
+        if (openBrackets > closeBrackets) {
+            if (verbose) {
+                console.log(`  ${colors.gray}└ ${colors.yellow}Adding ${openBrackets - closeBrackets} missing bracket(s)${colors.reset}`);
+            }
+            fixed = fixed + ']'.repeat(openBrackets - closeBrackets);
+        }
+        // Remove any trailing commas again after fixes
+        fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
+        return fixed;
+    }
+    /**
+     * Parse JSON with automatic error recovery
+     */
+    parseAndFixJson(rawArgs, functionName, verbose = true) {
+        // If already an object, return as-is
+        if (typeof rawArgs !== 'string') {
+            return { success: true, args: rawArgs };
+        }
+        // Check for truncation in write_file calls before fixing
+        let truncationInfo = { wasTruncated: false, truncationInfo: "" };
+        if (functionName === "write_file") {
+            truncationInfo = this.detectWriteFileTruncation(rawArgs);
+            if (truncationInfo.wasTruncated && verbose) {
+                console.log(`  ${colors.gray}└ ${colors.red}Truncation detected: ${truncationInfo.truncationInfo}${colors.reset}`);
+            }
+        }
+        // Fix malformed JSON (only show verbose messages if not already detected as truncated)
+        const fixedArgs = this.fixMalformedJson(rawArgs, verbose && !truncationInfo.wasTruncated);
+        try {
+            const args = JSON.parse(fixedArgs);
+            return {
+                success: true,
+                args,
+                wasTruncated: truncationInfo.wasTruncated,
+                truncationInfo: truncationInfo.truncationInfo
+            };
+        }
+        catch (parseError) {
+            const errorMsg = parseError instanceof Error ? parseError.message : String(parseError);
+            return {
+                success: false,
+                error: errorMsg,
+                wasTruncated: truncationInfo.wasTruncated,
+                truncationInfo: truncationInfo.truncationInfo
+            };
+        }
+    }
+    /**
+     * Log parse error context for debugging
+     */
+    logParseErrorContext(rawArgs, errorMsg) {
+        console.log(`  ${colors.gray}└ ${colors.red}Parse error: ${errorMsg}${colors.reset}`);
+        // Show context around error position
+        const posMatch = errorMsg.match(/position (\d+)/);
+        if (posMatch && typeof rawArgs === 'string') {
+            const pos = parseInt(posMatch[1]);
+            const start = Math.max(0, pos - 50);
+            const end = Math.min(rawArgs.length, pos + 50);
+            const snippet = rawArgs.substring(start, end);
+            const caretPos = Math.min(50, pos - start);
+            console.log(`\n${colors.gray}Context around error position:${colors.reset}`);
+            console.log(`${colors.gray}${snippet}${colors.reset}`);
+            console.log(`${colors.gray}${' '.repeat(caretPos)}^${colors.reset}`);
+            console.log(`${colors.gray}Character: ${rawArgs[pos] || 'EOF'}${colors.reset}\n`);
+        }
+        else {
+            console.log(`${colors.gray}Raw arguments (first 500 chars): ${rawArgs?.substring(0, 500)}${colors.reset}\n`);
+        }
+    }
+    /**
+     * Generate error message for truncated write_file calls
+     */
+    generateTruncationErrorMessage(functionArgs, truncationInfo) {
+        return `TRUNCATION ERROR: Your response was cut off before the complete tool call could be transmitted.
+
+${truncationInfo}
+
+The write_file tool requires BOTH "path" AND "content" properties.
+
+SOLUTION: Your response may have been too long. Please try again with a shorter file content, or split the file into multiple smaller write_file calls.
+
+Example of valid write_file call:
+{
+  "path": "tests/python/test_agent.py",
+  "content": "import pytest\\n\\ndef test_example():\\n    assert True"
+}
+
+Received (truncated): ${JSON.stringify(functionArgs, null, 2)}`;
+    }
+    /**
+     * Generate error message for JSON parse failures
+     */
+    generateParseErrorMessage(functionName, rawArgs, errorMsg) {
+        return `JSON Parse Error: ${errorMsg}
+
+The tool call failed because the arguments are not valid JSON.
+
+Original malformed JSON:
+${rawArgs}
+
+Please retry the ${functionName} tool call with properly formatted JSON. Make sure:
+- All strings are properly quoted with double quotes
+- All braces {} and brackets [] are balanced
+- No trailing commas before closing braces/brackets
+- All property names are quoted`;
+    }
+}
