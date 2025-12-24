@@ -4,6 +4,7 @@ An AI-powered coding assistant CLI built with TypeScript/Bun. Uses OpenRouter AP
 
 ## Features
 
+### Core Capabilities
 - **File Operations**: Read, write, edit files with safe-mode confirmations
 - **Multi-Agent Architecture**: Main agent delegates to specialized sub-agents (FileSystemAgent, AnalysisAgent) for heavy operations
 - **Testing Framework**: AI-powered test generation, execution, and failure analysis for Python & Java
@@ -14,6 +15,29 @@ An AI-powered coding assistant CLI built with TypeScript/Bun. Uses OpenRouter AP
 - **Terminal UI**: React/Ink-based interactive interface with task tracking
 - **Cost-Optimized Model**: Uses MiniMax M2.1 with native reasoning for high performance at lower cost
 - **Interactive Games**: Built-in Tic Tac Toe game (2-player or vs AI with 3 difficulty levels)
+
+### Advanced Testing Tools
+- **Integration Tests**: Generate integration tests that verify interactions between multiple components or modules with mocks/stubs
+- **E2E Tests**: Generate end-to-end test scenarios simulating real user journeys for web/API/CLI applications
+- **API Tests**: Comprehensive API test suites including endpoint testing, schema validation, and contract testing
+- **Performance Tests**: Generate load, stress, spike, and endurance tests using k6, JMeter, Locust, or Artillery
+- **Regression Tests**: Create tests for fixed bugs to prevent reoccurrences
+
+### Session & Context Management
+- **Session Persistence**: Auto-save conversations to `~/.codecli/sessions/` with session ID generation and resume capability
+- **Context Compaction**: Automatic conversation summarization for long-running tasks to stay within token limits
+- **Token Tracking**: Real-time token usage monitoring and cost estimation per session
+
+### Logging & Event System
+- **Severity Logging**: Structured logging with debug, info, success, warning, error, and critical levels with color-coded output
+- **Agent Events**: Real-time event system for multi-agent coordination including status, task, communication, and metrics events
+
+### Code Analysis & Utilities
+- **Path Resolver**: Multi-module project support with intelligent test file path resolution
+- **CLIgnore Support**: `.clignore` file patterns for filtering file operations (similar to .gitignore)
+- **Diff Rendering**: Color-coded unified diffs with inline changes, line numbers, and compact mode options
+- **Build Tool Detection**: Auto-detect Maven/Gradle and configure source/test directories accordingly
+- **Spring Boot Detection**: Component-aware test generation for controllers, services, repositories, and configurations
 
 ## Quick Start
 
@@ -28,6 +52,21 @@ echo "OPENROUTER_API_KEY=sk-or-v1-your-key" > .env
 bun start
 ```
 
+### Session Management
+```bash
+# Start new session (default)
+bun start
+
+# Resume previous session
+bun start --resume
+
+# Load specific session
+bun start --session=<session-id>
+
+# Disable session persistence
+bun start --no-session
+```
+
 > **Note**: Default model is MiniMax M2.1 (~95% cheaper than Claude). Update `this.model` in `src/core/agent.ts` to switch models.
 
 ## Usage Examples
@@ -38,6 +77,10 @@ bun start
 > Create a new Next.js chatbot project
 > Run all tests and fix any failures
 > Show me a flowchart of module dependencies
+> Process my PRD and create implementation tasks
+> Generate integration tests for UserService and AuthService
+> Create a performance test for the /api/users endpoint
+> Compare test runs and show coverage changes
 ```
 
 ## Model Pricing
@@ -53,10 +96,22 @@ Token usage is displayed after each agent run in the terminal.
 
 ## Architecture
 
-- **Main Agent**: Sequential AI agent with tool calling
+- **Main Agent**: Sequential AI agent with tool calling and intermediate reasoning
 - **Sub-Agents**: Specialized agents for exploration and analysis (enable with `ENABLE_SUB_AGENTS=true`)
-- **Tools**: 20+ tools for files, commands, testing, scaffolding, diagrams
+  - **FileSystemAgent**: Large-scale codebase exploration and bulk file operations
+  - **AnalysisAgent**: Deep architectural analysis and PRD parsing
+- **Tools**: 25+ tools organized into categories:
+  - File operations (read_file, write_file, edit_file, list_files)
+  - Commands (run_command, commands for shell execution)
+  - Testing (run_tests, generate_tests, analyze_test_failures, get_coverage)
+  - Scaffolding (scaffold_project for API/chatbot/React/static templates)
+  - Advanced Testing (generate_integration_test, generate_e2e_test, generate_api_test, generate_performance_test)
+  - Diagrams (generate_mermaid_diagram for architecture visualization)
+  - PRD Workflow (extract_tasks_from_prd, parse_prd, process_prd_with_tasks)
+  - Sub-Agents (explore_codebase, analyze_code_implementation, bulk_file_operations)
 - **UI**: Ink/React components for terminal interface
+- **Session Manager**: Conversation persistence with token tracking
+- **Context Compaction**: Automatic summarization for long-running conversations
 
 ## Project Structure
 
@@ -67,9 +122,38 @@ CodeCLI/
 │   ├── core/                    # Agent runtime & tools
 │   │   ├── agent.ts            # AI agent implementation
 │   │   ├── agent-system/       # Multi-agent infrastructure
-│   │   └── tools/              # Tool definitions
+│   │   │   ├── agent-base.ts   # Base agent class
+│   │   │   ├── agent-manager.ts # Agent registry
+│   │   │   ├── agent-pool.ts   # Concurrency control
+│   │   │   ├── agent-context.ts # Shared state
+│   │   │   ├── agent-events.ts  # Event system
+│   │   │   └── agent-protocol.ts # Task/result structures
+│   │   ├── agents/             # Specialized sub-agents
+│   │   │   ├── filesystem.ts   # FileSystemAgent
+│   │   │   └── analysis.ts     # AnalysisAgent
+│   │   ├── tools/              # Tool definitions (25+ tools)
+│   │   ├── session-manager.ts  # Session persistence
+│   │   ├── token-tracker.ts    # Token usage tracking
+│   │   ├── severity.ts         # Structured logging
+│   │   └── context-compaction.ts # Context summarization
+│   ├── utils/                  # Utilities
+│   │   ├── colors.ts           # Terminal colors
+│   │   ├── path-resolver.ts    # Test path resolution
+│   │   ├── clignore.ts         # .clignore patterns
+│   │   ├── diff-renderer.ts    # Diff visualization
+│   │   ├── build-tool-detector.ts # Maven/Gradle detection
+│   │   ├── springboot-detector.ts # Spring Boot detection
+│   │   ├── diagram-renderer.ts # Mermaid rendering
+│   │   └── markdown.ts         # Markdown utilities
 │   └── ui/                     # Ink/React terminal UI
+│       ├── app.tsx             # Main UI component
+│       └── components/         # UI components
 ├── tests/                       # Multi-language test suites
+│   ├── python/                 # Python tests
+│   ├── java/                   # Java tests
+│   │   ├── springboot/         # Spring Boot demo project
+│   │   ├── spring-currencyconverter/ # Full integration demo
+│   │   └── ...                 # Other demo projects
 ├── scripts/                     # Test runners & utilities
 ├── docs/                        # Feature guides
 ├── diagrams/                    # Generated Mermaid diagrams
@@ -117,6 +201,29 @@ The AI Coding Agent processes requests in several coordinated steps to ensure ac
 
 
 ## Recent Changes
+
+### v2.2 - Advanced Testing & Session Management
+
+#### Session Management & Persistence 💾
+- **Session Manager**: Auto-save conversations to `~/.codecli/sessions/`
+  - Session ID generation (timestamp-based)
+  - Load specific sessions via `--session=<id>` flag
+  - Resume recent sessions via `--resume` flag
+  - Token tracking per session (estimated tokens and cost)
+  - Session export summary
+
+#### Advanced Testing Tools 🧪
+- **Integration Tests**: Generate integration tests for multiple components with mocks/stubs
+- **E2E Tests**: End-to-end test scenarios for web/API/CLI applications
+- **API Tests**: Comprehensive API test suites with endpoint testing and schema validation
+- **Performance Tests**: Load, stress, spike, and endurance tests using k6/JMeter/Locust
+- **Regression Tests**: Create tests for fixed bugs to prevent reoccurrences
+
+#### Developer Experience Improvements
+- **CLIgnore Support**: `.clignore` file patterns (similar to .gitignore)
+- **Diff Renderer**: Color-coded unified diffs with inline changes
+- **Severity Logging**: Structured logging with debug/info/success/warning/error/critical levels
+- **Context Compaction**: Automatic conversation summarization for long-running tasks
 
 ### v2.1 - Diagram Tool & Game Features
 - **Enhanced Diagram Tool**: Added PNG/SVG image export support for Mermaid diagrams

@@ -85,6 +85,31 @@ All notable changes to CodeCLI are documented in this file.
   - First run comparison
 - Visual indicators: `✓` for additions, `⚠️` for removals/decreases
 
+### Added - PRD Workflow Tools 📋
+
+#### PRD Processing
+- **`src/core/tools/prd-workflow.ts`**: Complete PRD-to-task workflow
+  - `process_prd_with_tasks`: Parse PRD → extract tasks → approve → execute
+  - Auto-generates test code for requirements (enabled by default)
+  - Task granularity: high-level or detailed
+  - User approval step before adding tasks to todo list
+  - Combines implementation and test tasks into single workflow
+
+#### PRD Testing Integration
+- **`src/core/tools/prd-testing.ts`**: Test generation from PRD requirements
+  - `parse_prd`: Extract testable requirements from PRD files
+  - `generate_tests_from_prd`: Create executable test files from requirements
+  - Test suite types: unit, integration, system, UAT
+  - Output formats: Markdown (default) or JSON
+  - Language support: Python, Java, JavaScript
+
+#### PRD Task Extraction
+- **`src/core/tools/prd-task-extraction.ts`**: Extract actionable tasks from PRDs
+  - `extract_tasks_from_prd`: Parse requirements into tasks
+  - `extract_tasks_from_prd_granular`: Detailed task breakdown
+  - Task types: implementation and test tasks
+  - Structured output: requirements, tasks, estimates
+
 ### Added - Agent Event System 🎯
 
 #### Event Types
@@ -143,18 +168,84 @@ All notable changes to CodeCLI are documented in this file.
   - `bulk_file_operations`: ⚡ Parallel multi-file operations (5+ files)
   - Automatic JSON result parsing and plain string output
 
-### Added - Demo Applications 🎮
+### Added - Advanced Testing Tools 🧪
 
-#### Ludo Game
-- **`ludo-game/index.html`**: Full-featured browser-based Ludo game
-  - 4-player support (Red, Green, Yellow, Blue)
-  - Dice rolling with animation
-  - Piece movement with capture mechanics
-  - Safe spots and home paths
-  - Win condition: First to get all 4 pieces home
-  - Scoreboard and game state tracking
-  - Elegant UI with gradients, shadows, and animations
-  - Responsive design for different screen sizes
+#### Integration Tests
+- **`src/core/tools/advanced-testing.ts`**: Integration test generation tool
+  - `generate_integration_test`: Tests component interactions with mocks/stubs
+  - Language support: Python (pytest), Java (JUnit), JavaScript (vitest)
+  - Spring Boot `@SpringBootTest` integration for Java projects
+  - Test structure generation with Arrange-Act-Assert pattern
+
+#### E2E Tests
+- `generate_e2e_test`: End-to-end test generation for real user journeys
+  - Framework support: Playwright, Selenium, Cypress, Puppeteer
+  - App types: Web (login, cart, checkout), API, CLI workflows
+  - User journey descriptions converted to executable tests
+
+#### API Tests
+- `generate_api_test`: Comprehensive API test suite generation
+  - OpenAPI/Swagger specification parsing
+  - Endpoint testing, schema validation, contract testing
+  - Language support: JavaScript, Python, Java
+
+#### Performance Tests
+- `generate_performance_test`: Load and stress test generation
+  - Test types: load, stress, spike, endurance
+  - Tool support: k6, JMeter, Locust, Artillery
+  - Configurable load patterns and ramp-up scenarios
+
+#### Regression Tests
+- `generate_regression_test`: Regression test creation for fixed bugs
+  - Takes bug description and fixed file as input
+  - Generates test that verifies the fix and prevents reoccurrence
+  - Language support: Python, Java
+
+### Added - Utility Modules 🛠️
+
+#### Path Resolver
+- **`src/utils/path-resolver.ts`**: Multi-module project path resolution
+  - `detectLanguage()`: Java/Kotlin detection from file extension
+  - `resolveTestPath()`: Intelligent test file path generation
+  - `getPackageRelativePath()`: Extract package-relative paths
+  - Multi-module project support for Maven/Gradle
+
+#### CLIgnore Support
+- **`src/utils/clignore.ts`**: .clignore file pattern matching
+  - `ClIgnore` class for gitignore-style pattern matching
+  - Pattern parsing: glob, negation (!), directory patterns (/)
+  - `isIgnored()`: Check if a file path should be filtered
+  - Auto-creates default `.clignore` template
+  - Global singleton via `getClIgnore()` and `initializeClIgnore()`
+
+#### Diff Renderer
+- **`src/utils/diff-renderer.ts`**: Color-coded diff visualization
+  - `renderUnified()`: Unified diff with context lines and color coding
+  - `renderInline()`: Inline diff showing changes within same view
+  - `highlightChanges()`: Color highlighting for added/removed lines
+  - `summarizeChanges()`: Quick summary (+added, -removed, ~modified)
+  - Options: contextLines, maxLines, showLineNumbers, compactMode
+
+#### Build Tool Detector
+- **`src/utils/build-tool-detector.ts`**: Build tool auto-detection
+  - Detects Maven (pom.xml) and Gradle (build.gradle)
+  - Configures source/test directories automatically
+  - `BuildConfig` interface with tool, mainSourceDir, testSourceDir
+
+#### Spring Boot Detector
+- **`src/utils/springboot-detector.ts`**: Spring Boot project detection
+  - `isSpringBootProject()`: Checks for Spring Boot markers
+  - `detectComponentType()`: Identifies controller/service/repository/component
+  - `extractClassName()` and `extractPackageName()`: Java parsing utilities
+
+#### Markdown Renderer
+- **`src/utils/markdown.ts`**: Markdown rendering utilities
+  - Helper functions for markdown processing and display
+
+#### Diagram Renderer
+- **`src/utils/diagram-renderer.ts`**: Mermaid diagram rendering
+  - PNG/SVG export with theme support
+  - High-quality rendering via mmdc CLI
 
 ---
 
@@ -565,3 +656,184 @@ Based on comprehensive code review feedback, implemented critical improvements t
 ## Next Steps
 
 See the "Future Plans" section in README.md for upcoming features in Phases 5-11.
+
+---
+
+## Additional Features Added (January 2025)
+
+### Command Execution & Java Auto-Installation 💻
+
+#### Enhanced run_command
+- **`src/core/tools/commands.ts`**: Improved shell command execution
+  - Automatic Java installation via Homebrew if not found
+  - `JAVA_HOME` and `PATH` environment setup
+  - Session-persistent Java home for repeated commands
+  - Input/output truncation to prevent terminal flooding
+  - Stream filtering to avoid Ink UI corruption
+
+### Plan & Todo Tools 📝
+
+#### Plan Display
+- **`src/core/tools/plan.ts`**: Plan visualization and execution
+  - Agent plan display in terminal UI
+  - User confirmation workflow
+  - Interactive plan approval/rejection
+
+#### Todo Management
+- **`src/core/tools/todos.ts`**: Todo list operations
+  - Todo list creation and updates
+  - Status tracking: pending, in_progress, completed
+  - Progress visualization in UI
+
+### Shared Tools & Utils
+
+#### Shared Utilities
+- **`src/core/tools/shared.ts`**: Shared tool utilities
+  - Agent instance management
+  - Common helper functions
+
+#### Commands Tool
+- **`src/core/tools/commands.ts`**: Shell command execution
+  - Command validation and timeout handling
+  - Working directory specification
+  - Environment variable management
+
+#### Files Tool
+- **`src/core/tools/files.ts`**: File system operations
+  - File reading, writing, editing
+  - Directory listing
+  - File operations with safety confirmations
+
+#### Scaffold Tool
+- **`src/core/tools/scaffold.ts`**: Project scaffolding
+  - API template generation
+  - Chatbot template generation
+  - Static site template generation
+  - React template generation with optional API
+
+#### Diagram Tool
+- **`src/core/tools/diagram.ts`**: Mermaid diagram generation
+  - PNG/SVG/ascii output formats
+  - Configurable themes and resolution
+  - Architecture visualization
+
+#### Tests Tool
+- **`src/core/tools/tests.ts`**: Test execution and analysis
+  - Python and Java test support
+  - Coverage report generation
+  - Test failure analysis
+  - Surefire report parsing
+  - Project path specification for Java projects
+
+#### Spring Boot Templates
+- **`src/core/tools/springboot-templates.ts`**: Spring Boot test templates
+  - Component-aware test generation
+  - Controller, Service, Repository test templates
+  - Integration test support
+
+### UI Components
+
+#### Todo List Component
+- **`src/ui/components/TodoList.tsx`**: Visual todo list display
+  - Color-coded status indicators
+  - Real-time updates
+
+#### Slash Command Help
+- **`src/ui/components/SlashCommandHelp.tsx`**: Command documentation
+  - Available commands display
+  - Quick reference guide
+
+#### Tool Output Display
+- **`src/ui/components/ToolOutputDisplay.tsx`**: Tool output rendering
+  - Formatted output display
+  - Error visualization
+
+#### Toast Notifications
+- **`src/ui/components/Toast.tsx`**: Notification system
+  - Success/error/info notifications
+  - Animated display
+
+#### Theme Support
+- **`src/ui/theme.ts`**: UI theming
+  - Consistent color scheme
+  - Component styling
+
+### Core Agent System
+
+#### AIAgent Core
+- **`src/core/agent/AIAgentCore.ts`**: Main agent implementation
+  - Tool calling and execution
+  - Response streaming
+  - Context management
+
+#### Tool Executor
+- **`src/core/agent/ToolExecutor.ts`**: Tool execution engine
+  - Safe tool execution
+  - Error handling and recovery
+
+#### Completion Service
+- **`src/core/agent/CompletionService.ts`**: LLM completion handling
+  - Response parsing
+  - JSON recovery
+
+#### Message History
+- **`src/core/agent/MessageHistoryManager.ts`**: Conversation history
+  - Message storage and retrieval
+  - History trimming
+
+#### Plan State Manager
+- **`src/core/agent/PlanStateManager.ts`**: Plan state tracking
+  - Plan creation and updates
+  - State persistence
+
+#### Todo State Manager
+- **`src/core/agent/TodoStateManager.ts`**: Todo state management
+  - Todo list synchronization
+  - State persistence
+
+#### Tool Output Formatter
+- **`src/core/agent/ToolOutputFormatter.ts`**: Output formatting
+  - Result presentation
+  - Error formatting
+
+#### JSON Recovery
+- **`src/core/agent/JsonRecoveryHelper.ts`**: JSON error recovery
+  - Truncated response repair
+  - Syntax error recovery
+
+### Token Tracking
+
+#### Token Tracker
+- **`src/core/token-tracker.ts`**: Token usage monitoring
+  - Real-time tracking
+  - Cost estimation
+  - Session-based reporting
+
+### Feature Flags
+
+#### Feature Flags System
+- **`src/core/feature-flags.ts`**: Feature toggle system
+  - `ENABLE_SUB_AGENTS`: Exploration agent toggle
+  - `MAX_CONCURRENT_AGENTS`: Concurrency limit
+  - Environment variable configuration
+
+### Dry Run Mode
+
+#### Dry Run System
+- **`src/core/dry-run.ts`**: Preview mode without execution
+  - Plan preview
+  - Safe execution simulation
+
+### Confirmation System
+
+#### Confirmation Batching
+- **`src/core/confirmation-batch.ts`**: Batch confirmations
+  - Multiple confirmation handling
+  - Batch approval workflow
+
+### Slash Commands
+
+#### Slash Command Handler
+- **`src/core/slash-commands.ts`**: Slash command processing
+  - Command parsing
+  - Command execution
