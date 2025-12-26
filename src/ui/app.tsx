@@ -15,6 +15,8 @@ import { getSessionManager } from "../core/session-manager.js";
 import { getTokenTracker } from "../core/token-tracker.js";
 import { getDryRunManager } from "../core/dry-run.js";
 import { brand, icons, createSeparator } from "./theme.js";
+import { toggleLSP, toggleSubAgents, isLSPEnabled, isSubAgentsEnabled } from "../core/feature-flags.js";
+import { initializeLSP, shutdownLSP } from "../core/lsp/index.js";
 
 interface AppProps {
   onSubmit: (input: string) => Promise<void>;
@@ -42,6 +44,8 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
   const [sessionId, setSessionId] = useState<string>("");
   const [tokenStats, setTokenStats] = useState({ total: 0, cost: 0 });
   const [isDryRun, setIsDryRun] = useState(false);
+  const [lspEnabled, setLspEnabled] = useState(isLSPEnabled());
+  const [agentsEnabled, setAgentsEnabled] = useState(isSubAgentsEnabled());
 
   // Plan mode state
   const [pendingPlan, setPendingPlan] = useState<Plan | null>(null);
@@ -201,12 +205,44 @@ export function App({ onSubmit, onConfirmRequest, agentRef }: AppProps) {
     const cmdRegistry = getSlashCommandRegistry();
     let finalInput = value;
 
-    // Check for /plan command - toggle planning mode
+    // Check for special slash commands
     if (cmdRegistry.isSlashCommand(value)) {
       const parsed = cmdRegistry.parseCommand(value);
+
+      // /plan - toggle planning mode
       if (parsed && parsed.command.name === "plan") {
         setIsPlanningMode(true);
         console.log(`\n${icons.arrow} Entering planning mode. Describe what you want to build:\n`);
+        return;
+      }
+
+      // /lsp - toggle LSP support
+      if (parsed && parsed.command.name === "lsp") {
+        const newState = toggleLSP();
+        setLspEnabled(newState);
+        if (newState) {
+          initializeLSP(process.cwd());
+          console.log(`\n${icons.success} LSP enabled - real-time diagnostics active`);
+          console.log(`  Languages: TypeScript, JavaScript, Python, Java, Kotlin`);
+          console.log(`  Use get_diagnostics tool to check for errors\n`);
+        } else {
+          shutdownLSP();
+          console.log(`\n${icons.arrow} LSP disabled\n`);
+        }
+        return;
+      }
+
+      // /agents - toggle sub-agents
+      if (parsed && parsed.command.name === "agents") {
+        const newState = toggleSubAgents();
+        setAgentsEnabled(newState);
+        if (newState) {
+          console.log(`\n${icons.success} Sub-agents enabled`);
+          console.log(`  FileSystem agent: bulk file operations`);
+          console.log(`  Analysis agent: deep code analysis\n`);
+        } else {
+          console.log(`\n${icons.arrow} Sub-agents disabled\n`);
+        }
         return;
       }
 
@@ -276,6 +312,18 @@ Do NOT start implementation until I approve the plan.`;
                 <Text dimColor> {icons.pipe} </Text>
                 <Text dimColor>cwd:</Text>
                 <Text> {cwd}</Text>
+                {lspEnabled && (
+                  <>
+                    <Text dimColor> {icons.pipe} </Text>
+                    <Text color="green">LSP</Text>
+                  </>
+                )}
+                {agentsEnabled && (
+                  <>
+                    <Text dimColor> {icons.pipe} </Text>
+                    <Text color="green">Agents</Text>
+                  </>
+                )}
                 {sessionId && (
                   <>
                     <Text dimColor> {icons.pipe} </Text>

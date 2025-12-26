@@ -12,8 +12,9 @@ import { todoTools } from "./todos.js";
 import { planTools } from "./plan.js";
 import { subAgentTools } from "./sub-agent-tools.js";
 import { diagramTools } from "./diagram.js";
+import { lspTools } from "./lsp.js";
 import { setAgentInstance } from "./shared.js";
-import { isSubAgentsEnabled } from "../feature-flags.js";
+import { isSubAgentsEnabled, isLSPEnabled } from "../feature-flags.js";
 
 export const toolDefinitions: ToolDefinition[] = [
   ...fileTools,
@@ -30,6 +31,8 @@ export const toolDefinitions: ToolDefinition[] = [
   ...diagramTools,
   // Sub-agent tools (hybrid architecture) for exploration
   ...(isSubAgentsEnabled() ? subAgentTools : []),
+  // LSP tools for real-time diagnostics
+  ...(isLSPEnabled() ? lspTools : []),
 ];
 
 export { setAgentInstance };

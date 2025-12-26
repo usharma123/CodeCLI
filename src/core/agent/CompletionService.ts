@@ -6,6 +6,7 @@
 
 import OpenAI from "openai";
 import { colors } from "../../utils/colors.js";
+import { isDebugAPIEnabled } from "../feature-flags.js";
 import type {
   CompletionRequest,
   CompletionResult,
@@ -88,6 +89,9 @@ export class CompletionService implements ICompletionService {
   async createCompletion(request: CompletionRequest): Promise<CompletionResult> {
     const start = Date.now();
 
+    // Log request size for debugging context issues
+    this.logRequestDebugInfo(request);
+
     try {
       if (!this.streamAssistantResponses) {
         return await this.createNonStreamingCompletion(request, start);
@@ -100,6 +104,32 @@ export class CompletionService implements ICompletionService {
   }
 
   /**
+   * Log request debug info when DEBUG_API is enabled
+   */
+  private logRequestDebugInfo(request: CompletionRequest): void {
+    if (!isDebugAPIEnabled()) return;
+
+    const estimatedTokens = this.estimateRequestTokens(request);
+    const messageCount = request.messages?.length ?? 0;
+    const toolCount = request.tools?.length ?? 0;
+
+    console.log(`${colors.gray}─── API Request Debug ───${colors.reset}`);
+    console.log(`${colors.gray}  Model: ${request.model}${colors.reset}`);
+    console.log(`${colors.gray}  Messages: ${messageCount}${colors.reset}`);
+    console.log(`${colors.gray}  Tools: ${toolCount}${colors.reset}`);
+    console.log(`${colors.gray}  Estimated tokens: ${estimatedTokens.toLocaleString()}${colors.reset}`);
+    
+    // Warn if approaching common context limits
+    if (estimatedTokens > 100000) {
+      console.log(`${colors.yellow}  ⚠️  Warning: Request may exceed context limit (${estimatedTokens.toLocaleString()} tokens)${colors.reset}`);
+    } else if (estimatedTokens > 50000) {
+      console.log(`${colors.yellow}  ⚠️  Large request: ${estimatedTokens.toLocaleString()} tokens${colors.reset}`);
+    }
+    
+    console.log(`${colors.gray}──────────────────────────${colors.reset}`);
+  }
+
+  /**
    * Create a non-streaming completion
    */
   private async createNonStreamingCompletion(
@@ -107,7 +137,29 @@ export class CompletionService implements ICompletionService {
     startTime: number
   ): Promise<CompletionResult> {
     const completion = await this.client.chat.completions.create(request as any);
+    
+    // Validate response - API may return undefined on context overflow or errors
+    if (!completion) {
+      const estimatedTokens = this.estimateRequestTokens(request);
+      throw new Error(
+        `API returned undefined response. This may indicate context limit exceeded. ` +
+        `Estimated request tokens: ${estimatedTokens.toLocaleString()}`
+      );
+    }
+    
+    if (!completion.choices || completion.choices.length === 0) {
+      throw new Error(
+        `API returned empty choices array. Response: ${JSON.stringify(completion, null, 2)}`
+      );
+    }
+    
     const message = completion.choices[0].message as any;
+    if (!message) {
+      throw new Error(
+        `API returned null message in choices[0]. Response: ${JSON.stringify(completion, null, 2)}`
+      );
+    }
+    
     const content = message.content ?? "";
     const reasoningDetails = message.reasoning_details;
 
@@ -130,6 +182,15 @@ export class CompletionService implements ICompletionService {
       ...request,
       stream: true,
     } as any);
+
+    // Validate stream - API may return undefined on context overflow or errors
+    if (!stream) {
+      const estimatedTokens = this.estimateRequestTokens(request);
+      throw new Error(
+        `API returned undefined stream. This may indicate context limit exceeded. ` +
+        `Estimated request tokens: ${estimatedTokens.toLocaleString()}`
+      );
+    }
 
     let content = "";
     const toolCallsByIndex: any[] = [];
@@ -273,6 +334,32 @@ export class CompletionService implements ICompletionService {
 
       return cleaned;
     });
+  }
+
+  /**
+   * Estimate tokens in a request for diagnostic purposes
+   */
+  private estimateRequestTokens(request: CompletionRequest): number {
+    let totalChars = 0;
+    
+    if (request.messages) {
+      for (const msg of request.messages) {
+        const content = msg.content as any;
+        if (typeof content === "string") {
+          totalChars += content.length;
+        } else if (Array.isArray(content)) {
+          // Handle multi-modal content (text + images)
+          for (const part of content) {
+            if (part.type === "text" && part.text) {
+              totalChars += part.text.length;
+            }
+          }
+        }
+      }
+    }
+    
+    // Rough estimate: ~4 chars per token
+    return Math.ceil(totalChars / 4);
   }
 
   /**

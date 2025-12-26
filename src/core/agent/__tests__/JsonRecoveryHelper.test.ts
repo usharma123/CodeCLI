@@ -52,8 +52,8 @@ describe("JsonRecoveryHelper", () => {
       const rawArgs = '{"items": [1, 2, 3';
       const fixed = helper.fixMalformedJson(rawArgs, false);
 
-      // Braces are added before brackets
-      expect(fixed).toBe('{"items": [1, 2, 3}]');
+      // Brackets/braces are closed in correct LIFO order for valid JSON
+      expect(fixed).toBe('{"items": [1, 2, 3]}');
     });
 
     it("should add missing closing quotes", () => {
@@ -67,8 +67,8 @@ describe("JsonRecoveryHelper", () => {
       const rawArgs = '{"name": "test", "items": [1, 2';
       const fixed = helper.fixMalformedJson(rawArgs, false);
 
-      // Braces are added before brackets
-      expect(fixed).toBe('{"name": "test", "items": [1, 2}]');
+      // Brackets/braces are closed in correct LIFO order for valid JSON
+      expect(fixed).toBe('{"name": "test", "items": [1, 2]}');
     });
 
     it("should return non-strings as-is", () => {

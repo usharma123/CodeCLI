@@ -81,6 +81,22 @@ export const BUILT_IN_COMMANDS = [
         description: "Enter planning mode (next input becomes a plan request)",
         category: "session",
         parameterized: false
+    },
+    {
+        name: "lsp",
+        aliases: [],
+        template: "", // Special handling - runtime toggle
+        description: "Toggle LSP (Language Server Protocol) for real-time diagnostics",
+        category: "session",
+        parameterized: false
+    },
+    {
+        name: "agents",
+        aliases: [],
+        template: "", // Special handling - runtime toggle
+        description: "Toggle sub-agents (FileSystem, Analysis) for enhanced exploration",
+        category: "session",
+        parameterized: false
     }
 ];
 export class SlashCommandRegistry {

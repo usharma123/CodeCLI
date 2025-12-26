@@ -4,6 +4,21 @@ import { confirmAction } from "../confirm.js";
 import { colors } from "../../utils/colors.js";
 import { getAgentInstance } from "./shared.js";
 import { DiffRenderer } from "../../utils/diff-renderer.js";
+import { isLSPEnabled } from "../feature-flags.js";
+import { getLSPClientManager } from "../lsp/LSPClientManager.js";
+/**
+ * Notify LSP of file changes (fire and forget)
+ */
+function notifyLSPFileChanged(filePath, content) {
+    if (!isLSPEnabled())
+        return;
+    const lspManager = getLSPClientManager();
+    if (lspManager) {
+        lspManager.notifyFileChanged(filePath, content).catch(() => {
+            // Silently ignore LSP errors - they shouldn't block file operations
+        });
+    }
+}
 /**
  * Validates that a file path doesn't attempt path traversal attacks
  * and resolves to a safe location within or relative to the working directory
@@ -172,6 +187,8 @@ const writeFileDefinition = {
                     await fs.mkdir(dir, { recursive: true });
                 }
                 await fs.writeFile(validPath, input.content, "utf-8");
+                // Notify LSP of file change
+                notifyLSPFileChanged(validPath, input.content);
                 return `File ${input.path} ${fileExists ? "overwritten" : "created"} successfully`;
             }
             return "Operation cancelled by user";
@@ -257,6 +274,8 @@ const editFileDefinition = {
                     }
                 }
                 await fs.writeFile(validPath, newContent, "utf-8");
+                // Notify LSP of file change
+                notifyLSPFileChanged(validPath, newContent);
                 return "File successfully updated";
             }
             return "Changes cancelled by user";
@@ -403,6 +422,8 @@ const patchFileDefinition = {
             const confirmed = await confirmAction("Apply patch?");
             if (confirmed) {
                 await fs.writeFile(validPath, newContent, "utf-8");
+                // Notify LSP of file change
+                notifyLSPFileChanged(validPath, newContent);
                 return "Patch applied successfully";
             }
             else {

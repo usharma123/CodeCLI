@@ -177,7 +177,52 @@ export abstract class BaseAgent {
     }
 
     const completion = await this.client.chat.completions.create(request);
-    return completion.choices[0].message;
+    
+    // Validate response - API may return undefined on context overflow or errors
+    if (!completion) {
+      const estimatedTokens = this.estimateRequestTokens(request.messages);
+      throw new Error(
+        `API returned undefined response. This may indicate context limit exceeded. ` +
+        `Estimated request tokens: ${estimatedTokens.toLocaleString()}`
+      );
+    }
+    
+    if (!completion.choices || completion.choices.length === 0) {
+      throw new Error(
+        `API returned empty choices array. Response: ${JSON.stringify(completion, null, 2)}`
+      );
+    }
+    
+    const message = completion.choices[0].message;
+    if (!message) {
+      throw new Error(
+        `API returned null message in choices[0]. Response: ${JSON.stringify(completion, null, 2)}`
+      );
+    }
+    
+    return message;
+  }
+
+  /**
+   * Estimate tokens in messages for diagnostic purposes
+   */
+  private estimateRequestTokens(messages: any[]): number {
+    let totalChars = 0;
+    
+    for (const msg of messages) {
+      if (typeof msg.content === "string") {
+        totalChars += msg.content.length;
+      } else if (Array.isArray(msg.content)) {
+        for (const part of msg.content) {
+          if (part.type === "text" && part.text) {
+            totalChars += part.text.length;
+          }
+        }
+      }
+    }
+    
+    // Rough estimate: ~4 chars per token
+    return Math.ceil(totalChars / 4);
   }
 
   /**

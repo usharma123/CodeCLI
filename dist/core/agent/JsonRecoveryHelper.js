@@ -52,22 +52,51 @@ export class JsonRecoveryHelper {
             }
             fixed = fixed + '"';
         }
-        // Count braces and brackets to fix missing closures (recount after quote fix)
-        const finalOpenBraces = (fixed.match(/\{/g) || []).length;
-        const finalCloseBraces = (fixed.match(/\}/g) || []).length;
-        const openBrackets = (fixed.match(/\[/g) || []).length;
-        const closeBrackets = (fixed.match(/\]/g) || []).length;
-        if (finalOpenBraces > finalCloseBraces) {
-            if (verbose) {
-                console.log(`  ${colors.gray}└ ${colors.yellow}Adding ${finalOpenBraces - finalCloseBraces} missing brace(s)${colors.reset}`);
+        // Track the order of unclosed braces/brackets to close them in correct order
+        // We need to close in reverse order of opening (LIFO)
+        const unclosedStack = [];
+        let inString = false;
+        let escapeNext = false;
+        for (const char of fixed) {
+            if (escapeNext) {
+                escapeNext = false;
+                continue;
             }
-            fixed = fixed + '}'.repeat(finalOpenBraces - finalCloseBraces);
+            if (char === '\\') {
+                escapeNext = true;
+                continue;
+            }
+            if (char === '"') {
+                inString = !inString;
+                continue;
+            }
+            if (inString)
+                continue;
+            if (char === '{') {
+                unclosedStack.push('}');
+            }
+            else if (char === '[') {
+                unclosedStack.push(']');
+            }
+            else if (char === '}') {
+                // Pop the most recent unclosed brace if it matches
+                if (unclosedStack.length > 0 && unclosedStack[unclosedStack.length - 1] === '}') {
+                    unclosedStack.pop();
+                }
+            }
+            else if (char === ']') {
+                // Pop the most recent unclosed bracket if it matches
+                if (unclosedStack.length > 0 && unclosedStack[unclosedStack.length - 1] === ']') {
+                    unclosedStack.pop();
+                }
+            }
         }
-        if (openBrackets > closeBrackets) {
+        // Add missing closures in reverse order (LIFO)
+        if (unclosedStack.length > 0) {
             if (verbose) {
-                console.log(`  ${colors.gray}└ ${colors.yellow}Adding ${openBrackets - closeBrackets} missing bracket(s)${colors.reset}`);
+                console.log(`  ${colors.gray}└ ${colors.yellow}Adding ${unclosedStack.length} missing brace(s)${colors.reset}`);
             }
-            fixed = fixed + ']'.repeat(openBrackets - closeBrackets);
+            fixed = fixed + unclosedStack.reverse().join('');
         }
         // Remove any trailing commas again after fixes
         fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
