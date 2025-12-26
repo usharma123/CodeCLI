@@ -2,10 +2,10 @@ package com.example.service;
 
 import com.example.model.User;
 import com.example.repository.UserRepository;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -16,166 +16,246 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 /**
- * Test class for UserService using Mockito for unit testing
- *
- * @ExtendWith(MockitoExtension.class) enables Mockito annotations.
- * This is a pure unit test - no Spring context is loaded (fastest tests).
- * Use @Mock for dependencies and @InjectMocks for the class under test.
+ * Unit tests for UserService
  */
 @ExtendWith(MockitoExtension.class)
-@Tag("smoke")  // Runs in smoke mode (fastest tests, no Spring context)
+@DisplayName("UserService Tests")
 class UserServiceTest {
 
     @Mock
-    private UserRepository repository;
+    private UserRepository userRepository;
 
     @InjectMocks
-    private UserService service;
+    private UserService userService;
 
     private User testUser;
+    private User anotherUser;
 
     @BeforeEach
     void setUp() {
         testUser = new User(1L, "John Doe", "john@example.com");
+        anotherUser = new User(2L, "Jane Smith", "jane@example.com");
     }
 
-    @Test
-    @DisplayName("findAll should return all items")
-    void testFindAll() {
-        // Arrange: Create mock data
-        List<User> mockData = Arrays.asList(testUser, new User(2L, "Jane Doe", "jane@example.com"));
-        when(repository.findAll()).thenReturn(mockData);
+    @Nested
+    @DisplayName("FindAll Method Tests")
+    class FindAllTests {
 
-        // Act: Call the service method
-        List<User> result = service.findAll();
+        @Test
+        @DisplayName("Should return all users")
+        void shouldReturnAllUsers() {
+            List<User> expectedUsers = Arrays.asList(testUser, anotherUser);
+            when(userRepository.findAll()).thenReturn(expectedUsers);
 
-        // Assert: Verify the result
-        assertNotNull(result);
-        assertEquals(2, result.size());
-        assertEquals(mockData, result);
-        verify(repository).findAll();
+            List<User> result = userService.findAll();
+
+            assertNotNull(result);
+            assertEquals(2, result.size());
+            verify(userRepository, times(1)).findAll();
+        }
+
+        @Test
+        @DisplayName("Should return empty list when no users exist")
+        void shouldReturnEmptyListWhenNoUsers() {
+            when(userRepository.findAll()).thenReturn(List.of());
+
+            List<User> result = userService.findAll();
+
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
     }
 
-    @Test
-    @DisplayName("findById should return item when it exists")
-    void testFindByIdWhenExists() {
-        // Arrange
-        when(repository.findById(1L)).thenReturn(Optional.of(testUser));
+    @Nested
+    @DisplayName("FindById Method Tests")
+    class FindByIdTests {
 
-        // Act
-        Optional<User> result = service.findById(1L);
+        @Test
+        @DisplayName("Should return user when found")
+        void shouldReturnUserWhenFound() {
+            when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
 
-        // Assert
-        assertTrue(result.isPresent());
-        assertEquals(testUser, result.get());
-        verify(repository).findById(1L);
+            Optional<User> result = userService.findById(1L);
+
+            assertTrue(result.isPresent());
+            assertEquals(testUser.getId(), result.get().getId());
+            assertEquals(testUser.getName(), result.get().getName());
+        }
+
+        @Test
+        @DisplayName("Should return empty Optional when user not found")
+        void shouldReturnEmptyOptionalWhenNotFound() {
+            when(userRepository.findById(999L)).thenReturn(Optional.empty());
+
+            Optional<User> result = userService.findById(999L);
+
+            assertFalse(result.isPresent());
+        }
     }
 
-    @Test
-    @DisplayName("findById should return empty when not found")
-    void testFindByIdWhenNotFound() {
-        // Arrange
-        when(repository.findById(999L)).thenReturn(Optional.empty());
+    @Nested
+    @DisplayName("FindByEmail Method Tests")
+    class FindByEmailTests {
 
-        // Act
-        Optional<User> result = service.findById(999L);
+        @Test
+        @DisplayName("Should return user when email exists")
+        void shouldReturnUserWhenEmailExists() {
+            when(userRepository.findByEmail("john@example.com")).thenReturn(Optional.of(testUser));
 
-        // Assert
-        assertFalse(result.isPresent());
-        verify(repository).findById(999L);
+            Optional<User> result = userService.findByEmail("john@example.com");
+
+            assertTrue(result.isPresent());
+            assertEquals("john@example.com", result.get().getEmail());
+        }
+
+        @Test
+        @DisplayName("Should return empty Optional when email not found")
+        void shouldReturnEmptyOptionalWhenEmailNotFound() {
+            when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
+
+            Optional<User> result = userService.findByEmail("nonexistent@example.com");
+
+            assertFalse(result.isPresent());
+        }
     }
 
-    @Test
-    @DisplayName("create should save and return new item")
-    void testCreate() {
-        // Arrange
-        User newUser = new User(null, "New User", "new@example.com");
-        User savedUser = new User(3L, "New User", "new@example.com");
-        when(repository.existsByEmail("new@example.com")).thenReturn(false);
-        when(repository.save(newUser)).thenReturn(savedUser);
+    @Nested
+    @DisplayName("Create Method Tests")
+    class CreateTests {
 
-        // Act
-        User result = service.create(newUser);
+        @Test
+        @DisplayName("Should create user successfully")
+        void shouldCreateUserSuccessfully() {
+            User newUser = new User(null, "New User", "new@example.com");
+            User savedUser = new User(3L, "New User", "new@example.com");
 
-        // Assert
-        assertNotNull(result);
-        assertEquals(3L, result.getId());
-        assertEquals("New User", result.getName());
-        verify(repository).existsByEmail("new@example.com");
-        verify(repository).save(newUser);
+            when(userRepository.existsByEmail("new@example.com")).thenReturn(false);
+            when(userRepository.save(any(User.class))).thenReturn(savedUser);
+
+            User result = userService.create(newUser);
+
+            assertNotNull(result);
+            assertEquals(3L, result.getId());
+            assertEquals("New User", result.getName());
+            verify(userRepository, times(1)).save(any(User.class));
+        }
+
+        @Test
+        @DisplayName("Should throw exception when email already exists")
+        void shouldThrowExceptionWhenEmailExists() {
+            User duplicateUser = new User(null, "Duplicate", "john@example.com");
+
+            when(userRepository.existsByEmail("john@example.com")).thenReturn(true);
+
+            assertThrows(IllegalArgumentException.class, () -> {
+                userService.create(duplicateUser);
+            });
+            verify(userRepository, never()).save(any(User.class));
+        }
+
+        @Test
+        @DisplayName("Should throw exception with correct message when email exists")
+        void shouldThrowExceptionWithCorrectMessageWhenEmailExists() {
+            User duplicateUser = new User(null, "Duplicate", "john@example.com");
+
+            when(userRepository.existsByEmail("john@example.com")).thenReturn(true);
+
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+                userService.create(duplicateUser);
+            });
+
+            assertTrue(exception.getMessage().contains("john@example.com"));
+        }
     }
 
-    @Test
-    @DisplayName("create should throw exception when email exists")
-    void testCreateDuplicateEmail() {
-        // Arrange
-        User duplicateUser = new User(null, "Duplicate", "john@example.com");
-        when(repository.existsByEmail("john@example.com")).thenReturn(true);
+    @Nested
+    @DisplayName("Update Method Tests")
+    class UpdateTests {
 
-        // Act & Assert
-        assertThrows(IllegalArgumentException.class, () -> service.create(duplicateUser));
-        verify(repository).existsByEmail("john@example.com");
-        verify(repository, never()).save(any());
+        @Test
+        @DisplayName("Should update user successfully")
+        void shouldUpdateUserSuccessfully() {
+            User updatedDetails = new User(null, "John Updated", "john.updated@example.com");
+            User updatedUser = new User(1L, "John Updated", "john.updated@example.com");
+
+            when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+            when(userRepository.save(any(User.class))).thenReturn(updatedUser);
+
+            User result = userService.update(1L, updatedDetails);
+
+            assertNotNull(result);
+            assertEquals("John Updated", result.getName());
+            verify(userRepository, times(1)).findById(1L);
+            verify(userRepository, times(1)).save(any(User.class));
+        }
+
+        @Test
+        @DisplayName("Should throw exception when user not found for update")
+        void shouldThrowExceptionWhenUserNotFoundForUpdate() {
+            User updateDetails = new User(null, "Updated", "updated@example.com");
+
+            when(userRepository.findById(999L)).thenReturn(Optional.empty());
+
+            assertThrows(IllegalArgumentException.class, () -> {
+                userService.update(999L, updateDetails);
+            });
+            verify(userRepository, never()).save(any(User.class));
+        }
+
+        @Test
+        @DisplayName("Should throw exception with correct message when user not found")
+        void shouldThrowExceptionWithCorrectMessageWhenUserNotFound() {
+            User updateDetails = new User(null, "Updated", "updated@example.com");
+
+            when(userRepository.findById(999L)).thenReturn(Optional.empty());
+
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+                userService.update(999L, updateDetails);
+            });
+
+            assertTrue(exception.getMessage().contains("999"));
+        }
     }
 
-    @Test
-    @DisplayName("update should modify existing item")
-    void testUpdate() {
-        // Arrange
-        User updatedData = new User(null, "John Updated", "john.updated@example.com");
-        when(repository.findById(1L)).thenReturn(Optional.of(testUser));
-        when(repository.save(any(User.class))).thenReturn(testUser);
+    @Nested
+    @DisplayName("Delete Method Tests")
+    class DeleteTests {
 
-        // Act
-        User result = service.update(1L, updatedData);
+        @Test
+        @DisplayName("Should delete user successfully")
+        void shouldDeleteUserSuccessfully() {
+            when(userRepository.existsById(1L)).thenReturn(true);
+            doNothing().when(userRepository).deleteById(1L);
 
-        // Assert
-        assertNotNull(result);
-        verify(repository).findById(1L);
-        verify(repository).save(testUser);
-    }
+            assertDoesNotThrow(() -> userService.delete(1L));
+            verify(userRepository, times(1)).deleteById(1L);
+        }
 
-    @Test
-    @DisplayName("update should throw exception when user not found")
-    void testUpdateNotFound() {
-        // Arrange
-        User updatedData = new User(null, "Updated", "updated@example.com");
-        when(repository.findById(999L)).thenReturn(Optional.empty());
+        @Test
+        @DisplayName("Should throw exception when user not found for delete")
+        void shouldThrowExceptionWhenUserNotFoundForDelete() {
+            when(userRepository.existsById(999L)).thenReturn(false);
 
-        // Act & Assert
-        assertThrows(IllegalArgumentException.class, () -> service.update(999L, updatedData));
-        verify(repository).findById(999L);
-        verify(repository, never()).save(any());
-    }
+            assertThrows(IllegalArgumentException.class, () -> {
+                userService.delete(999L);
+            });
+            verify(userRepository, never()).deleteById(any());
+        }
 
-    @Test
-    @DisplayName("delete should remove item")
-    void testDelete() {
-        // Arrange
-        when(repository.existsById(1L)).thenReturn(true);
-        doNothing().when(repository).deleteById(1L);
+        @Test
+        @DisplayName("Should throw exception with correct message when user not found")
+        void shouldThrowExceptionWithCorrectMessageWhenUserNotFoundForDelete() {
+            when(userRepository.existsById(999L)).thenReturn(false);
 
-        // Act
-        service.delete(1L);
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+                userService.delete(999L);
+            });
 
-        // Assert
-        verify(repository).existsById(1L);
-        verify(repository).deleteById(1L);
-    }
-
-    @Test
-    @DisplayName("delete should throw exception when user not found")
-    void testDeleteNotFound() {
-        // Arrange
-        when(repository.existsById(999L)).thenReturn(false);
-
-        // Act & Assert
-        assertThrows(IllegalArgumentException.class, () -> service.delete(999L));
-        verify(repository).existsById(999L);
-        verify(repository, never()).deleteById(any());
+            assertTrue(exception.getMessage().contains("999"));
+        }
     }
 }

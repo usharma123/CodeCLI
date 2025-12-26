@@ -21,7 +21,7 @@
 
     <properties>
         <java.version>17</java.version>
-        <byte-buddy.version>1.15.11</byte-buddy.version>
+        <byte-buddy.version>1.17.2</byte-buddy.version>
     </properties>
 
     <dependencies>
@@ -63,7 +63,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.11</version>
+                <version>0.8.12</version>
                 <configuration>
                     <excludes>
                         <!-- Exclude Spring Boot main application class (boilerplate code) -->

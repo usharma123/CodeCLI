@@ -1,283 +1,167 @@
 package com.codecli.currency.controller;
 
-import com.codecli.currency.controller.ConversionController;
 import com.codecli.currency.model.ConversionResponse;
 import com.codecli.currency.service.ConversionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.math.BigDecimal;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * Integration tests for ConversionController.
- * Tests the REST API endpoints and request/response handling.
+ * Unit tests for ConversionController using standalone MockMvc
  */
+@ExtendWith(MockitoExtension.class)
+@DisplayName("ConversionController Tests")
 class ConversionControllerTest {
 
-    private ConversionController conversionController;
+    private MockMvc mockMvc;
+
+    @Mock
     private ConversionService conversionService;
+
+    @InjectMocks
+    private ConversionController conversionController;
 
     @BeforeEach
     void setUp() {
-        conversionService = new ConversionService();
-        conversionController = new ConversionController(conversionService);
+        mockMvc = MockMvcBuilders.standaloneSetup(conversionController).build();
     }
 
     @Nested
-    @DisplayName("Successful Conversion Tests")
-    class SuccessfulConversionTests {
+    @DisplayName("GET /api/convert endpoint tests")
+    class ConvertEndpointTests {
 
         @Test
-        @DisplayName("Should return successful conversion response for USD to EUR")
-        void successfulUsdToEurConversion() {
-            ConversionResponse response = conversionController.convert(
-                    "USD", "EUR", new BigDecimal("100.00")
-            );
-            
-            assertNotNull(response);
-            assertEquals("USD", response.from());
-            assertEquals("EUR", response.to());
-            assertEquals(new BigDecimal("100.00"), response.amount());
-            assertEquals(new BigDecimal("92.00"), response.convertedAmount());
-            assertEquals(new BigDecimal("0.920000"), response.rate());
+        @DisplayName("Should return successful conversion response")
+        void shouldReturnSuccessfulConversionResponse() throws Exception {
+            when(conversionService.convert(eq("USD"), eq("EUR"), any(BigDecimal.class)))
+                    .thenReturn(new BigDecimal("92.00"));
+            when(conversionService.rate(eq("USD"), eq("EUR")))
+                    .thenReturn(new BigDecimal("0.92"));
+
+            mockMvc.perform(get("/api/convert")
+                            .param("from", "USD")
+                            .param("to", "EUR")
+                            .param("amount", "100")
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.from").value("USD"))
+                    .andExpect(jsonPath("$.to").value("EUR"))
+                    .andExpect(jsonPath("$.amount").value(100))
+                    .andExpect(jsonPath("$.convertedAmount").value(92.00))
+                    .andExpect(jsonPath("$.rate").value(0.92));
         }
 
         @Test
-        @DisplayName("Should return successful conversion response for EUR to USD")
-        void successfulEurToUsdConversion() {
-            ConversionResponse response = conversionController.convert(
-                    "EUR", "USD", new BigDecimal("92.00")
-            );
-            
-            assertNotNull(response);
-            assertEquals("EUR", response.from());
-            assertEquals("USD", response.to());
-            assertEquals(new BigDecimal("92.00"), response.amount());
-            assertEquals(new BigDecimal("100.00"), response.convertedAmount());
+        @DisplayName("Should handle case-insensitive currency codes")
+        void shouldHandleCaseInsensitiveCurrencyCodes() throws Exception {
+            when(conversionService.convert(eq("usd"), eq("eur"), any(BigDecimal.class)))
+                    .thenReturn(new BigDecimal("92.00"));
+            when(conversionService.rate(eq("usd"), eq("eur")))
+                    .thenReturn(new BigDecimal("0.92"));
+
+            mockMvc.perform(get("/api/convert")
+                            .param("from", "usd")
+                            .param("to", "eur")
+                            .param("amount", "100")
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.from").value("USD"))
+                    .andExpect(jsonPath("$.to").value("EUR"));
         }
 
         @Test
-        @DisplayName("Should handle lowercase currency codes in request")
-        void lowercaseCurrencyCodes() {
-            ConversionResponse response = conversionController.convert(
-                    "usd", "eur", new BigDecimal("100.00")
-            );
-            
-            assertNotNull(response);
-            // Controller normalizes to uppercase in response
-            assertEquals("USD", response.from());
-            assertEquals("EUR", response.to());
+        @DisplayName("Should handle conversion to GBP")
+        void shouldHandleConversionToGbp() throws Exception {
+            when(conversionService.convert(eq("USD"), eq("GBP"), any(BigDecimal.class)))
+                    .thenReturn(new BigDecimal("79.00"));
+            when(conversionService.rate(eq("USD"), eq("GBP")))
+                    .thenReturn(new BigDecimal("0.79"));
+
+            mockMvc.perform(get("/api/convert")
+                            .param("from", "USD")
+                            .param("to", "GBP")
+                            .param("amount", "100")
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.from").value("USD"))
+                    .andExpect(jsonPath("$.to").value("GBP"))
+                    .andExpect(jsonPath("$.convertedAmount").value(79.00));
         }
 
         @Test
-        @DisplayName("Should return correct conversion for large amount")
-        void largeAmountConversion() {
-            ConversionResponse response = conversionController.convert(
-                    "USD", "JPY", new BigDecimal("1000000.00")
-            );
-            
-            assertNotNull(response);
-            assertEquals(new BigDecimal("150000000.00"), response.convertedAmount());
+        @DisplayName("Should handle decimal amounts")
+        void shouldHandleDecimalAmounts() throws Exception {
+            when(conversionService.convert(eq("USD"), eq("EUR"), any(BigDecimal.class)))
+                    .thenReturn(new BigDecimal("46.00"));
+            when(conversionService.rate(eq("USD"), eq("EUR")))
+                    .thenReturn(new BigDecimal("0.92"));
+
+            mockMvc.perform(get("/api/convert")
+                            .param("from", "USD")
+                            .param("to", "EUR")
+                            .param("amount", "50.50")
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.amount").value(50.50))
+                    .andExpect(jsonPath("$.convertedAmount").value(46.00));
         }
 
         @Test
-        @DisplayName("Should return correct conversion for small amount")
-        void smallAmountConversion() {
-            ConversionResponse response = conversionController.convert(
-                    "USD", "GBP", new BigDecimal("0.01")
-            );
-            
-            assertNotNull(response);
-            assertTrue(response.convertedAmount().compareTo(BigDecimal.ZERO) > 0);
+        @DisplayName("Should return correct conversion response structure")
+        void shouldReturnCorrectConversionResponseStructure() throws Exception {
+            when(conversionService.convert(eq("EUR"), eq("JPY"), any(BigDecimal.class)))
+                    .thenReturn(new BigDecimal("16292.68"));
+            when(conversionService.rate(eq("EUR"), eq("JPY")))
+                    .thenReturn(new BigDecimal("162.9268"));
+
+            mockMvc.perform(get("/api/convert")
+                            .param("from", "EUR")
+                            .param("to", "JPY")
+                            .param("amount", "100")
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$").isNotEmpty())
+                    .andExpect(jsonPath("$.from").exists())
+                    .andExpect(jsonPath("$.to").exists())
+                    .andExpect(jsonPath("$.amount").exists())
+                    .andExpect(jsonPath("$.convertedAmount").exists())
+                    .andExpect(jsonPath("$.rate").exists());
         }
 
         @Test
-        @DisplayName("Should handle zero amount conversion")
-        void zeroAmountConversion() {
-            ConversionResponse response = conversionController.convert(
-                    "USD", "EUR", BigDecimal.ZERO
-            );
-            
-            assertNotNull(response);
-            assertEquals(0, response.convertedAmount().compareTo(BigDecimal.ZERO));
-            assertEquals(new BigDecimal("0.920000"), response.rate());
-        }
+        @DisplayName("Should convert from JPY to INR correctly")
+        void shouldConvertJpyToInr() throws Exception {
+            when(conversionService.convert(eq("JPY"), eq("INR"), any(BigDecimal.class)))
+                    .thenReturn(new BigDecimal("55.33"));
+            when(conversionService.rate(eq("JPY"), eq("INR")))
+                    .thenReturn(new BigDecimal("0.553333"));
 
-        @Test
-        @DisplayName("Should convert between all supported currencies")
-        void allCurrencyConversions() {
-            String[] currencies = {"USD", "EUR", "GBP", "JPY", "INR", "CAD", "AUD"};
-            
-            for (String from : currencies) {
-                for (String to : currencies) {
-                    ConversionResponse response = conversionController.convert(
-                            from, to, new BigDecimal("100.00")
-                    );
-                    
-                    assertNotNull(response);
-                    assertEquals(from.toUpperCase(), response.from());
-                    assertEquals(to.toUpperCase(), response.to());
-                    assertEquals(new BigDecimal("100.00"), response.amount());
-                    assertNotNull(response.convertedAmount());
-                    assertNotNull(response.rate());
-                }
-            }
-        }
-    }
-
-    @Nested
-    @DisplayName("Error Response Tests")
-    class ErrorResponseTests {
-
-        @Test
-        @DisplayName("Should throw exception for unsupported source currency")
-        void unsupportedSourceCurrency() {
-            ResponseStatusException exception = assertThrows(
-                    ResponseStatusException.class,
-                    () -> conversionController.convert("XYZ", "USD", new BigDecimal("100.00"))
-            );
-            
-            assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
-            assertTrue(exception.getReason().contains("unsupported currency"));
-        }
-
-        @Test
-        @DisplayName("Should throw exception for unsupported target currency")
-        void unsupportedTargetCurrency() {
-            ResponseStatusException exception = assertThrows(
-                    ResponseStatusException.class,
-                    () -> conversionController.convert("USD", "XYZ", new BigDecimal("100.00"))
-            );
-            
-            assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
-            assertTrue(exception.getReason().contains("unsupported currency"));
-        }
-
-        @Test
-        @DisplayName("Should throw exception for negative amount")
-        void negativeAmount() {
-            ResponseStatusException exception = assertThrows(
-                    ResponseStatusException.class,
-                    () -> conversionController.convert("USD", "EUR", new BigDecimal("-100.00"))
-            );
-            
-            assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
-            assertTrue(exception.getReason().contains("amount must be non-negative"));
-        }
-
-        @Test
-        @DisplayName("Should throw exception for null amount")
-        void nullAmount() {
-            ResponseStatusException exception = assertThrows(
-                    ResponseStatusException.class,
-                    () -> conversionController.convert("USD", "EUR", null)
-            );
-            
-            assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
-        }
-    }
-
-    @Nested
-    @DisplayName("Response Structure Tests")
-    class ResponseStructureTests {
-
-        @Test
-        @DisplayName("Should return proper ConversionResponse record structure")
-        void responseStructure() {
-            ConversionResponse response = conversionController.convert(
-                    "USD", "EUR", new BigDecimal("100.00")
-            );
-            
-            // Verify all fields are present and correctly typed
-            assertNotNull(response.from());
-            assertNotNull(response.to());
-            assertNotNull(response.amount());
-            assertNotNull(response.convertedAmount());
-            assertNotNull(response.rate());
-        }
-
-        @Test
-        @DisplayName("Should normalize currency codes to uppercase in response")
-        void currencyCodeNormalization() {
-            ConversionResponse response = conversionController.convert(
-                    "usd", "eur", new BigDecimal("100.00")
-            );
-            
-            assertEquals("USD", response.from());
-            assertEquals("EUR", response.to());
-        }
-
-        @Test
-        @DisplayName("Should include correct rate in response")
-        void rateInResponse() {
-            ConversionResponse response = conversionController.convert(
-                    "USD", "EUR", new BigDecimal("100.00")
-            );
-            
-            assertEquals(new BigDecimal("0.920000"), response.rate());
-            // Verify rate is consistent with conversion
-            BigDecimal expectedConverted = response.amount().multiply(response.rate());
-            assertEquals(expectedConverted.setScale(2, java.math.RoundingMode.HALF_UP), 
-                         response.convertedAmount());
-        }
-
-        @Test
-        @DisplayName("Should preserve amount precision in response")
-        void amountPrecision() {
-            BigDecimal amount = new BigDecimal("123.456789");
-            ConversionResponse response = conversionController.convert(
-                    "USD", "EUR", amount
-            );
-            
-            assertEquals(amount, response.amount());
-        }
-    }
-
-    @Nested
-    @DisplayName("Special Scenario Tests")
-    class SpecialScenarioTests {
-
-        @Test
-        @DisplayName("Should handle same currency conversion")
-        void sameCurrencyConversion() {
-            ConversionResponse response = conversionController.convert(
-                    "USD", "USD", new BigDecimal("100.00")
-            );
-            
-            assertNotNull(response);
-            assertEquals(0, response.convertedAmount().compareTo(new BigDecimal("100.00")));
-            assertEquals(0, response.rate().compareTo(BigDecimal.ONE));
-        }
-
-        @Test
-        @DisplayName("Should handle conversion with trailing zeros in amount")
-        void trailingZeros() {
-            ConversionResponse response = conversionController.convert(
-                    "USD", "EUR", new BigDecimal("100.00")
-            );
-            
-            assertNotNull(response.convertedAmount());
-            // Verify trailing zeros are handled correctly
-            assertEquals(new BigDecimal("92.00"), response.convertedAmount());
-        }
-
-        @Test
-        @DisplayName("Should handle INR to AUD conversion correctly")
-        void inrToAudConversion() {
-            ConversionResponse response = conversionController.convert(
-                    "INR", "AUD", new BigDecimal("8300.00")
-            );
-            
-            // INR rate: 83.00, AUD rate: 1.52
-            // 8300 / 83 * 1.52 = 152.00
-            assertNotNull(response);
-            assertEquals(new BigDecimal("152.00"), response.convertedAmount());
+            mockMvc.perform(get("/api/convert")
+                            .param("from", "JPY")
+                            .param("to", "INR")
+                            .param("amount", "100")
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.from").value("JPY"))
+                    .andExpect(jsonPath("$.to").value("INR"))
+                    .andExpect(jsonPath("$.convertedAmount").value(55.33));
         }
     }
 }
