@@ -1,0 +1,5 @@
+[install]
+peer = false
+
+# JSX configuration - use React for src/ui/ (legacy) and Solid for src/tui/
+# Since we can't have per-path JSX config, we default to React and use a workaround

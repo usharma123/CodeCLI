@@ -81,3 +81,7 @@ export function getOutputById(id: string): ToolOutput | null {
 export function clearOutputs(): void {
   outputManager.clearOutputs();
 }
+
+export function getRecentOutputs(): ToolOutput[] {
+  return outputManager.getOutputs();
+}

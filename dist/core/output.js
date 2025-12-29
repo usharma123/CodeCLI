@@ -54,3 +54,6 @@ export function getOutputById(id) {
 export function clearOutputs() {
     outputManager.clearOutputs();
 }
+export function getRecentOutputs() {
+    return outputManager.getOutputs();
+}

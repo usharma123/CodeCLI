@@ -13,8 +13,43 @@ import { FileSystemAgent } from "./core/agents/filesystem.js";
 import { AnalysisAgent } from "./core/agents/analysis.js";
 import { initializeClIgnore } from "./utils/clignore.js";
 import { getSessionManager } from "./core/session-manager.js";
-
 dotenv.config();
+
+// Determine which TUI to use
+type TUIMode = "legacy" | "solid" | "experimental";
+function getTUIMode(argv: string[]): TUIMode {
+  // Check for explicit flags
+  if (argv.includes("--experimental-tui") || argv.includes("--tui=solid")) {
+    return "solid";
+  }
+  if (argv.includes("--tui=legacy")) {
+    return "legacy";
+  }
+  // Default to legacy for now
+  return "legacy";
+}
+
+// Dynamic import for experimental TUI to avoid JSX compilation issues at startup
+async function loadExperimentalTUI() {
+  try {
+    // Try to import from the pre-built dist folder first (bundled with esbuild)
+    // @ts-ignore - Dynamic import from build output
+    const module = await import("../dist/tui/entry.js");
+    return module.startTUI;
+  } catch (distError) {
+    try {
+      // Fall back to source if dist not available
+      const module = await import("./tui/entry.js");
+      return module.startTUI;
+    } catch (srcError) {
+      // If both imports fail, provide helpful message
+      console.error(`${colors.red}Error: Experimental TUI requires compilation.${colors.reset}`);
+      console.error(`${colors.yellow}Run 'bun run build:tui' first, or use 'bun run dev:tui' to build and run.${colors.reset}`);
+      console.error(`\n${colors.gray}Falling back to legacy TUI...${colors.reset}\n`);
+      return null;
+    }
+  }
+}
 
 async function main() {
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -124,38 +159,61 @@ async function main() {
   });
 
   if (process.stdin.isTTY) {
-    // Create agent ref to pass to UI
-    const agentRef = React.createRef<AIAgent>();
+    const tuiMode = getTUIMode(argv);
 
-    // Use Ink-based confirmations integrated with the main app
-    const inkApp = render(
-      React.createElement(App, {
-        onSubmit: async (userInput: string) => {
-          if (!userInput.trim()) return;
+    if (tuiMode === "solid") {
+      // Try to use new SolidJS + OpenTUI interface
+      const startTUI = await loadExperimentalTUI();
 
-          console.log(`\n${colors.gray}> ${userInput}${colors.reset}\n`);
-          try {
-            await agent.processUserInput(userInput);
-          } catch (error) {
-            console.error(`${colors.red}Error: ${error}${colors.reset}`);
-          }
-          console.log("");
-        },
-        onConfirmRequest: (handler) => {
-          // Set handler HERE, inside callback when Ink UI is ready
-          setReadlineConfirm(async (message: string) => {
-            return await handler(message);
-          });
-        },
-        agentRef: agentRef,
-      })
-    );
+      if (startTUI) {
+        console.log(`${colors.cyan}Starting experimental SolidJS TUI...${colors.reset}\n`);
 
-    // Set the ref after creating agent
-    (agentRef as any).current = agent;
+        await startTUI({
+          agent,
+          onExit: () => {
+            agent.close();
+          },
+        });
+        return; // Exit after TUI closes
+      }
+      // Fall through to legacy TUI if experimental fails to load
+    }
 
-    await inkApp.waitUntilExit();
-    agent.close();
+    {
+      // Use legacy React + Ink interface
+      // Create agent ref to pass to UI
+      const agentRef = React.createRef<AIAgent>();
+
+      // Use Ink-based confirmations integrated with the main app
+      const inkApp = render(
+        React.createElement(App, {
+          onSubmit: async (userInput: string) => {
+            if (!userInput.trim()) return;
+
+            console.log(`\n${colors.gray}> ${userInput}${colors.reset}\n`);
+            try {
+              await agent.processUserInput(userInput);
+            } catch (error) {
+              console.error(`${colors.red}Error: ${error}${colors.reset}`);
+            }
+            console.log("");
+          },
+          onConfirmRequest: (handler) => {
+            // Set handler HERE, inside callback when Ink UI is ready
+            setReadlineConfirm(async (message: string) => {
+              return await handler(message);
+            });
+          },
+          agentRef: agentRef,
+        })
+      );
+
+      // Set the ref after creating agent
+      (agentRef as any).current = agent;
+
+      await inkApp.waitUntilExit();
+      agent.close();
+    }
   } else {
     console.error(
       `${colors.red}Error: Non-interactive mode is not supported.${colors.reset}`
