@@ -1,0 +1,22 @@
+Analyze a codebase structure and generate a Mermaid diagram.
+
+This tool scans a directory, identifies key source files and entrypoints, and provides the context needed to generate an architecture diagram.
+
+Features:
+- Scans directories for source files (.ts, .tsx, .js, .jsx, .py, .java, etc.)
+- Scores and identifies likely entrypoint files (index.*, main.*, app.*, etc.)
+- Reads content from top entrypoints to understand code structure
+- Generates a simple fallback Mermaid diagram based on directory structure
+- Supports rendering to PNG, SVG, or ASCII formats
+
+Output Formats:
+- png: High-quality PNG image (requires @mermaid-js/mermaid-cli)
+- svg: Scalable vector graphic (requires @mermaid-js/mermaid-cli)
+- ascii: Terminal-friendly ASCII art (no dependencies)
+
+Usage:
+1. Call without mermaid_code to analyze a codebase and get structure info
+2. Use the analysis to create a better Mermaid diagram
+3. Call again with mermaid_code parameter to render the diagram to an image
+
+Diagrams are saved to the ./diagrams/ directory by default.
