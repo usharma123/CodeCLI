@@ -4,6 +4,32 @@ All notable changes to CodeCLI are documented in this file.
 
 ## [Unreleased] - January 2025
 
+### Added - Agent System & Bootstrap Integration 🤖
+
+#### Agent System
+- **New Agent Architecture**: Implemented comprehensive agent system with namespace-based organization
+  - **Native Agents**: 7 built-in agents (build, plan, general, explore, compaction, title, summary)
+  - **Custom Agent Creation**: AI-powered agent generation with `agent create` command
+  - **Agent Modes**: Support for primary, subagent, and all modes
+  - **Tool Permissions**: Fine-grained tool access control per agent
+  - **Markdown Configuration**: YAML frontmatter for agent prompts and metadata
+
+- **Agent Commands**:
+  - `agent create`: Create new agents with interactive or CLI options
+  - `agent list`: List all available agents with permissions
+
+- **Agent Features**:
+  - Zod schema validation for agent configuration
+  - Configurable temperature and topP parameters
+  - Color-coded agent identification in terminal UI
+  - Per-agent model selection and override support
+
+#### Bootstrap Integration
+- **Project Detection**: Auto-detect build tools (Maven/Gradle) and configure paths
+- **Spring Boot Support**: Component-aware test generation for controllers, services, repositories
+- **Testing Framework**: Java (JUnit 5) and Python (PyTest) with coverage reporting
+- **Test Discovery**: Convention-based file discovery (`*Test.java`, `test_*.py`)
+
 ### Added - Session Management & Persistence 💾
 
 #### Session Manager

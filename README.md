@@ -7,6 +7,7 @@ An AI-powered coding assistant CLI built with TypeScript/Bun. Uses OpenRouter AP
 ### Core Capabilities
 - **File Operations**: Read, write, edit files with safe-mode confirmations
 - **Multi-Agent Architecture**: Main agent delegates to specialized sub-agents (FileSystemAgent, AnalysisAgent) for heavy operations
+- **Agent System**: Create, manage, and use specialized AI agents for different tasks with custom prompts and permissions
 - **Testing Framework**: AI-powered test generation, execution, and failure analysis for Python & Java
 - **Project Scaffolding**: Bootstrap projects (API, chatbot, React, static sites)
 - **Codebase Analysis**: Generate Mermaid flowcharts (PNG/SVG/ascii), explore codebases, analyze architecture
@@ -94,12 +95,95 @@ The CLI tracks token usage and costs automatically. Default model pricing (MiniM
 
 Token usage is displayed after each agent run in the terminal.
 
-## Architecture
+## Agent System
+
+Bootstrap includes a powerful Agent System that allows you to create, manage, and use specialized AI agents for different tasks. This system is built on a namespace-based organization pattern with Zod schema validation.
+
+### Built-in Agents
+
+| Agent | Mode | Description |
+|-------|------|-------------|
+| **build** | Primary | Primary agent for build and compilation tasks |
+| **plan** | Primary | Planning agent that writes plans to `.bootstrap/plan/*.md` |
+| **general** | Subagent | General-purpose agent for research and multi-step tasks |
+| **explore** | Subagent | Fast agent specialized for exploring codebases with configurable thoroughness levels |
+| **compaction** | Primary | Internal agent for conversation context summarization |
+| **title** | Primary | Internal agent for generating conversation titles |
+| **summary** | Primary | Internal agent for generating conversation summaries |
+
+### Creating Custom Agents
+
+Create specialized agents using the `agent create` command:
+
+```bash
+# Interactive creation
+bun start agent create
+
+# Non-interactive creation
+bun start agent create --path "./.bootstrap/agent" --description "Database expert agent" --mode "subagent" --tools "read,write,edit,grep"
+```
+
+### Agent Configuration
+
+Agents are configured via markdown files in `.bootstrap/agent/` or `~/.config/bootstrap/agent/`:
+
+```markdown
+---
+description: Expert agent for database operations and SQL queries
+mode: subagent
+tools:
+  read: true
+  write: true
+  edit: true
+  grep: true
+  bash: true
+---
+
+# System Prompt
+You are a database expert. Help users with:
+- SQL query optimization
+- Schema design and normalization
+- Indexing strategies
+- Query performance tuning
+```
+
+### Agent Features
+
+- **Mode Support**: Agents can be configured as `primary`, `subagent`, or `all` (both)
+- **Tool Access Control**: Fine-grained permission control for each tool
+- **Custom Prompts**: Markdown-based agent prompts with YAML frontmatter
+- **Model Selection**: Override default model per agent
+- **Temperature/TopP**: Configure generation parameters
+- **Color Coding**: Visual identification in terminal UI
+
+### Using Agents
+
+Agents can be invoked in three ways:
+
+1. **As Primary Agent**: Default agent for the session
+2. **As Subagent**: Delegated by other agents for specialized tasks
+3. **Direct Invocation**: Call specific agents directly via commands
+
+```bash
+# Use a specific agent
+> /agent explore "quick: Find all API endpoints in the codebase"
+
+# Create and use a custom agent
+> Create a database expert agent
+> Use it to optimize my UserRepository queries
+```
+
+### Architecture
 
 - **Main Agent**: Sequential AI agent with tool calling and intermediate reasoning
 - **Sub-Agents**: Specialized agents for exploration and analysis (enable with `ENABLE_SUB_AGENTS=true`)
   - **FileSystemAgent**: Large-scale codebase exploration and bulk file operations
   - **AnalysisAgent**: Deep architectural analysis and PRD parsing
+- **Agent System**: Create, manage, and use specialized AI agents with custom prompts and permissions
+  - **Native Agents**: Built-in agents (build, plan, explore, general, compaction, title, summary)
+  - **Custom Agents**: User-defined agents stored in `.bootstrap/agent/` or `~/.config/bootstrap/agent/`
+  - **Agent Modes**: Primary, subagent, or all (both roles)
+  - **Tool Permissions**: Fine-grained access control per agent
 - **Tools**: 25+ tools organized into categories:
   - File operations (read_file, write_file, edit_file, list_files)
   - Commands (run_command, commands for shell execution)
