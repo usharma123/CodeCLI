@@ -2,6 +2,7 @@
  * OpenTUI Entry Point
  *
  * Initializes and renders the SolidJS-based TUI using OpenTUI.
+ * Based on OpenCode's implementation.
  */
 
 import { render } from "@opentui/solid";
@@ -15,84 +16,87 @@ export interface TUIOptions {
 
 /**
  * Initialize and render the OpenTUI-based terminal interface.
+ * Returns a promise that resolves when the TUI exits.
  */
 export async function startTUI(options: TUIOptions): Promise<void> {
   const { agent, onExit } = options;
 
-  // Detect terminal background for theme auto-detection
+  // Detect terminal background color
   const isDarkMode = await detectTerminalBackground();
 
-  const instance = render(() => App({ agent, isDarkMode }), {
-    fps: 60,
-    // Enable Kitty keyboard protocol for better key handling
-    kittyKeyboard: true,
-    // Use Ctrl+Y for clipboard operations
-    clipboard: { key: "ctrl+y" },
-  }) as any;
-
-  // Handle cleanup on exit
-  if (onExit && instance.unmount) {
-    const originalUnmount = instance.unmount;
-    instance.unmount = () => {
-      originalUnmount();
-      onExit();
+  // Return promise that resolves on exit
+  return new Promise<void>((resolve) => {
+    const handleExit = async () => {
+      onExit?.();
+      resolve();
     };
-  }
 
-  // Wait for the app to be closed
-  if (instance.waitUntilExit) {
-    await instance.waitUntilExit();
-  }
+    render(
+      () => App({ agent, isDarkMode, onExit: handleExit }),
+      {
+        targetFps: 60,
+        gatherStats: false,
+        exitOnCtrlC: false, // We handle Ctrl+C ourselves
+        useKittyKeyboard: {}, // Enable kitty keyboard protocol for better key handling
+        onDestroy: () => {
+          handleExit();
+        },
+      }
+    );
+  });
 }
 
 /**
- * Detect terminal background color using OSC 11.
- * Returns true if dark mode, false if light mode.
+ * Detect terminal background color.
+ * Uses OSC 11 query before OpenTUI takes over stdin.
  */
 async function detectTerminalBackground(): Promise<boolean> {
+  // Can't set raw mode if not a TTY
+  if (!process.stdin.isTTY) return true;
+
   return new Promise((resolve) => {
-    // Default to dark mode if detection fails
-    const timeout = setTimeout(() => resolve(true), 100);
+    let timeout: NodeJS.Timeout;
 
-    const originalRawMode = process.stdin.isRaw;
+    const cleanup = () => {
+      process.stdin.setRawMode(false);
+      process.stdin.removeListener("data", handler);
+      clearTimeout(timeout);
+    };
 
-    try {
-      if (process.stdin.isTTY) {
-        process.stdin.setRawMode(true);
-        process.stdin.resume();
+    const handler = (data: Buffer) => {
+      const str = data.toString();
+      const match = str.match(/\x1b]11;([^\x07\x1b]+)/);
+      if (match) {
+        cleanup();
+        const color = match[1];
+        // Parse RGB values from color string
+        let r = 0, g = 0, b = 0;
 
-        const handler = (data: Buffer) => {
-          clearTimeout(timeout);
-          process.stdin.removeListener("data", handler);
+        if (color.startsWith("rgb:")) {
+          const parts = color.substring(4).split("/");
+          r = parseInt(parts[0], 16) >> 8;
+          g = parseInt(parts[1], 16) >> 8;
+          b = parseInt(parts[2], 16) >> 8;
+        } else if (color.startsWith("#")) {
+          r = parseInt(color.substring(1, 3), 16);
+          g = parseInt(color.substring(3, 5), 16);
+          b = parseInt(color.substring(5, 7), 16);
+        }
 
-          if (originalRawMode !== undefined) {
-            process.stdin.setRawMode(originalRawMode);
-          }
-
-          const response = data.toString();
-          // Parse OSC 11 response: ESC ] 11 ; rgb:RRRR/GGGG/BBBB ESC \
-          const match = response.match(/rgb:([0-9a-f]+)\/([0-9a-f]+)\/([0-9a-f]+)/i);
-
-          if (match) {
-            const r = parseInt(match[1].slice(0, 2), 16);
-            const g = parseInt(match[2].slice(0, 2), 16);
-            const b = parseInt(match[3].slice(0, 2), 16);
-            // Calculate relative luminance
-            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-            resolve(luminance < 0.5); // Dark if luminance is low
-          } else {
-            resolve(true); // Default to dark mode
-          }
-        };
-
-        process.stdin.on("data", handler);
-        // Send OSC 11 query
-        process.stdout.write("\x1b]11;?\x1b\\");
-      } else {
-        resolve(true); // Default to dark mode
+        // Calculate luminance
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        resolve(luminance <= 0.5); // true = dark mode
       }
-    } catch {
-      resolve(true); // Default to dark mode on error
-    }
+    };
+
+    process.stdin.setRawMode(true);
+    process.stdin.on("data", handler);
+    process.stdout.write("\x1b]11;?\x07");
+
+    // Timeout - default to dark mode
+    timeout = setTimeout(() => {
+      cleanup();
+      resolve(true);
+    }, 500);
   });
 }

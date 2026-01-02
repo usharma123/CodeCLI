@@ -1,4 +1,4 @@
-/* @jsxImportSource solid-js */
+/* @jsxImportSource @opentui/solid */
 /// <reference path="../../types.d.ts" />
 /**
  * Messages Component
@@ -34,7 +34,7 @@ export function Messages(props: MessagesProps) {
       <Show when={state.outputs.length === 0}>
         <box flexDirection="column" alignItems="center" marginY={2}>
           <text color={theme().colors.primary} bold>
-            Welcome to CodeCLI
+            Welcome to Bootstrap
           </text>
           <text color={theme().colors.muted}>
             Start typing to begin a conversation

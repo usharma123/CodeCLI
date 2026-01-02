@@ -1,4 +1,4 @@
-/* @jsxImportSource solid-js */
+/* @jsxImportSource @opentui/solid */
 /// <reference path="../types.d.ts" />
 /**
  * Home Route
@@ -29,16 +29,17 @@ export function Home() {
       <box marginBottom={1}>
         <text color={theme().colors.primary} bold>
           {`
-   ______          __     ________    ____
-  / ____/___  ____/ /__  / ____/ /   /  _/
- / /   / __ \\/ __  / _ \\/ /   / /    / /
-/ /___/ /_/ / /_/ /  __/ /___/ /____/ /
-\\____/\\____/\\__,_/\\___/\\____/_____/___/
+    ____              __       __
+   / __ )____  ____  / /______/ /__________ _____
+  / __  / __ \\/ __ \\/ __/ ___/ __/ ___/ __ '/ __ \\
+ / /_/ / /_/ / /_/ / /_(__  ) /_/ /  / /_/ / /_/ /
+/_____/\\____/\\____/\\__/____/\\__/_/   \\__,_/ .___/
+                                         /_/
           `}
         </text>
       </box>
 
-      <text color={theme().colors.muted}>AI-powered coding assistant</text>
+      <text color={theme().colors.muted}>AI-powered coding agent</text>
 
       {/* Quick actions */}
       <box marginTop={2} flexDirection="column">

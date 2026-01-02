@@ -23,28 +23,44 @@ async function build() {
       platform: "node",
       target: "node20",
       external: [
-        // Don't bundle these
+        // Don't bundle these - must be external for proper runtime
         "@opentui/core",
         "@opentui/solid",
-        "solid-js",
-        "solid-js/store",
-        "solid-js/web",
         // Node built-ins
         "events",
         "path",
         "fs",
         "process",
-        // Project dependencies
-        "../core/*",
-        "../../core/*",
-        "../utils/*",
-        "../../utils/*",
       ],
+      // Use browser condition for solid-js to get reactive primitives (not SSR)
+      conditions: ["browser", "module"],
       plugins: [
+        // Plugin to rewrite relative paths for external imports
+        // Maps ../core, ../../core, ../../../core -> ../core (for dist/tui/ output)
+        {
+          name: "rewrite-external-paths",
+          setup(build) {
+            // Match any relative import to core or utils
+            build.onResolve({ filter: /^\.\.\/.*\/(core|utils)\// }, (args) => {
+              // Extract the module path after core/ or utils/
+              const match = args.path.match(/\/(core|utils)\/(.+)$/);
+              if (match) {
+                const [, folder, rest] = match;
+                return {
+                  path: `../${folder}/${rest}`,
+                  external: true,
+                };
+              }
+              return null;
+            });
+          },
+        },
         solidPlugin({
           solid: {
             generate: "universal",
             hydratable: false,
+            // Use @opentui/solid for renderer primitives instead of solid-js/web
+            moduleName: "@opentui/solid",
           },
         }),
       ],

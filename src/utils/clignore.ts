@@ -49,7 +49,7 @@ export class ClIgnore {
       await fs.writeFile(this.clignorePath, templateContent, "utf-8");
     } catch (error) {
       // If template doesn't exist, create basic default
-      const defaultContent = `# CodeCLI Ignore Patterns
+      const defaultContent = `# Bootstrap Ignore Patterns
 node_modules/
 dist/
 .git/

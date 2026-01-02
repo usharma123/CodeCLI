@@ -1,4 +1,4 @@
-/* @jsxImportSource solid-js */
+/* @jsxImportSource @opentui/solid */
 /// <reference path="../../types.d.ts" />
 /**
  * Session Header
@@ -53,7 +53,7 @@ export function Header() {
       {/* Left: Logo and session info */}
       <box flexDirection="row" gap={2}>
         <text color={theme().colors.primary} bold>
-          CodeCLI
+          Bootstrap
         </text>
         <text color={theme().colors.muted}>|</text>
         <text color={theme().colors.accent}>{modelDisplay()}</text>

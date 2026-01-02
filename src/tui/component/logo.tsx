@@ -1,4 +1,4 @@
-/* @jsxImportSource solid-js */
+/* @jsxImportSource @opentui/solid */
 /// <reference path="../types.d.ts" />
 /**
  * Logo Component
@@ -13,14 +13,15 @@ interface LogoProps {
 }
 
 const FULL_LOGO = `
-   ______          __     ________    ____
-  / ____/___  ____/ /__  / ____/ /   /  _/
- / /   / __ \\/ __  / _ \\/ /   / /    / /
-/ /___/ /_/ / /_/ /  __/ /___/ /____/ /
-\\____/\\____/\\__,_/\\___/\\____/_____/___/
+    ____              __       __
+   / __ )____  ____  / /______/ /__________ _____
+  / __  / __ \\/ __ \\/ __/ ___/ __/ ___/ __ '/ __ \\
+ / /_/ / /_/ / /_/ / /_(__  ) /_/ /  / /_/ / /_/ /
+/_____/\\____/\\____/\\__/____/\\__/_/   \\__,_/ .___/
+                                         /_/
 `;
 
-const COMPACT_LOGO = "CodeCLI";
+const COMPACT_LOGO = "Bootstrap";
 
 export function Logo(props: LogoProps) {
   const { theme } = useTheme();
@@ -36,7 +37,7 @@ export function Logo(props: LogoProps) {
   return (
     <box flexDirection="column">
       <text color={theme().colors.primary}>{FULL_LOGO}</text>
-      <text color={theme().colors.muted}>AI-powered coding assistant</text>
+      <text color={theme().colors.muted}>AI-powered coding agent</text>
     </box>
   );
 }

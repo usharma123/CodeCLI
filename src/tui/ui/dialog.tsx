@@ -1,4 +1,4 @@
-/* @jsxImportSource solid-js */
+/* @jsxImportSource @opentui/solid */
 /// <reference path="../types.d.ts" />
 /**
  * Dialog UI Components
@@ -192,8 +192,9 @@ function PromptDialog(props: { config: DialogConfig }) {
       <box borderStyle="single" borderColor={theme().colors.primary} padding={1}>
         <input
           value={value()}
-          onChange={(e) => setValue(e.target.value)}
-          focus
+          onInput={(nextValue) => setValue(nextValue)}
+          onSubmit={handleSubmit}
+          focused
           flexGrow={1}
         />
       </box>

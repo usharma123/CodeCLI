@@ -1,15 +1,17 @@
-/* @jsxImportSource solid-js */
+/* @jsxImportSource @opentui/solid */
 /// <reference path="./types.d.ts" />
 /**
  * Main App Component
  *
  * Sets up the provider hierarchy and main application structure.
+ * Based on OpenCode's implementation.
  */
 
-import { createSignal, createEffect, onCleanup, Show, type JSXElement } from "solid-js";
+import { Show, type JSXElement } from "solid-js";
+import { useTerminalDimensions, useRenderer } from "@opentui/solid";
 import type { AIAgent } from "../core/agent.js";
 import { ExitProvider } from "./context/exit.js";
-import { ThemeProvider } from "./context/theme.js";
+import { ThemeProvider, useTheme } from "./context/theme.js";
 import { AgentProvider } from "./context/agent.js";
 import { SyncProvider } from "./context/sync.js";
 import { RouteProvider, useRoute } from "./context/route.js";
@@ -24,16 +26,17 @@ import { Session } from "./routes/session/index.js";
 export interface AppProps {
   agent: AIAgent;
   isDarkMode: boolean;
+  onExit?: () => void;
 }
 
 /**
  * Provider wrapper that nests all context providers.
  */
-function Providers(props: { agent: AIAgent; isDarkMode: boolean; children: JSXElement }) {
+function Providers(props: { agent: AIAgent; isDarkMode: boolean; onExit?: () => void; children: JSXElement }) {
   return (
-    <ExitProvider>
-      <KeybindProvider>
-        <ThemeProvider isDarkMode={props.isDarkMode}>
+    <ExitProvider onExit={props.onExit}>
+      <ThemeProvider isDarkMode={props.isDarkMode}>
+        <KeybindProvider>
           <AgentProvider agent={props.agent}>
             <SyncProvider>
               <RouteProvider>
@@ -49,8 +52,8 @@ function Providers(props: { agent: AIAgent; isDarkMode: boolean; children: JSXEl
               </RouteProvider>
             </SyncProvider>
           </AgentProvider>
-        </ThemeProvider>
-      </KeybindProvider>
+        </KeybindProvider>
+      </ThemeProvider>
     </ExitProvider>
   );
 }
@@ -69,12 +72,35 @@ function Router() {
 }
 
 /**
+ * Main App component with full-screen box matching OpenCode's structure.
+ */
+function AppContent() {
+  const dimensions = useTerminalDimensions();
+  const renderer = useRenderer();
+  const { theme } = useTheme();
+
+  // Disable stdout interception like OpenCode does
+  renderer.disableStdoutInterception();
+
+  return (
+    <box
+      width={dimensions().width}
+      height={dimensions().height}
+      backgroundColor={theme().colors.background}
+      flexDirection="column"
+    >
+      <Router />
+    </box>
+  );
+}
+
+/**
  * Main App component.
  */
 export function App(props: AppProps) {
   return (
-    <Providers agent={props.agent} isDarkMode={props.isDarkMode}>
-      <Router />
+    <Providers agent={props.agent} isDarkMode={props.isDarkMode} onExit={props.onExit}>
+      <AppContent />
     </Providers>
   );
 }

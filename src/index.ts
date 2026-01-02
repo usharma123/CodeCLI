@@ -32,22 +32,22 @@ function getTUIMode(argv: string[]): TUIMode {
 // Dynamic import for experimental TUI to avoid JSX compilation issues at startup
 async function loadExperimentalTUI() {
   try {
-    // Try to import from the pre-built dist folder first (bundled with esbuild)
+    // Use absolute path based on project root to work from both src/ and dist/
+    const currentDir = import.meta.dirname;
+    const projectRoot = currentDir.endsWith("/src")
+      ? currentDir.slice(0, -4)  // Running from src/
+      : currentDir.slice(0, -5); // Running from dist/
+    const tuiEntryPath = `${projectRoot}/dist/tui/entry.js`;
+
     // @ts-ignore - Dynamic import from build output
-    const module = await import("../dist/tui/entry.js");
+    const module = await import(tuiEntryPath);
     return module.startTUI;
-  } catch (distError) {
-    try {
-      // Fall back to source if dist not available
-      const module = await import("./tui/entry.js");
-      return module.startTUI;
-    } catch (srcError) {
-      // If both imports fail, provide helpful message
-      console.error(`${colors.red}Error: Experimental TUI requires compilation.${colors.reset}`);
-      console.error(`${colors.yellow}Run 'bun run build:tui' first, or use 'bun run dev:tui' to build and run.${colors.reset}`);
-      console.error(`\n${colors.gray}Falling back to legacy TUI...${colors.reset}\n`);
-      return null;
-    }
+  } catch (error) {
+    // If import fails, provide helpful message
+    console.error(`${colors.red}Error: Experimental TUI requires compilation.${colors.reset}`);
+    console.error(`${colors.yellow}Run 'bun run build:tui' first, or use 'bun run dev:tui' to build and run.${colors.reset}`);
+    console.error(`\n${colors.gray}Falling back to legacy TUI...${colors.reset}\n`);
+    return null;
   }
 }
 
@@ -57,6 +57,7 @@ async function main() {
   const verboseTools =
     argv.includes("--verbose-tools") ||
     process.env.TOOLS_VERBOSE === "1";
+  const tuiMode = getTUIMode(argv);
 
   // Parse session flags
   const sessionFlag = argv.find(arg => arg.startsWith("--session="));
@@ -74,7 +75,7 @@ async function main() {
     process.exit(1);
   }
 
-  const agent = new AIAgent(apiKey, toolDefinitions, true, {
+  const agent = new AIAgent(apiKey, toolDefinitions, tuiMode !== "solid", {
     verboseTools,
     // Disable streaming by default for Ink stability.
     streamAssistantResponses: false,
@@ -150,7 +151,7 @@ async function main() {
 
   setReadlineConfirm(async (message: string) => {
     if (!agent.rl) {
-      // If readline is not available, auto-approve (should not happen in normal usage)
+      // Avoid blocking confirmations when readline is disabled (Solid TUI path).
       console.log(`${colors.yellow}Warning: Readline not available, auto-approving operation${colors.reset}`);
       return true;
     }
@@ -159,15 +160,11 @@ async function main() {
   });
 
   if (process.stdin.isTTY) {
-    const tuiMode = getTUIMode(argv);
-
     if (tuiMode === "solid") {
       // Try to use new SolidJS + OpenTUI interface
       const startTUI = await loadExperimentalTUI();
 
       if (startTUI) {
-        console.log(`${colors.cyan}Starting experimental SolidJS TUI...${colors.reset}\n`);
-
         await startTUI({
           agent,
           onExit: () => {

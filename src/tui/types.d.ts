@@ -2,15 +2,20 @@
  * OpenTUI Type Declarations
  *
  * Type definitions for OpenTUI JSX elements used with SolidJS.
+ * Based on OpenCode's implementation.
  */
 
-declare module "solid-js" {
+declare module "@opentui/solid" {
   namespace JSX {
     interface IntrinsicElements {
       box: BoxProps;
       text: TextProps;
       input: InputProps;
+      textarea: TextareaProps;
       scrollbox: ScrollBoxProps;
+      ascii_font: AsciiFontProps;
+      span: SpanProps;
+      spinner: SpinnerProps;
     }
 
     interface BoxProps {
@@ -48,6 +53,7 @@ declare module "solid-js" {
       borderBottom?: boolean;
       borderLeft?: boolean;
       borderRight?: boolean;
+      border?: ("top" | "bottom" | "left" | "right")[];
       backgroundColor?: string;
       overflow?: "visible" | "hidden" | "scroll";
       position?: "relative" | "absolute";
@@ -56,11 +62,17 @@ declare module "solid-js" {
       left?: number;
       right?: number;
       textAlign?: "left" | "center" | "right";
+      zIndex?: number;
+      visible?: boolean;
+      ref?: (el: any) => void;
+      onMouseUp?: (event: any) => void;
+      onMouseDown?: (event: any) => void;
     }
 
     interface TextProps {
       children?: any;
       color?: string;
+      fg?: string;
       backgroundColor?: string;
       bold?: boolean;
       italic?: boolean;
@@ -73,23 +85,78 @@ declare module "solid-js" {
       marginLeft?: number;
       marginRight?: number;
       textAlign?: "left" | "center" | "right";
+      flexShrink?: number;
+      attributes?: any;
+    }
+
+    interface SpanProps {
+      children?: any;
+      style?: {
+        fg?: string;
+        bold?: boolean;
+        italic?: boolean;
+      };
     }
 
     interface InputProps {
       value?: string;
       placeholder?: string;
-      onChange?: (e: { target: { value: string } }) => void;
-      onKeyDown?: (e: { key: string; ctrlKey: boolean; altKey: boolean; shiftKey: boolean }) => void;
+      onInput?: (value: string) => void;
+      onChange?: (value: string) => void;
+      onKeyDown?: (e: KeyEvent) => void;
       onSubmit?: (value: string) => void;
-      focus?: boolean;
+      focused?: boolean;
       disabled?: boolean;
       flexGrow?: number;
+    }
+
+    interface TextareaProps {
+      value?: string;
+      placeholder?: string;
+      onContentChange?: () => void;
+      onKeyDown?: (e: KeyEvent) => void;
+      onSubmit?: () => void;
+      onPaste?: (event: any) => void;
+      focused?: boolean;
+      disabled?: boolean;
+      flexGrow?: number;
+      minHeight?: number;
+      maxHeight?: number;
+      textColor?: string;
+      focusedTextColor?: string;
+      cursorColor?: string;
+      focusedBackgroundColor?: string;
+      keyBindings?: Array<{ name: string; ctrl?: boolean; meta?: boolean; shift?: boolean; action: string }>;
+      ref?: (el: any) => void;
+      syntaxStyle?: any;
     }
 
     interface ScrollBoxProps extends BoxProps {
       sticky?: boolean;
       acceleration?: number;
       scrollToBottom?: boolean;
+    }
+
+    interface AsciiFontProps {
+      font?: string;
+      text?: string;
+    }
+
+    interface SpinnerProps {
+      color?: any;
+      frames?: string[];
+      interval?: number;
+    }
+
+    interface KeyEvent {
+      name: string;
+      sequence?: string;
+      ctrl: boolean;
+      shift: boolean;
+      alt: boolean;
+      option?: boolean;
+      meta: boolean;
+      preventDefault?: () => void;
     }
   }
 }

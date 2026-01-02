@@ -1,4 +1,4 @@
-/* @jsxImportSource solid-js */
+/* @jsxImportSource @opentui/solid */
 /**
  * Sync Context Provider
  *
@@ -69,14 +69,15 @@ export function SyncProvider(props: { children: JSXElement }) {
   // Subscribe to status updates
   createEffect(() => {
     const unsubscribe = onStatus((s) => {
+      const isProcessing = s.phase !== "idle" && !!s.message;
       setState("status", {
-        phase: s.message ? "processing" : "idle",
-        message: s.message,
+        phase: isProcessing ? "processing" : "idle",
+        message: s.message || "",
       });
-      setState("isProcessing", !!s.message);
-      if (s.message && !state.processingStartTime) {
+      setState("isProcessing", isProcessing);
+      if (isProcessing && !state.processingStartTime) {
         setState("processingStartTime", Date.now());
-      } else if (!s.message) {
+      } else if (!isProcessing) {
         setState("processingStartTime", null);
       }
     });

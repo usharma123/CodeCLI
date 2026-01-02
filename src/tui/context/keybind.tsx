@@ -1,11 +1,13 @@
-/* @jsxImportSource solid-js */
+/* @jsxImportSource @opentui/solid */
 /**
  * Keybind Context Provider
  *
  * Manages keyboard shortcuts with configurable bindings.
+ * Based on OpenCode's implementation - does NOT globally intercept keys.
+ * Individual components use match() in their onKeyDown handlers.
  */
 
-import { createContext, useContext, createSignal, createEffect, onCleanup, type JSXElement } from "solid-js";
+import { createContext, useContext, createSignal, type JSXElement } from "solid-js";
 
 export interface Keybind {
   key: string;
@@ -20,22 +22,13 @@ interface KeybindContextValue {
   bindings: () => Keybind[];
   register: (keybind: Keybind) => void;
   unregister: (action: string) => void;
-  match: (event: KeyEvent) => string | null;
+  match: (action: string, event: any) => boolean;
   getBindingForAction: (action: string) => Keybind | undefined;
   formatKeybind: (keybind: Keybind) => string;
 }
 
-interface KeyEvent {
-  key: string;
-  ctrl?: boolean;
-  alt?: boolean;
-  shift?: boolean;
-  meta?: boolean;
-}
-
 const KeybindContext = createContext<KeybindContextValue>();
 
-// Default keybindings
 const defaultBindings: Keybind[] = [
   { key: "c", ctrl: true, action: "exit" },
   { key: "p", ctrl: true, action: "command.open" },
@@ -52,7 +45,6 @@ export function KeybindProvider(props: { children: JSXElement }) {
 
   const register = (keybind: Keybind) => {
     setBindings((prev) => {
-      // Replace if action exists, otherwise add
       const exists = prev.findIndex((b) => b.action === keybind.action);
       if (exists >= 0) {
         const updated = [...prev];
@@ -67,17 +59,22 @@ export function KeybindProvider(props: { children: JSXElement }) {
     setBindings((prev) => prev.filter((b) => b.action !== action));
   };
 
-  const match = (event: KeyEvent): string | null => {
-    const binding = bindings().find((b) => {
-      if (b.key.toLowerCase() !== event.key.toLowerCase()) return false;
-      if (!!b.ctrl !== !!event.ctrl) return false;
-      if (!!b.alt !== !!event.alt) return false;
-      if (!!b.shift !== !!event.shift) return false;
-      if (!!b.meta !== !!event.meta) return false;
-      return true;
-    });
+  const matchEvent = (binding: Keybind, event: any): boolean => {
+    const eventName = (event.name || "").toLowerCase();
+    const bindingKey = binding.key.toLowerCase();
+    
+    if (bindingKey !== eventName) return false;
+    if (!!binding.ctrl !== !!event.ctrl) return false;
+    if (!!binding.alt !== !!(event.alt || event.option)) return false;
+    if (!!binding.shift !== !!event.shift) return false;
+    if (!!binding.meta !== !!event.meta) return false;
+    return true;
+  };
 
-    return binding?.action || null;
+  const match = (action: string, event: any): boolean => {
+    const binding = bindings().find((b) => b.action === action);
+    if (!binding) return false;
+    return matchEvent(binding, event);
   };
 
   const getBindingForAction = (action: string) => {
@@ -93,6 +90,9 @@ export function KeybindProvider(props: { children: JSXElement }) {
     parts.push(keybind.key.toUpperCase());
     return parts.join("");
   };
+
+  // NOTE: We do NOT use useKeyboard here globally.
+  // Individual components handle their own keybinds via onKeyDown + match()
 
   return (
     <KeybindContext.Provider
