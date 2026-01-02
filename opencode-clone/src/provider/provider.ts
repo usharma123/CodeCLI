@@ -83,28 +83,7 @@ export namespace Provider {
         },
       }
     },
-    async opencode(input) {
-      const hasKey = await (async () => {
-        const env = Env.all()
-        if (input.env.some((item) => env[item])) return true
-        if (await Auth.get(input.id)) return true
-        const config = await Config.get()
-        if (config.provider?.["opencode"]?.options?.apiKey) return true
-        return false
-      })()
-
-      if (!hasKey) {
-        for (const [key, value] of Object.entries(input.models)) {
-          if (value.cost.input === 0) continue
-          delete input.models[key]
-        }
-      }
-
-      return {
-        autoload: Object.keys(input.models).length > 0,
-        options: hasKey ? {} : { apiKey: "public" },
-      }
-    },
+    // Using openrouter as primary provider
     openai: async () => {
       return {
         autoload: false,
@@ -201,7 +180,7 @@ export namespace Provider {
           }
 
           // Region resolution precedence (highest to lowest):
-          // 1. options.region from opencode.json provider config
+          // 1. options.region from bootstrap.json provider config
           // 2. defaultRegion from AWS_REGION environment variable
           // 3. Default "us-east-1" (baked into defaultRegion)
           const region = options?.region ?? defaultRegion
@@ -382,8 +361,8 @@ export namespace Provider {
             // Cloudflare AI Gateway uses cf-aig-authorization for authenticated gateways
             // This enables Unified Billing where Cloudflare handles upstream provider auth
             ...(apiToken ? { "cf-aig-authorization": `Bearer ${apiToken}` } : {}),
-            "HTTP-Referer": "https://opencode.ai/",
-            "X-Title": "opencode",
+            "HTTP-Referer": "https://github.com/usharma123/CodeCLI",
+            "X-Title": "bootstrap",
           },
           // Custom fetch to strip Authorization header - AI Gateway uses cf-aig-authorization instead
           // Sending Authorization header with invalid value causes auth errors
@@ -400,7 +379,7 @@ export namespace Provider {
         autoload: false,
         options: {
           headers: {
-            "X-Cerebras-3rd-Party-Integration": "opencode",
+            "X-Cerebras-3rd-Party-Integration": "bootstrap",
           },
         },
       }
@@ -717,63 +696,9 @@ export namespace Provider {
       })
     }
 
-    // load apikeys
-    for (const [providerID, provider] of Object.entries(await Auth.all())) {
-      if (disabled.has(providerID)) continue
-      if (provider.type === "api") {
-        mergeProvider(providerID, {
-          source: "api",
-          key: provider.key,
-        })
-      }
-    }
+    // Skip file-based auth loading - using environment variables only
 
-    for (const plugin of await Plugin.list()) {
-      if (!plugin.auth) continue
-      const providerID = plugin.auth.provider
-      if (disabled.has(providerID)) continue
-
-      // For github-copilot plugin, check if auth exists for either github-copilot or github-copilot-enterprise
-      let hasAuth = false
-      const auth = await Auth.get(providerID)
-      if (auth) hasAuth = true
-
-      // Special handling for github-copilot: also check for enterprise auth
-      if (providerID === "github-copilot" && !hasAuth) {
-        const enterpriseAuth = await Auth.get("github-copilot-enterprise")
-        if (enterpriseAuth) hasAuth = true
-      }
-
-      if (!hasAuth) continue
-      if (!plugin.auth.loader) continue
-
-      // Load for the main provider if auth exists
-      if (auth) {
-        const options = await plugin.auth.loader(() => Auth.get(providerID) as any, database[plugin.auth.provider])
-        mergeProvider(plugin.auth.provider, {
-          source: "custom",
-          options: options,
-        })
-      }
-
-      // If this is github-copilot plugin, also register for github-copilot-enterprise if auth exists
-      if (providerID === "github-copilot") {
-        const enterpriseProviderID = "github-copilot-enterprise"
-        if (!disabled.has(enterpriseProviderID)) {
-          const enterpriseAuth = await Auth.get(enterpriseProviderID)
-          if (enterpriseAuth) {
-            const enterpriseOptions = await plugin.auth.loader(
-              () => Auth.get(enterpriseProviderID) as any,
-              database[enterpriseProviderID],
-            )
-            mergeProvider(enterpriseProviderID, {
-              source: "custom",
-              options: enterpriseOptions,
-            })
-          }
-        }
-      }
-    }
+    // Skip plugin auth loading - using environment variables only
 
     for (const [providerID, fn] of Object.entries(CUSTOM_LOADERS)) {
       if (disabled.has(providerID)) continue
@@ -1026,9 +951,7 @@ export namespace Provider {
         "gemini-2.5-flash",
         "gpt-5-nano",
       ]
-      if (providerID.startsWith("opencode")) {
-        priority = ["gpt-5-nano"]
-      }
+      // Using openrouter as default provider
       for (const item of priority) {
         for (const model of Object.keys(provider.models)) {
           if (model.includes(item)) return getModel(providerID, model)
@@ -1036,12 +959,7 @@ export namespace Provider {
       }
     }
 
-    // Check if opencode provider is available before using it
-    const opencodeProvider = await state().then((state) => state.providers["opencode"])
-    if (opencodeProvider && opencodeProvider.models["gpt-5-nano"]) {
-      return getModel("opencode", "gpt-5-nano")
-    }
-
+    // No fallback small model - will use provider's models
     return undefined
   }
 

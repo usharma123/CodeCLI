@@ -332,18 +332,18 @@ export namespace ACP {
       log.info("initialize", { protocolVersion: params.protocolVersion })
 
       const authMethod: AuthMethod = {
-        description: "Run `opencode auth login` in the terminal",
-        name: "Login with opencode",
-        id: "opencode-login",
+        description: "Set your API key in the .env file or environment",
+        name: "Configure API Key",
+        id: "bootstrap-login",
       }
 
-      // If client supports terminal-auth capability, use that instead.
+      // Auth is handled via environment variables in local-only mode
       if (params.clientCapabilities?._meta?.["terminal-auth"] === true) {
         authMethod._meta = {
           "terminal-auth": {
-            command: "opencode",
-            args: ["auth", "login"],
-            label: "OpenCode Login",
+            command: "bootstrap",
+            args: ["--help"],
+            label: "Bootstrap Help",
           },
         }
       }
@@ -363,7 +363,7 @@ export namespace ACP {
         },
         authMethods: [authMethod],
         agentInfo: {
-          name: "OpenCode",
+          name: "Bootstrap",
           version: Installation.VERSION,
         },
       }
@@ -1004,7 +1004,7 @@ export namespace ACP {
         return undefined
       })
 
-    return model ?? { providerID: "opencode", modelID: "big-pickle" }
+    return model ?? { providerID: "openrouter", modelID: "anthropic/claude-sonnet-4-20250514" }
   }
 
   function parseUri(

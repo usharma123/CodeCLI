@@ -25,7 +25,6 @@ import { Vcs } from "../project/vcs"
 import { Agent } from "../agent/agent"
 import { Auth } from "../auth"
 import { Command } from "../command"
-import { ProviderAuth } from "../provider/auth"
 import { Global } from "../global"
 import { ProjectRoute } from "./project"
 import { ToolRegistry } from "../tool/registry"
@@ -113,10 +112,8 @@ export namespace Server {
             if (input.startsWith("http://127.0.0.1:")) return input
             if (input === "tauri://localhost" || input === "http://tauri.localhost") return input
 
-            // *.opencode.ai (https only, adjust if needed)
-            if (/^https:\/\/([a-z0-9-]+\.)*opencode\.ai$/.test(input)) {
-              return input
-            }
+            // Allow localhost only for local development
+            // Remote CORS domains can be added to the config if needed
             if (_corsWhitelist.includes(input)) {
               return input
             }
@@ -129,7 +126,7 @@ export namespace Server {
         "/global/health",
         describeRoute({
           summary: "Get health",
-          description: "Get health information about the OpenCode server.",
+          description: "Get health information about the Bootstrap server.",
           operationId: "global.health",
           responses: {
             200: {
@@ -150,7 +147,7 @@ export namespace Server {
         "/global/event",
         describeRoute({
           summary: "Get global events",
-          description: "Subscribe to global events from the OpenCode system using server-sent events.",
+          description: "Subscribe to global events from the Bootstrap system using server-sent events.",
           operationId: "global.event",
           responses: {
             200: {
@@ -217,7 +214,7 @@ export namespace Server {
         "/global/dispose",
         describeRoute({
           summary: "Dispose instance",
-          description: "Clean up and dispose all OpenCode instances, releasing all resources.",
+          description: "Clean up and dispose all Bootstrap instances, releasing all resources.",
           operationId: "global.dispose",
           responses: {
             200: {
@@ -243,7 +240,7 @@ export namespace Server {
         },
       )
       .use(async (c, next) => {
-        const directory = c.req.query("directory") || c.req.header("x-opencode-directory") || process.cwd()
+        const directory = c.req.query("directory") || c.req.header("x-bootstrap-directory") || process.cwd()
         return Instance.provide({
           directory,
           init: InstanceBootstrap,
@@ -273,7 +270,7 @@ export namespace Server {
         "/pty",
         describeRoute({
           summary: "List PTY sessions",
-          description: "Get a list of all active pseudo-terminal (PTY) sessions managed by OpenCode.",
+          description: "Get a list of all active pseudo-terminal (PTY) sessions managed by Bootstrap.",
           operationId: "pty.list",
           responses: {
             200: {
@@ -432,7 +429,7 @@ export namespace Server {
         "/config",
         describeRoute({
           summary: "Get configuration",
-          description: "Retrieve the current OpenCode configuration settings and preferences.",
+          description: "Retrieve the current Bootstrap configuration settings and preferences.",
           operationId: "config.get",
           responses: {
             200: {
@@ -454,7 +451,7 @@ export namespace Server {
         "/config",
         describeRoute({
           summary: "Update configuration",
-          description: "Update OpenCode configuration settings and preferences.",
+          description: "Update Bootstrap configuration settings and preferences.",
           operationId: "config.update",
           responses: {
             200: {
@@ -553,7 +550,7 @@ export namespace Server {
         "/instance/dispose",
         describeRoute({
           summary: "Dispose instance",
-          description: "Clean up and dispose the current OpenCode instance, releasing all resources.",
+          description: "Clean up and dispose the current Bootstrap instance, releasing all resources.",
           operationId: "instance.dispose",
           responses: {
             200: {
@@ -575,7 +572,7 @@ export namespace Server {
         "/path",
         describeRoute({
           summary: "Get paths",
-          description: "Retrieve the current working directory and related path information for the OpenCode instance.",
+          description: "Retrieve the current working directory and related path information for the Bootstrap instance.",
           operationId: "path.get",
           responses: {
             200: {
@@ -638,7 +635,7 @@ export namespace Server {
         "/session",
         describeRoute({
           summary: "List sessions",
-          description: "Get a list of all OpenCode sessions, sorted by most recently updated.",
+          description: "Get a list of all Bootstrap sessions, sorted by most recently updated.",
           operationId: "session.list",
           responses: {
             200: {
@@ -688,7 +685,7 @@ export namespace Server {
         "/session/:sessionID",
         describeRoute({
           summary: "Get session",
-          description: "Retrieve detailed information about a specific OpenCode session.",
+          description: "Retrieve detailed information about a specific Bootstrap session.",
           tags: ["Session"],
           operationId: "session.get",
           responses: {
@@ -781,7 +778,7 @@ export namespace Server {
         "/session",
         describeRoute({
           summary: "Create session",
-          description: "Create a new OpenCode session for interacting with AI assistants and managing conversations.",
+          description: "Create a new Bootstrap session for interacting with AI assistants and managing conversations.",
           operationId: "session.create",
           responses: {
             ...errors(400),
@@ -1617,7 +1614,7 @@ export namespace Server {
         "/command",
         describeRoute({
           summary: "List commands",
-          description: "Get a list of all available commands in the OpenCode system.",
+          description: "Get a list of all available commands in the Bootstrap system.",
           operationId: "command.list",
           responses: {
             200: {
@@ -1714,109 +1711,7 @@ export namespace Server {
           })
         },
       )
-      .get(
-        "/provider/auth",
-        describeRoute({
-          summary: "Get provider auth methods",
-          description: "Retrieve available authentication methods for all AI providers.",
-          operationId: "provider.auth",
-          responses: {
-            200: {
-              description: "Provider auth methods",
-              content: {
-                "application/json": {
-                  schema: resolver(z.record(z.string(), z.array(ProviderAuth.Method))),
-                },
-              },
-            },
-          },
-        }),
-        async (c) => {
-          return c.json(await ProviderAuth.methods())
-        },
-      )
-      .post(
-        "/provider/:providerID/oauth/authorize",
-        describeRoute({
-          summary: "OAuth authorize",
-          description: "Initiate OAuth authorization for a specific AI provider to get an authorization URL.",
-          operationId: "provider.oauth.authorize",
-          responses: {
-            200: {
-              description: "Authorization URL and method",
-              content: {
-                "application/json": {
-                  schema: resolver(ProviderAuth.Authorization.optional()),
-                },
-              },
-            },
-            ...errors(400),
-          },
-        }),
-        validator(
-          "param",
-          z.object({
-            providerID: z.string().meta({ description: "Provider ID" }),
-          }),
-        ),
-        validator(
-          "json",
-          z.object({
-            method: z.number().meta({ description: "Auth method index" }),
-          }),
-        ),
-        async (c) => {
-          const providerID = c.req.valid("param").providerID
-          const { method } = c.req.valid("json")
-          const result = await ProviderAuth.authorize({
-            providerID,
-            method,
-          })
-          return c.json(result)
-        },
-      )
-      .post(
-        "/provider/:providerID/oauth/callback",
-        describeRoute({
-          summary: "OAuth callback",
-          description: "Handle the OAuth callback from a provider after user authorization.",
-          operationId: "provider.oauth.callback",
-          responses: {
-            200: {
-              description: "OAuth callback processed successfully",
-              content: {
-                "application/json": {
-                  schema: resolver(z.boolean()),
-                },
-              },
-            },
-            ...errors(400),
-          },
-        }),
-        validator(
-          "param",
-          z.object({
-            providerID: z.string().meta({ description: "Provider ID" }),
-          }),
-        ),
-        validator(
-          "json",
-          z.object({
-            method: z.number().meta({ description: "Auth method index" }),
-            code: z.string().optional().meta({ description: "OAuth authorization code" }),
-          }),
-        ),
-        async (c) => {
-          const providerID = c.req.valid("param").providerID
-          const { method, code } = c.req.valid("json")
-          await ProviderAuth.callback({
-            providerID,
-            method,
-            code,
-          })
-          return c.json(true)
-        },
-      )
+      // Removed provider auth endpoints - using environment variables only
       .get(
         "/find",
         describeRoute({
@@ -2058,7 +1953,7 @@ export namespace Server {
         "/agent",
         describeRoute({
           summary: "List agents",
-          description: "Get a list of all available AI agents in the OpenCode system.",
+          description: "Get a list of all available AI agents in the Bootstrap system.",
           operationId: "app.agents",
           responses: {
             200: {
@@ -2689,45 +2584,9 @@ export namespace Server {
           })
         },
       )
+      // Catch-all route returns 404 - no external proxy
       .all("/*", async (c) => {
-        const path = c.req.path
-        const response = await proxy(`https://app.opencode.ai${path}`, {
-          ...c.req,
-          headers: {
-            host: "app.opencode.ai",
-          },
-        })
-        // Cloudflare doesn't return Content-Type for static assets, so we need to add it
-        const mimeTypes: Record<string, string> = {
-          ".js": "application/javascript",
-          ".mjs": "application/javascript",
-          ".css": "text/css",
-          ".json": "application/json",
-          ".wasm": "application/wasm",
-          ".svg": "image/svg+xml",
-          ".png": "image/png",
-          ".jpg": "image/jpeg",
-          ".jpeg": "image/jpeg",
-          ".gif": "image/gif",
-          ".ico": "image/x-icon",
-          ".webp": "image/webp",
-          ".woff": "font/woff",
-          ".woff2": "font/woff2",
-          ".ttf": "font/ttf",
-          ".eot": "application/vnd.ms-fontobject",
-        }
-        for (const [ext, mime] of Object.entries(mimeTypes)) {
-          if (path.endsWith(ext)) {
-            const headers = new Headers(response.headers)
-            headers.set("Content-Type", mime)
-            return new Response(response.body, {
-              status: response.status,
-              statusText: response.statusText,
-              headers,
-            })
-          }
-        }
-        return response
+        return c.json({ error: "Not found" }, 404)
       }),
   )
 
@@ -2773,7 +2632,7 @@ export namespace Server {
       opts.hostname !== "localhost" &&
       opts.hostname !== "::1"
     if (shouldPublishMDNS) {
-      MDNS.publish(server.port!, `opencode-${server.port!}`)
+      MDNS.publish(server.port!, `bootstrap-${server.port!}`)
     } else if (opts.mdns) {
       log.warn("mDNS enabled but hostname is loopback; skipping mDNS publish")
     }

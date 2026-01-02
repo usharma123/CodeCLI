@@ -92,7 +92,6 @@
         "typescript": "5.8.2",
         "vscode-languageserver-types": "3.17.5",
         "why-is-node-running": "3.2.2",
-        "zod-to-json-schema": "3.24.5",
       },
     },
   },

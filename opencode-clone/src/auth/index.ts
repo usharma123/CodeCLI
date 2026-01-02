@@ -1,8 +1,9 @@
-import path from "path"
-import { Global } from "../global"
-import fs from "fs/promises"
 import z from "zod"
 
+/**
+ * Simplified Auth module - uses environment variables only, no file storage.
+ * API keys should be set in .env file (OPENROUTER_API_KEY, etc.)
+ */
 export namespace Auth {
   export const Oauth = z
     .object({
@@ -32,39 +33,29 @@ export namespace Auth {
   export const Info = z.discriminatedUnion("type", [Oauth, Api, WellKnown]).meta({ ref: "Auth" })
   export type Info = z.infer<typeof Info>
 
-  const filepath = path.join(Global.Path.data, "auth.json")
+  // In-memory storage for any runtime-set auth (mainly for compatibility)
+  const _authStore: Record<string, Info> = {}
 
-  export async function get(providerID: string) {
-    const auth = await all()
-    return auth[providerID]
+  export async function get(providerID: string): Promise<Info | undefined> {
+    // First check in-memory store
+    if (_authStore[providerID]) {
+      return _authStore[providerID]
+    }
+    // No file-based auth - use environment variables directly in provider.ts
+    return undefined
   }
 
   export async function all(): Promise<Record<string, Info>> {
-    const file = Bun.file(filepath)
-    const data = await file.json().catch(() => ({}) as Record<string, unknown>)
-    return Object.entries(data).reduce(
-      (acc, [key, value]) => {
-        const parsed = Info.safeParse(value)
-        if (!parsed.success) return acc
-        acc[key] = parsed.data
-        return acc
-      },
-      {} as Record<string, Info>,
-    )
+    // Return in-memory store only
+    return { ..._authStore }
   }
 
   export async function set(key: string, info: Info) {
-    const file = Bun.file(filepath)
-    const data = await all()
-    await Bun.write(file, JSON.stringify({ ...data, [key]: info }, null, 2))
-    await fs.chmod(file.name!, 0o600)
+    // Store in memory only
+    _authStore[key] = info
   }
 
   export async function remove(key: string) {
-    const file = Bun.file(filepath)
-    const data = await all()
-    delete data[key]
-    await Bun.write(file, JSON.stringify(data, null, 2))
-    await fs.chmod(file.name!, 0o600)
+    delete _authStore[key]
   }
 }

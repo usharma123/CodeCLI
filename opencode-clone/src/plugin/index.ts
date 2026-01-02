@@ -11,7 +11,8 @@ import { Flag } from "../flag/flag"
 export namespace Plugin {
   const log = Log.create({ service: "plugin" })
 
-  const BUILTIN = ["opencode-copilot-auth@0.0.9", "opencode-anthropic-auth@0.0.5"]
+  // Removed builtin auth plugins - using environment variables only
+  const BUILTIN: string[] = []
 
   const state = Instance.state(async () => {
     const client = createOpencodeClient({

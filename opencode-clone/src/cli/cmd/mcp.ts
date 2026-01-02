@@ -66,7 +66,7 @@ export const McpListCommand = cmd({
 
         if (Object.keys(mcpServers).length === 0) {
           prompts.log.warn("No MCP servers configured")
-          prompts.outro("Add servers with: opencode mcp add")
+          prompts.outro("Add servers with: bootstrap mcp add")
           return
         }
 
@@ -143,7 +143,7 @@ export const McpAuthCommand = cmd({
 
         if (oauthServers.length === 0) {
           prompts.log.warn("No OAuth-capable MCP servers configured")
-          prompts.log.info("Remote MCP servers support OAuth by default. Add a remote server in opencode.json:")
+          prompts.log.info("Remote MCP servers support OAuth by default. Add a remote server in bootstrap.json:")
           prompts.log.info(`
   "mcp": {
     "my-server": {
@@ -382,7 +382,7 @@ export const McpAddCommand = cmd({
     if (type === "local") {
       const command = await prompts.text({
         message: "Enter command to run",
-        placeholder: "e.g., opencode x @modelcontextprotocol/server-filesystem",
+        placeholder: "e.g., bootstrap x @modelcontextprotocol/server-filesystem",
         validate: (x) => (x && x.length > 0 ? undefined : "Required"),
       })
       if (prompts.isCancel(command)) throw new UI.CancelledError()
@@ -441,7 +441,7 @@ export const McpAddCommand = cmd({
           }
 
           prompts.log.info(`Remote MCP server "${name}" configured with OAuth (client ID: ${clientId})`)
-          prompts.log.info("Add this to your opencode.json:")
+          prompts.log.info("Add this to your bootstrap.json:")
           prompts.log.info(`
   "mcp": {
     "${name}": {
@@ -454,7 +454,7 @@ export const McpAddCommand = cmd({
   }`)
         } else {
           prompts.log.info(`Remote MCP server "${name}" configured with OAuth (dynamic registration)`)
-          prompts.log.info("Add this to your opencode.json:")
+          prompts.log.info("Add this to your bootstrap.json:")
           prompts.log.info(`
   "mcp": {
     "${name}": {
@@ -466,7 +466,7 @@ export const McpAddCommand = cmd({
         }
       } else {
         const client = new Client({
-          name: "opencode",
+          name: "bootstrap",
           version: "1.0.0",
         })
         const transport = new StreamableHTTPClientTransport(new URL(url))
@@ -562,7 +562,7 @@ export const McpDebugCommand = cmd({
               params: {
                 protocolVersion: "2024-11-05",
                 capabilities: {},
-                clientInfo: { name: "opencode-debug", version: Installation.VERSION },
+                clientInfo: { name: "bootstrap-debug", version: Installation.VERSION },
               },
               id: 1,
             }),
@@ -603,7 +603,7 @@ export const McpDebugCommand = cmd({
 
             try {
               const client = new Client({
-                name: "opencode-debug",
+                name: "bootstrap-debug",
                 version: Installation.VERSION,
               })
               await client.connect(transport)

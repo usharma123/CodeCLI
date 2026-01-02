@@ -1,7 +1,5 @@
 import path from "path"
-import { exec } from "child_process"
 import * as prompts from "@clack/prompts"
-import { map, pipe, sortBy, values } from "remeda"
 import { Octokit } from "@octokit/rest"
 import { graphql } from "@octokit/graphql"
 import * as core from "@actions/core"
@@ -17,7 +15,6 @@ import type {
 } from "@octokit/webhooks-types"
 import { UI } from "../ui"
 import { cmd } from "./cmd"
-import { ModelsDev } from "../../provider/models"
 import { Instance } from "@/project/instance"
 import { bootstrap } from "../bootstrap"
 import { Session } from "../../session"
@@ -131,13 +128,11 @@ type IssueQueryResponse = {
   }
 }
 
-const AGENT_USERNAME = "opencode-agent[bot]"
+const AGENT_USERNAME = "bootstrap-agent[bot]"
 const AGENT_REACTION = "eyes"
-const WORKFLOW_FILE = ".github/workflows/opencode.yml"
+const WORKFLOW_FILE = ".github/workflows/bootstrap.yml"
 
 // Event categories for routing
-// USER_EVENTS: triggered by user actions, have actor/issueId, support reactions/comments
-// REPO_EVENTS: triggered by automation, no actor/issueId, output to logs/PR only
 const USER_EVENTS = ["issue_comment", "pull_request_review_comment", "issues", "pull_request"] as const
 const REPO_EVENTS = ["schedule", "workflow_dispatch"] as const
 const SUPPORTED_EVENTS = [...USER_EVENTS, ...REPO_EVENTS] as const
@@ -145,13 +140,7 @@ const SUPPORTED_EVENTS = [...USER_EVENTS, ...REPO_EVENTS] as const
 type UserEvent = (typeof USER_EVENTS)[number]
 type RepoEvent = (typeof REPO_EVENTS)[number]
 
-// Parses GitHub remote URLs in various formats:
-// - https://github.com/owner/repo.git
-// - https://github.com/owner/repo
-// - git@github.com:owner/repo.git
-// - git@github.com:owner/repo
-// - ssh://git@github.com/owner/repo.git
-// - ssh://git@github.com/owner/repo
+// Parses GitHub remote URLs in various formats
 export function parseGitHubRemote(url: string): { owner: string; repo: string } | null {
   const match = url.match(/^(?:(?:https?|ssh):\/\/)?(?:git@)?github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?$/)
   if (!match) return null
@@ -164,213 +153,71 @@ export function parseGitHubRemote(url: string): { owner: string; repo: string } 
  * Throws for truly unusable responses (empty, step-start only, etc.).
  */
 export function extractResponseText(parts: MessageV2.Part[]): string | null {
-  // Priority 1: Look for text parts
   const textPart = parts.findLast((p) => p.type === "text")
   if (textPart) return textPart.text
 
-  // Priority 2: Reasoning-only - return null to signal summary needed
   const reasoningPart = parts.findLast((p) => p.type === "reasoning")
   if (reasoningPart) return null
 
-  // Priority 3: Tool-only - return null to signal summary needed
   const toolParts = parts.filter((p) => p.type === "tool" && p.state.status === "completed")
   if (toolParts.length > 0) return null
 
-  // No usable parts - throw with debug info
   const partTypes = parts.map((p) => p.type).join(", ") || "none"
   throw new Error(`Failed to parse response. Part types found: [${partTypes}]`)
 }
 
 export const GithubCommand = cmd({
   command: "github",
-  describe: "manage GitHub agent",
+  describe: "manage GitHub agent (requires GITHUB_TOKEN)",
   builder: (yargs) => yargs.command(GithubInstallCommand).command(GithubRunCommand).demandCommand(),
   async handler() {},
 })
 
 export const GithubInstallCommand = cmd({
   command: "install",
-  describe: "install the GitHub agent",
+  describe: "install the GitHub agent workflow",
   async handler() {
     await Instance.provide({
       directory: process.cwd(),
       async fn() {
-        {
-          UI.empty()
-          prompts.intro("Install GitHub agent")
-          const app = await getAppInfo()
-          await installGitHubApp()
+        UI.empty()
+        prompts.intro("Install GitHub agent")
 
-          const providers = await ModelsDev.get().then((p) => {
-            // TODO: add guide for copilot, for now just hide it
-            delete p["github-copilot"]
-            return p
-          })
+        const project = Instance.project
+        if (project.vcs !== "git") {
+          prompts.log.error(`Could not find git repository. Please run this command from a git repository.`)
+          throw new UI.CancelledError()
+        }
 
-          const provider = await promptProvider()
-          const model = await promptModel()
-          //const key = await promptKey()
+        // Get repo info
+        const info = (await $`git remote get-url origin`.quiet().nothrow().text()).trim()
+        const parsed = parseGitHubRemote(info)
+        if (!parsed) {
+          prompts.log.error(`Could not find GitHub repository. Please run this command from a GitHub repository.`)
+          throw new UI.CancelledError()
+        }
+        const app = { owner: parsed.owner, repo: parsed.repo, root: Instance.worktree }
 
-          await addWorkflowFiles()
-          printNextSteps()
+        prompts.log.info(`Repository: ${app.owner}/${app.repo}`)
+        prompts.log.warn("Note: GitHub agent requires GITHUB_TOKEN with appropriate permissions.")
 
-          function printNextSteps() {
-            let step2
-            if (provider === "amazon-bedrock") {
-              step2 =
-                "Configure OIDC in AWS - https://docs.github.com/en/actions/how-tos/security-for-github-actions/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services"
-            } else {
-              step2 = [
-                `    2. Add the following secrets in org or repo (${app.owner}/${app.repo}) settings`,
-                "",
-                ...providers[provider].env.map((e) => `       - ${e}`),
-              ].join("\n")
-            }
+        // Get provider/model from user
+        const modelInput = await prompts.text({
+          message: "Enter model (format: provider/model)",
+          placeholder: "anthropic/claude-sonnet-4-20250514",
+          validate: (x) => {
+            if (!x || !x.includes("/")) return "Model must be in format provider/model"
+            return undefined
+          },
+        })
+        if (prompts.isCancel(modelInput)) throw new UI.CancelledError()
 
-            prompts.outro(
-              [
-                "Next steps:",
-                "",
-                `    1. Commit the \`${WORKFLOW_FILE}\` file and push`,
-                step2,
-                "",
-                "    3. Go to a GitHub issue and comment `/oc summarize` to see the agent in action",
-                "",
-                "   Learn more about the GitHub agent - https://opencode.ai/docs/github/#usage-examples",
-              ].join("\n"),
-            )
-          }
+        const [provider, model] = modelInput.split("/", 2)
 
-          async function getAppInfo() {
-            const project = Instance.project
-            if (project.vcs !== "git") {
-              prompts.log.error(`Could not find git repository. Please run this command from a git repository.`)
-              throw new UI.CancelledError()
-            }
-
-            // Get repo info
-            const info = (await $`git remote get-url origin`.quiet().nothrow().text()).trim()
-            const parsed = parseGitHubRemote(info)
-            if (!parsed) {
-              prompts.log.error(`Could not find git repository. Please run this command from a git repository.`)
-              throw new UI.CancelledError()
-            }
-            return { owner: parsed.owner, repo: parsed.repo, root: Instance.worktree }
-          }
-
-          async function promptProvider() {
-            const priority: Record<string, number> = {
-              opencode: 0,
-              anthropic: 1,
-              openai: 2,
-              google: 3,
-            }
-            let provider = await prompts.select({
-              message: "Select provider",
-              maxItems: 8,
-              options: pipe(
-                providers,
-                values(),
-                sortBy(
-                  (x) => priority[x.id] ?? 99,
-                  (x) => x.name ?? x.id,
-                ),
-                map((x) => ({
-                  label: x.name,
-                  value: x.id,
-                  hint: priority[x.id] === 0 ? "recommended" : undefined,
-                })),
-              ),
-            })
-
-            if (prompts.isCancel(provider)) throw new UI.CancelledError()
-
-            return provider
-          }
-
-          async function promptModel() {
-            const providerData = providers[provider]!
-
-            const model = await prompts.select({
-              message: "Select model",
-              maxItems: 8,
-              options: pipe(
-                providerData.models,
-                values(),
-                sortBy((x) => x.name ?? x.id),
-                map((x) => ({
-                  label: x.name ?? x.id,
-                  value: x.id,
-                })),
-              ),
-            })
-
-            if (prompts.isCancel(model)) throw new UI.CancelledError()
-            return model
-          }
-
-          async function installGitHubApp() {
-            const s = prompts.spinner()
-            s.start("Installing GitHub app")
-
-            // Get installation
-            const installation = await getInstallation()
-            if (installation) return s.stop("GitHub app already installed")
-
-            // Open browser
-            const url = "https://github.com/apps/opencode-agent"
-            const command =
-              process.platform === "darwin"
-                ? `open "${url}"`
-                : process.platform === "win32"
-                  ? `start "" "${url}"`
-                  : `xdg-open "${url}"`
-
-            exec(command, (error) => {
-              if (error) {
-                prompts.log.warn(`Could not open browser. Please visit: ${url}`)
-              }
-            })
-
-            // Wait for installation
-            s.message("Waiting for GitHub app to be installed")
-            const MAX_RETRIES = 120
-            let retries = 0
-            do {
-              const installation = await getInstallation()
-              if (installation) break
-
-              if (retries > MAX_RETRIES) {
-                s.stop(
-                  `Failed to detect GitHub app installation. Make sure to install the app for the \`${app.owner}/${app.repo}\` repository.`,
-                )
-                throw new UI.CancelledError()
-              }
-
-              retries++
-              await new Promise((resolve) => setTimeout(resolve, 1000))
-            } while (true)
-
-            s.stop("Installed GitHub app")
-
-            async function getInstallation() {
-              return await fetch(
-                `https://api.opencode.ai/get_github_app_installation?owner=${app.owner}&repo=${app.repo}`,
-              )
-                .then((res) => res.json())
-                .then((data) => data.installation)
-            }
-          }
-
-          async function addWorkflowFiles() {
-            const envStr =
-              provider === "amazon-bedrock"
-                ? ""
-                : `\n        env:${providers[provider].env.map((e) => `\n          ${e}: \${{ secrets.${e} }}`).join("")}`
-
-            await Bun.write(
-              path.join(app.root, WORKFLOW_FILE),
-              `name: opencode
+        // Create workflow file
+        await Bun.write(
+          path.join(app.root, WORKFLOW_FILE),
+          `name: bootstrap
 
 on:
   issue_comment:
@@ -379,31 +226,49 @@ on:
     types: [created]
 
 jobs:
-  opencode:
+  bootstrap:
     if: |
-      contains(github.event.comment.body, ' /oc') ||
-      startsWith(github.event.comment.body, '/oc') ||
-      contains(github.event.comment.body, ' /opencode') ||
-      startsWith(github.event.comment.body, '/opencode')
+      contains(github.event.comment.body, ' /bs') ||
+      startsWith(github.event.comment.body, '/bs') ||
+      contains(github.event.comment.body, ' /bootstrap') ||
+      startsWith(github.event.comment.body, '/bootstrap')
     runs-on: ubuntu-latest
     permissions:
       id-token: write
-      contents: read
-      pull-requests: read
-      issues: read
+      contents: write
+      pull-requests: write
+      issues: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run opencode
-        uses: sst/opencode/github@latest${envStr}
-        with:
-          model: ${provider}/${model}`,
-            )
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
 
-            prompts.log.success(`Added workflow file: "${WORKFLOW_FILE}"`)
-          }
-        }
+      - name: Run bootstrap
+        env:
+          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          MODEL: ${provider}/${model}
+          # Add your provider API key secret here, e.g.:
+          # ANTHROPIC_API_KEY: \${{ secrets.ANTHROPIC_API_KEY }}
+          # OPENROUTER_API_KEY: \${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          bunx bootstrap-ai github run
+`,
+        )
+
+        prompts.log.success(`Added workflow file: "${WORKFLOW_FILE}"`)
+
+        prompts.outro(
+          [
+            "Next steps:",
+            "",
+            `    1. Commit the \`${WORKFLOW_FILE}\` file and push`,
+            `    2. Add your API key secret (e.g., ANTHROPIC_API_KEY) in repo settings`,
+            "",
+            `    3. Go to a GitHub issue and comment \`/bs summarize\` to see the agent in action`,
+          ].join("\n"),
+        )
       },
     })
   },
@@ -420,7 +285,7 @@ export const GithubRunCommand = cmd({
       })
       .option("token", {
         type: "string",
-        describe: "GitHub personal access token (github_pat_********)",
+        describe: "GitHub personal access token",
       }),
   async handler(args) {
     await bootstrap(process.cwd(), async () => {
@@ -432,9 +297,6 @@ export const GithubRunCommand = cmd({
         process.exit(1)
       }
 
-      // Determine event category for routing
-      // USER_EVENTS: have actor, issueId, support reactions/comments
-      // REPO_EVENTS: no actor/issueId, output to logs/PR only
       const isUserEvent = USER_EVENTS.includes(context.eventName as UserEvent)
       const isRepoEvent = REPO_EVENTS.includes(context.eventName as RepoEvent)
       const isCommentEvent = ["issue_comment", "pull_request_review_comment"].includes(context.eventName)
@@ -444,10 +306,7 @@ export const GithubRunCommand = cmd({
 
       const { providerID, modelID } = normalizeModel()
       const runId = normalizeRunId()
-      const share = normalizeShare()
-      const oidcBaseUrl = normalizeOidcBaseUrl()
       const { owner, repo } = context.repo
-      // For repo events (schedule, workflow_dispatch), payload has no issue/comment data
       const payload = context.payload as
         | IssueCommentEvent
         | IssuesEvent
@@ -456,7 +315,6 @@ export const GithubRunCommand = cmd({
         | WorkflowRunEvent
         | PullRequestEvent
       const issueEvent = isIssueCommentEvent(payload) ? payload : undefined
-      // workflow_dispatch has an actor (the user who triggered it), schedule does not
       const actor = isScheduleEvent ? undefined : context.actor
 
       const issueId = isRepoEvent
@@ -465,20 +323,16 @@ export const GithubRunCommand = cmd({
           ? (payload as IssueCommentEvent | IssuesEvent).issue.number
           : (payload as PullRequestEvent | PullRequestReviewCommentEvent).pull_request.number
       const runUrl = `/${owner}/${repo}/actions/runs/${runId}`
-      const shareBaseUrl = isMock ? "https://dev.opencode.ai" : "https://opencode.ai"
 
       let appToken: string
       let octoRest: Octokit
       let octoGraph: typeof graphql
-      let gitConfig: string
       let session: { id: string; title: string; version: string }
-      let shareId: string | undefined
       let exitCode = 0
       type PromptFiles = Awaited<ReturnType<typeof getUserPrompt>>["promptFiles"]
       const triggerCommentId = isCommentEvent
         ? (payload as IssueCommentEvent | PullRequestReviewCommentEvent).comment.id
         : undefined
-      const useGithubToken = normalizeUseGithubToken()
       const commentType = isCommentEvent
         ? context.eventName === "pull_request_review_comment"
           ? "pr_review"
@@ -486,51 +340,32 @@ export const GithubRunCommand = cmd({
         : undefined
 
       try {
-        if (useGithubToken) {
-          const githubToken = process.env["GITHUB_TOKEN"]
-          if (!githubToken) {
-            throw new Error(
-              "GITHUB_TOKEN environment variable is not set. When using use_github_token, you must provide GITHUB_TOKEN.",
-            )
-          }
-          appToken = githubToken
-        } else {
-          const actionToken = isMock ? args.token! : await getOidcToken()
-          appToken = await exchangeForAppToken(actionToken)
+        // Use GITHUB_TOKEN from environment
+        const githubToken = args.token || process.env["GITHUB_TOKEN"]
+        if (!githubToken) {
+          throw new Error("GITHUB_TOKEN environment variable is not set.")
         }
+        appToken = githubToken
+
         octoRest = new Octokit({ auth: appToken })
         octoGraph = graphql.defaults({
           headers: { authorization: `token ${appToken}` },
         })
 
         const { userPrompt, promptFiles } = await getUserPrompt()
-        if (!useGithubToken) {
-          await configureGit(appToken)
-        }
-        // Skip permission check and reactions for repo events (no actor to check, no issue to react to)
+        await configureGit()
+
         if (isUserEvent) {
           await assertPermissions()
           await addReaction(commentType)
         }
 
-        // Setup opencode session
         const repoData = await fetchRepo()
         session = await Session.create({})
         subscribeSessionEvents()
-        shareId = await (async () => {
-          if (share === false) return
-          if (!share && repoData.data.private) return
-          await Session.share(session.id)
-          return session.id.slice(-8)
-        })()
-        console.log("opencode session", session.id)
+        console.log("bootstrap session", session.id)
 
-        // Handle event types:
-        // REPO_EVENTS (schedule, workflow_dispatch): no issue/PR context, output to logs/PR only
-        // USER_EVENTS on PR (pull_request, pull_request_review_comment, issue_comment on PR): work on PR branch
-        // USER_EVENTS on Issue (issue_comment on issue, issues): create new branch, may create PR
         if (isRepoEvent) {
-          // Repo event - no issue/PR context, output goes to logs
           if (isWorkflowDispatchEvent && actor) {
             console.log(`Triggered by: ${actor}`)
           }
@@ -541,14 +376,13 @@ export const GithubRunCommand = cmd({
           const { dirty, uncommittedChanges } = await branchIsDirty(head)
           if (dirty) {
             const summary = await summarize(response)
-            // workflow_dispatch has an actor for co-author attribution, schedule does not
             await pushToNewBranch(summary, branch, uncommittedChanges, isScheduleEvent)
             const triggerType = isWorkflowDispatchEvent ? "workflow_dispatch" : "scheduled workflow"
             const pr = await createPR(
               repoData.data.default_branch,
               branch,
               summary,
-              `${response}\n\nTriggered by ${triggerType}${footer({ image: true })}`,
+              `${response}\n\nTriggered by ${triggerType}${footer()}`,
             )
             console.log(`Created PR #${pr}`)
           } else {
@@ -559,7 +393,6 @@ export const GithubRunCommand = cmd({
           issueEvent?.issue.pull_request
         ) {
           const prData = await fetchPR()
-          // Local PR
           if (prData.headRepository.nameWithOwner === prData.baseRepository.nameWithOwner) {
             await checkoutLocalBranch(prData)
             const head = (await $`git rev-parse HEAD`).stdout.toString().trim()
@@ -570,12 +403,9 @@ export const GithubRunCommand = cmd({
               const summary = await summarize(response)
               await pushToLocalBranch(summary, uncommittedChanges)
             }
-            const hasShared = prData.comments.nodes.some((c) => c.body.includes(`${shareBaseUrl}/s/${shareId}`))
-            await createComment(`${response}${footer({ image: !hasShared })}`)
+            await createComment(`${response}${footer()}`)
             await removeReaction(commentType)
-          }
-          // Fork PR
-          else {
+          } else {
             await checkoutForkBranch(prData)
             const head = (await $`git rev-parse HEAD`).stdout.toString().trim()
             const dataPrompt = buildPromptDataForPR(prData)
@@ -585,13 +415,10 @@ export const GithubRunCommand = cmd({
               const summary = await summarize(response)
               await pushToForkBranch(summary, prData, uncommittedChanges)
             }
-            const hasShared = prData.comments.nodes.some((c) => c.body.includes(`${shareBaseUrl}/s/${shareId}`))
-            await createComment(`${response}${footer({ image: !hasShared })}`)
+            await createComment(`${response}${footer()}`)
             await removeReaction(commentType)
           }
-        }
-        // Issue
-        else {
+        } else {
           const branch = await checkoutNewBranch("issue")
           const head = (await $`git rev-parse HEAD`).stdout.toString().trim()
           const issueData = await fetchIssue()
@@ -605,12 +432,12 @@ export const GithubRunCommand = cmd({
               repoData.data.default_branch,
               branch,
               summary,
-              `${response}\n\nCloses #${issueId}${footer({ image: true })}`,
+              `${response}\n\nCloses #${issueId}${footer()}`,
             )
-            await createComment(`Created PR #${pr}${footer({ image: true })}`)
+            await createComment(`Created PR #${pr}${footer()}`)
             await removeReaction(commentType)
           } else {
-            await createComment(`${response}${footer({ image: true })}`)
+            await createComment(`${response}${footer()}`)
             await removeReaction(commentType)
           }
         }
@@ -628,13 +455,6 @@ export const GithubRunCommand = cmd({
           await removeReaction(commentType)
         }
         core.setFailed(msg)
-        // Also output the clean error message for the action to capture
-        //core.setOutput("prepare_error", e.message);
-      } finally {
-        if (!useGithubToken) {
-          await restoreGitConfig()
-          await revokeAppToken()
-        }
       }
       process.exit(exitCode)
 
@@ -653,28 +473,6 @@ export const GithubRunCommand = cmd({
         const value = process.env["GITHUB_RUN_ID"]
         if (!value) throw new Error(`Environment variable "GITHUB_RUN_ID" is not set`)
         return value
-      }
-
-      function normalizeShare() {
-        const value = process.env["SHARE"]
-        if (!value) return undefined
-        if (value === "true") return true
-        if (value === "false") return false
-        throw new Error(`Invalid share value: ${value}. Share must be a boolean.`)
-      }
-
-      function normalizeUseGithubToken() {
-        const value = process.env["USE_GITHUB_TOKEN"]
-        if (!value) return false
-        if (value === "true") return true
-        if (value === "false") return false
-        throw new Error(`Invalid use_github_token value: ${value}. Must be a boolean.`)
-      }
-
-      function normalizeOidcBaseUrl(): string {
-        const value = process.env["OIDC_BASE_URL"]
-        if (!value) return "https://api.opencode.ai"
-        return value.replace(/\/+$/, "")
       }
 
       function isIssueCommentEvent(
@@ -708,7 +506,6 @@ export const GithubRunCommand = cmd({
 
       async function getUserPrompt() {
         const customPrompt = process.env["PROMPT"]
-        // For repo events and issues events, PROMPT is required since there's no comment to extract from
         if (isRepoEvent || isIssuesEvent) {
           if (!customPrompt) {
             const eventType = isRepoEvent ? "scheduled and workflow_dispatch" : "issues"
@@ -722,7 +519,7 @@ export const GithubRunCommand = cmd({
         }
 
         const reviewContext = getReviewCommentContext()
-        const mentions = (process.env["MENTIONS"] || "/opencode,/oc")
+        const mentions = (process.env["MENTIONS"] || "/bootstrap,/bs")
           .split(",")
           .map((m) => m.trim().toLowerCase())
           .filter(Boolean)
@@ -747,7 +544,6 @@ export const GithubRunCommand = cmd({
           throw new Error(`Comments must mention ${mentions.map((m) => "`" + m + "`").join(" or ")}`)
         })()
 
-        // Handle images
         const imgData: {
           filename: string
           mime: string
@@ -757,10 +553,6 @@ export const GithubRunCommand = cmd({
           replacement: string
         }[] = []
 
-        // Search for files
-        // ie. <img alt="Image" src="https://github.com/user-attachments/assets/xxxx" />
-        // ie. [api.json](https://github.com/user-attachments/files/21433810/api.json)
-        // ie. ![Image](https://github.com/user-attachments/assets/xxxx)
         const mdMatches = prompt.matchAll(/!?\[.*?\]\((https:\/\/github\.com\/user-attachments\/[^)]+)\)/gi)
         const tagMatches = prompt.matchAll(/<img .*?src="(https:\/\/github\.com\/user-attachments\/[^"]+)" \/>/gi)
         const matches = [...mdMatches, ...tagMatches].sort((a, b) => a.index - b.index)
@@ -773,7 +565,6 @@ export const GithubRunCommand = cmd({
           const start = m.index
           const filename = path.basename(url)
 
-          // Download image
           const res = await fetch(url, {
             headers: {
               Authorization: `Bearer ${appToken}`,
@@ -785,7 +576,6 @@ export const GithubRunCommand = cmd({
             continue
           }
 
-          // Replace img tag with file path, ie. @image.png
           const replacement = `@${filename}`
           prompt = prompt.slice(0, start + offset) + replacement + prompt.slice(start + offset + tag.length)
           offset += replacement.length - tag.length
@@ -829,7 +619,6 @@ export const GithubRunCommand = cmd({
         let text = ""
         Bus.subscribe(MessageV2.Event.PartUpdated, async (evt) => {
           if (evt.properties.part.sessionID !== session.id) return
-          //if (evt.properties.part.messageID === messageID) return
           const part = evt.properties.part
 
           if (part.type === "tool" && part.state.status === "completed") {
@@ -868,7 +657,7 @@ export const GithubRunCommand = cmd({
       }
 
       async function chat(message: string, files: PromptFiles = []) {
-        console.log("Sending message to opencode...")
+        console.log("Sending message to bootstrap...")
 
         const result = await SessionPrompt.prompt({
           sessionID: session.id,
@@ -877,7 +666,6 @@ export const GithubRunCommand = cmd({
             providerID,
             modelID,
           },
-          // agent is omitted - server will use default_agent from config or fall back to "build"
           parts: [
             {
               id: Identifier.ascending("part"),
@@ -905,7 +693,6 @@ export const GithubRunCommand = cmd({
           ],
         })
 
-        // result should always be assistant just satisfying type checker
         if (result.info.role === "assistant" && result.info.error) {
           console.error(result.info)
           throw new Error(
@@ -916,7 +703,6 @@ export const GithubRunCommand = cmd({
         const text = extractResponseText(result.parts)
         if (text) return text
 
-        // No text part (tool-only or reasoning-only) - ask agent to summarize
         console.log("Requesting summary from agent...")
         const summary = await SessionPrompt.prompt({
           sessionID: session.id,
@@ -925,7 +711,7 @@ export const GithubRunCommand = cmd({
             providerID,
             modelID,
           },
-          tools: { "*": false }, // Disable all tools to force text response
+          tools: { "*": false },
           parts: [
             {
               id: Identifier.ascending("part"),
@@ -950,65 +736,12 @@ export const GithubRunCommand = cmd({
         return summaryText
       }
 
-      async function getOidcToken() {
-        try {
-          return await core.getIDToken("opencode-github-action")
-        } catch (error) {
-          console.error("Failed to get OIDC token:", error)
-          throw new Error(
-            "Could not fetch an OIDC token. Make sure to add `id-token: write` to your workflow permissions.",
-          )
-        }
-      }
-
-      async function exchangeForAppToken(token: string) {
-        const response = token.startsWith("github_pat_")
-          ? await fetch(`${oidcBaseUrl}/exchange_github_app_token_with_pat`, {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify({ owner, repo }),
-            })
-          : await fetch(`${oidcBaseUrl}/exchange_github_app_token`, {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            })
-
-        if (!response.ok) {
-          const responseJson = (await response.json()) as { error?: string }
-          throw new Error(
-            `App token exchange failed: ${response.status} ${response.statusText} - ${responseJson.error}`,
-          )
-        }
-
-        const responseJson = (await response.json()) as { token: string }
-        return responseJson.token
-      }
-
-      async function configureGit(appToken: string) {
-        // Do not change git config when running locally
+      async function configureGit() {
         if (isMock) return
 
         console.log("Configuring git...")
-        const config = "http.https://github.com/.extraheader"
-        const ret = await $`git config --local --get ${config}`
-        gitConfig = ret.stdout.toString().trim()
-
-        const newCredentials = Buffer.from(`x-access-token:${appToken}`, "utf8").toString("base64")
-
-        await $`git config --local --unset-all ${config}`
-        await $`git config --local ${config} "AUTHORIZATION: basic ${newCredentials}"`
         await $`git config --global user.name "${AGENT_USERNAME}"`
         await $`git config --global user.email "${AGENT_USERNAME}@users.noreply.github.com"`
-      }
-
-      async function restoreGitConfig() {
-        if (gitConfig === undefined) return
-        const config = "http.https://github.com/.extraheader"
-        await $`git config --local ${config} "${gitConfig}"`
       }
 
       async function checkoutNewBranch(type: "issue" | "schedule" | "dispatch") {
@@ -1049,9 +782,9 @@ export const GithubRunCommand = cmd({
           .join("")
         if (type === "schedule" || type === "dispatch") {
           const hex = crypto.randomUUID().slice(0, 6)
-          return `opencode/${type}-${hex}-${timestamp}`
+          return `bootstrap/${type}-${hex}-${timestamp}`
         }
-        return `opencode/${type}${issueId}-${timestamp}`
+        return `bootstrap/${type}${issueId}-${timestamp}`
       }
 
       async function pushToNewBranch(summary: string, branch: string, commit: boolean, isSchedule: boolean) {
@@ -1059,7 +792,6 @@ export const GithubRunCommand = cmd({
         if (commit) {
           await $`git add .`
           if (isSchedule) {
-            // No co-author for scheduled events - the schedule is operating as the repo
             await $`git commit -m "${summary}"`
           } else {
             await $`git commit -m "${summary}
@@ -1113,7 +845,6 @@ Co-authored-by: ${actor} <${actor}@users.noreply.github.com>"`
       }
 
       async function assertPermissions() {
-        // Only called for non-schedule events, so actor is defined
         console.log(`Asserting permissions for user ${actor}...`)
 
         let permission
@@ -1135,7 +866,6 @@ Co-authored-by: ${actor} <${actor}@users.noreply.github.com>"`
       }
 
       async function addReaction(commentType?: "issue" | "pr_review") {
-        // Only called for non-schedule events, so triggerCommentId is defined
         console.log("Adding reaction...")
         if (triggerCommentId) {
           if (commentType === "pr_review") {
@@ -1162,7 +892,6 @@ Co-authored-by: ${actor} <${actor}@users.noreply.github.com>"`
       }
 
       async function removeReaction(commentType?: "issue" | "pr_review") {
-        // Only called for non-schedule events, so triggerCommentId is defined
         console.log("Removing reaction...")
         if (triggerCommentId) {
           if (commentType === "pr_review") {
@@ -1221,7 +950,6 @@ Co-authored-by: ${actor} <${actor}@users.noreply.github.com>"`
       }
 
       async function createComment(body: string) {
-        // Only called for non-schedule events, so issueId is defined
         console.log("Creating comment...")
         return await octoRest.rest.issues.createComment({
           owner,
@@ -1244,18 +972,8 @@ Co-authored-by: ${actor} <${actor}@users.noreply.github.com>"`
         return pr.data.number
       }
 
-      function footer(opts?: { image?: boolean }) {
-        const image = (() => {
-          if (!shareId) return ""
-          if (!opts?.image) return ""
-
-          const titleAlt = encodeURIComponent(session.title.substring(0, 50))
-          const title64 = Buffer.from(session.title.substring(0, 700), "utf8").toString("base64")
-
-          return `<a href="${shareBaseUrl}/s/${shareId}"><img width="200" alt="${titleAlt}" src="https://social-cards.sst.dev/opencode-share/${title64}.png?model=${providerID}/${modelID}&version=${session.version}&id=${shareId}" /></a>\n`
-        })()
-        const shareUrl = shareId ? `[opencode session](${shareBaseUrl}/s/${shareId})&nbsp;&nbsp;|&nbsp;&nbsp;` : ""
-        return `\n\n${image}${shareUrl}[github run](${runUrl})`
+      function footer() {
+        return `\n\n[github run](${runUrl})`
       }
 
       async function fetchRepo() {
@@ -1304,7 +1022,6 @@ query($owner: String!, $repo: String!, $number: Int!) {
       }
 
       function buildPromptDataForIssue(issue: GitHubIssue) {
-        // Only called for non-schedule events, so payload is defined
         const comments = (issue.comments?.nodes || [])
           .filter((c) => {
             const id = parseInt(c.databaseId)
@@ -1315,7 +1032,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
         return [
           "<github_action_context>",
           "You are running as a GitHub Action. Important:",
-          "- Git push and PR creation are handled AUTOMATICALLY by the opencode infrastructure after your response",
+          "- Git push and PR creation are handled AUTOMATICALLY by the bootstrap infrastructure after your response",
           "- Do NOT include warnings or disclaimers about GitHub tokens, workflow permissions, or PR creation capabilities",
           "- Do NOT suggest manual steps for creating PRs or pushing code - this happens automatically",
           "- Focus only on the code changes and your analysis/response",
@@ -1432,7 +1149,6 @@ query($owner: String!, $repo: String!, $number: Int!) {
       }
 
       function buildPromptDataForPR(pr: GitHubPullRequest) {
-        // Only called for non-schedule events, so payload is defined
         const comments = (pr.comments?.nodes || [])
           .filter((c) => {
             const id = parseInt(c.databaseId)
@@ -1453,7 +1169,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
         return [
           "<github_action_context>",
           "You are running as a GitHub Action. Important:",
-          "- Git push and PR creation are handled AUTOMATICALLY by the opencode infrastructure after your response",
+          "- Git push and PR creation are handled AUTOMATICALLY by the bootstrap infrastructure after your response",
           "- Do NOT include warnings or disclaimers about GitHub tokens, workflow permissions, or PR creation capabilities",
           "- Do NOT suggest manual steps for creating PRs or pushing code - this happens automatically",
           "- Focus only on the code changes and your analysis/response",
@@ -1477,19 +1193,6 @@ query($owner: String!, $repo: String!, $number: Int!) {
           ...(reviewData.length > 0 ? ["<pull_request_reviews>", ...reviewData, "</pull_request_reviews>"] : []),
           "</pull_request>",
         ].join("\n")
-      }
-
-      async function revokeAppToken() {
-        if (!appToken) return
-
-        await fetch("https://api.github.com/installation/token", {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${appToken}`,
-            Accept: "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-          },
-        })
       }
     })
   },

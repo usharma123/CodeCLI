@@ -52,7 +52,8 @@ export namespace Ide {
     const cmd = SUPPORTED_IDES.find((i) => i.name === ide)?.cmd
     if (!cmd) throw new Error(`Unknown IDE: ${ide}`)
 
-    const p = spawn([cmd, "--install-extension", "sst-dev.opencode"], {
+    // IDE extension installation - disabled for local use
+    const p = spawn([cmd, "--version"], {
       stdout: "pipe",
       stderr: "pipe",
     })

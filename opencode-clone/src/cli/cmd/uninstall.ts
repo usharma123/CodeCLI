@@ -23,7 +23,7 @@ interface RemovalTargets {
 
 export const UninstallCommand = {
   command: "uninstall",
-  describe: "uninstall bootstrap and remove all related files",
+  describe: "uninstall Bootstrap and remove all related files",
   builder: (yargs: Argv) =>
     yargs
       .option("keep-config", {
@@ -54,7 +54,7 @@ export const UninstallCommand = {
     UI.empty()
     UI.println(UI.logo("  "))
     UI.empty()
-    prompts.intro("Uninstall OpenCode")
+    prompts.intro("Uninstall Bootstrap")
 
     const method = await Installation.method()
     prompts.log.info(`Installation method: ${method}`)
@@ -94,8 +94,8 @@ async function collectRemovalTargets(args: UninstallArgs, method: Installation.M
     { path: Global.Path.state, label: "State", keep: false },
   ]
 
-  const shellConfig = method === "curl" ? await getShellConfigFile() : null
-  const binary = method === "curl" ? process.execPath : null
+  const shellConfig = method === "local" ? await getShellConfigFile() : null
+  const binary = method === "local" ? process.execPath : null
 
   return { directories, shellConfig, binary }
 }
@@ -126,15 +126,8 @@ async function showRemovalSummary(targets: RemovalTargets, method: Installation.
     prompts.log.info(`  ✓ Shell PATH in ${shortenPath(targets.shellConfig)}`)
   }
 
-  if (method !== "curl" && method !== "unknown") {
-    const cmds: Record<string, string> = {
-      npm: "npm uninstall -g opencode-ai",
-      pnpm: "pnpm uninstall -g opencode-ai",
-      bun: "bun remove -g opencode-ai",
-      yarn: "yarn global remove opencode-ai",
-      brew: "brew uninstall bootstrap",
-    }
-    prompts.log.info(`  ✓ Package: ${cmds[method] || method}`)
+  if (method === "bun") {
+    prompts.log.info(`  ✓ Package: bun remove -g bootstrap-ai`)
   }
 }
 
@@ -175,36 +168,25 @@ async function executeUninstall(method: Installation.Method, targets: RemovalTar
     }
   }
 
-  if (method !== "curl" && method !== "unknown") {
-    const cmds: Record<string, string[]> = {
-      npm: ["npm", "uninstall", "-g", "opencode-ai"],
-      pnpm: ["pnpm", "uninstall", "-g", "opencode-ai"],
-      bun: ["bun", "remove", "-g", "opencode-ai"],
-      yarn: ["yarn", "global", "remove", "opencode-ai"],
-      brew: ["brew", "uninstall", "opencode"],
-    }
-
-    const cmd = cmds[method]
-    if (cmd) {
-      spinner.start(`Running ${cmd.join(" ")}...`)
-      const result = await $`${cmd}`.quiet().nothrow()
-      if (result.exitCode !== 0) {
-        spinner.stop(`Package manager uninstall failed`, 1)
-        prompts.log.warn(`You may need to run manually: ${cmd.join(" ")}`)
-        errors.push(`Package manager: exit code ${result.exitCode}`)
-      } else {
-        spinner.stop("Package removed")
-      }
+  if (method === "bun") {
+    spinner.start(`Running bun remove -g bootstrap-ai...`)
+    const result = await $`bun remove -g bootstrap-ai`.quiet().nothrow()
+    if (result.exitCode !== 0) {
+      spinner.stop(`Package manager uninstall failed`, 1)
+      prompts.log.warn(`You may need to run manually: bun remove -g bootstrap-ai`)
+      errors.push(`Package manager: exit code ${result.exitCode}`)
+    } else {
+      spinner.stop("Package removed")
     }
   }
 
-  if (method === "curl" && targets.binary) {
+  if (method === "local" && targets.binary) {
     UI.empty()
     prompts.log.message("To finish removing the binary, run:")
     prompts.log.info(`  rm "${targets.binary}"`)
 
     const binDir = path.dirname(targets.binary)
-    if (binDir.includes(".opencode")) {
+    if (binDir.includes(".bootstrap")) {
       prompts.log.info(`  rmdir "${binDir}" 2>/dev/null`)
     }
   }
@@ -218,7 +200,7 @@ async function executeUninstall(method: Installation.Method, targets: RemovalTar
   }
 
   UI.empty()
-  prompts.log.success("Thank you for using OpenCode!")
+  prompts.log.success("Thank you for using Bootstrap!")
 }
 
 async function getShellConfigFile(): Promise<string | null> {
@@ -257,7 +239,7 @@ async function getShellConfigFile(): Promise<string | null> {
     const content = await Bun.file(file)
       .text()
       .catch(() => "")
-    if (content.includes("# opencode") || content.includes(".opencode/bin")) {
+    if (content.includes("# bootstrap") || content.includes(".bootstrap/bin")) {
       return file
     }
   }
@@ -275,21 +257,21 @@ async function cleanShellConfig(file: string) {
   for (const line of lines) {
     const trimmed = line.trim()
 
-    if (trimmed === "# opencode") {
+    if (trimmed === "# bootstrap") {
       skip = true
       continue
     }
 
     if (skip) {
       skip = false
-      if (trimmed.includes(".opencode/bin") || trimmed.includes("fish_add_path")) {
+      if (trimmed.includes(".bootstrap/bin") || trimmed.includes("fish_add_path")) {
         continue
       }
     }
 
     if (
-      (trimmed.startsWith("export PATH=") && trimmed.includes(".opencode/bin")) ||
-      (trimmed.startsWith("fish_add_path") && trimmed.includes(".opencode"))
+      (trimmed.startsWith("export PATH=") && trimmed.includes(".bootstrap/bin")) ||
+      (trimmed.startsWith("fish_add_path") && trimmed.includes(".bootstrap"))
     ) {
       continue
     }

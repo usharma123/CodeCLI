@@ -11,7 +11,6 @@ import fs from "fs/promises"
 import { lazy } from "../util/lazy"
 import { NamedError } from "@/util-lib/error"
 import { Flag } from "../flag/flag"
-import { Auth } from "../auth"
 import { type ParseError as JsoncParseError, parse as parseJsonc, printParseErrorCode } from "jsonc-parser"
 import { Instance } from "../project/instance"
 import { LSPServer } from "../lsp/server"
@@ -34,7 +33,6 @@ export namespace Config {
   }
 
   export const state = Instance.state(async () => {
-    const auth = await Auth.all()
     let result = await global()
 
     // Override with custom config if provided
@@ -55,13 +53,7 @@ export namespace Config {
       log.debug("loaded custom config from OPENCODE_CONFIG_CONTENT")
     }
 
-    for (const [key, value] of Object.entries(auth)) {
-      if (value.type === "wellknown") {
-        process.env[value.key] = value.token
-        const wellknown = (await fetch(`${key}/.well-known/opencode`).then((x) => x.json())) as any
-        result = mergeConfigWithPlugins(result, await load(JSON.stringify(wellknown.config ?? {}), process.cwd()))
-      }
-    }
+    // Removed wellknown auth loading - using environment variables only
 
     result.agent = result.agent || {}
     result.mode = result.mode || {}
@@ -740,11 +732,11 @@ export namespace Config {
       keybinds: Keybinds.optional().describe("Custom keybind configurations"),
       logLevel: Log.Level.optional().describe("Log level"),
       tui: TUI.optional().describe("TUI specific settings"),
-      server: Server.optional().describe("Server configuration for opencode serve and web commands"),
+      server: Server.optional().describe("Server configuration for bootstrap serve and web commands"),
       command: z
         .record(z.string(), Command)
         .optional()
-        .describe("Command configuration, see https://opencode.ai/docs/commands"),
+        .describe("Command configuration"),
       watcher: z
         .object({
           ignore: z.array(z.string()).optional(),
@@ -811,7 +803,7 @@ export namespace Config {
         })
         .catchall(Agent)
         .optional()
-        .describe("Agent configuration, see https://opencode.ai/docs/agent"),
+        .describe("Agent configuration"),
       provider: z
         .record(z.string(), Provider)
         .optional()
@@ -950,7 +942,7 @@ export namespace Config {
       .then(async (mod) => {
         const { provider, model, ...rest } = mod.default
         if (provider && model) result.model = `${provider}/${model}`
-        result["$schema"] = "https://opencode.ai/config.json"
+        // Schema reference removed - using local config
         result = mergeDeep(result, rest)
         await Bun.write(path.join(Global.Path.config, "config.json"), JSON.stringify(result, null, 2))
         await fs.unlink(path.join(Global.Path.config, "config"))
@@ -1040,10 +1032,7 @@ export namespace Config {
 
     const parsed = Info.safeParse(data)
     if (parsed.success) {
-      if (!parsed.data.$schema) {
-        parsed.data.$schema = "https://opencode.ai/config.json"
-        await Bun.write(configFilepath, JSON.stringify(parsed.data, null, 2))
-      }
+      // Skip schema auto-setting
       const data = parsed.data
       if (data.plugin) {
         for (let i = 0; i < data.plugin.length; i++) {

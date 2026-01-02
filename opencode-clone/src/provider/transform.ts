@@ -422,10 +422,7 @@ export namespace ProviderTransform {
       }
     }
 
-    if (
-      model.providerID === "baseten" ||
-      (model.providerID === "opencode" && ["kimi-k2-thinking", "glm-4.6"].includes(model.api.id))
-    ) {
+    if (model.providerID === "baseten") {
       result["chat_template_args"] = { enable_thinking: true }
     }
 
@@ -455,11 +452,6 @@ export namespace ProviderTransform {
         result["textVerbosity"] = "low"
       }
 
-      if (model.providerID.startsWith("opencode")) {
-        result["promptCacheKey"] = sessionID
-        result["include"] = ["reasoning.encrypted_content"]
-        result["reasoningSummary"] = "auto"
-      }
     }
     return result
   }

@@ -50,7 +50,7 @@ export namespace Project {
       await matches.return()
       if (git) {
         let worktree = path.dirname(git)
-        let id = await Bun.file(path.join(git, "opencode"))
+        let id = await Bun.file(path.join(git, "bootstrap"))
           .text()
           .then((x) => x.trim())
           .catch(() => {})
@@ -68,7 +68,7 @@ export namespace Project {
                 .toSorted(),
             )
           id = roots[0]
-          if (id) Bun.file(path.join(git, "opencode")).write(id)
+          if (id) Bun.file(path.join(git, "bootstrap")).write(id)
         }
         if (!id)
           return {

@@ -84,7 +84,8 @@ export namespace LLM {
     const provider = await Provider.getProvider(input.model.providerID)
     const small = input.small ? ProviderTransform.smallOptions(input.model) : {}
     const variant = input.model.variants && input.user.variant ? input.model.variants[input.user.variant] : {}
-    const options = pipe(
+    // @ts-ignore - Type instantiation is excessively deep
+    const options: Record<string, any> = pipe(
       ProviderTransform.options(input.model, input.sessionID, provider.options),
       mergeDeep(small),
       mergeDeep(input.model.options),
@@ -160,12 +161,12 @@ export namespace LLM {
       maxOutputTokens,
       abortSignal: input.abort,
       headers: {
-        ...(input.model.providerID.startsWith("opencode")
+        ...(input.model.providerID.startsWith("bootstrap")
           ? {
-              "x-opencode-project": Instance.project.id,
-              "x-opencode-session": input.sessionID,
-              "x-opencode-request": input.user.id,
-              "x-opencode-client": Flag.OPENCODE_CLIENT,
+              "x-bootstrap-project": Instance.project.id,
+              "x-bootstrap-session": input.sessionID,
+              "x-bootstrap-request": input.user.id,
+              "x-bootstrap-client": Flag.OPENCODE_CLIENT,
             }
           : undefined),
         ...input.model.headers,
