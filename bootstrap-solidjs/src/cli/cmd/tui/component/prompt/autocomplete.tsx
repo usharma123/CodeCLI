@@ -363,7 +363,7 @@ export function Autocomplete(props: {
       {
         display: "/status",
         description: "show status",
-        onSelect: () => command.trigger("opencode.status"),
+        onSelect: () => command.trigger("bootstrap.status"),
       },
       {
         display: "/mcp",
@@ -379,11 +379,6 @@ export function Autocomplete(props: {
         display: "/editor",
         description: "open editor",
         onSelect: () => command.trigger("prompt.editor", "prompt"),
-      },
-      {
-        display: "/connect",
-        description: "connect to a provider",
-        onSelect: () => command.trigger("provider.connect"),
       },
       {
         display: "/help",

@@ -289,13 +289,13 @@ export function Sidebar(props: { sessionID: string }) {
                     ✕
                   </text>
                 </box>
-                <text fg={theme.textMuted}>OpenCode includes free models so you can start immediately.</text>
+                <text fg={theme.textMuted}>Bootstrap includes free models so you can start immediately.</text>
                 <text fg={theme.textMuted}>
                   Connect from 75+ providers to use other models, including Claude, GPT, Gemini etc
                 </text>
                 <box flexDirection="row" gap={1} justifyContent="space-between">
                   <text fg={theme.text}>Connect provider</text>
-                  <text fg={theme.textMuted}>/connect</text>
+                  <text fg={theme.textMuted}>ctrl+p</text>
                 </box>
               </box>
             </box>
@@ -305,10 +305,7 @@ export function Sidebar(props: { sessionID: string }) {
             <span style={{ fg: theme.text }}>{directory().split("/").at(-1)}</span>
           </text>
           <text fg={theme.textMuted}>
-            <span style={{ fg: theme.success }}>•</span> <b>Open</b>
-            <span style={{ fg: theme.text }}>
-              <b>Code</b>
-            </span>{" "}
+            <span style={{ fg: theme.success }}>•</span> <b>Bootstrap</b>{" "}
             <span>{Installation.VERSION}</span>
           </text>
         </box>
