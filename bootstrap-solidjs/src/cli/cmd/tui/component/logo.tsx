@@ -3,24 +3,24 @@ import { For } from "solid-js"
 import { useTheme } from "@tui/context/theme"
 
 // Bootstrap ASCII art logo
-const LOGO_LEFT = [`                        `, `█▀▀▄ █▀▀█ █▀▀█ ▀▀█▀▀ █▀▀`, `█▀▀▄ █░░█ █░░█ ░░█░░ ▀▀█`, `▀▀▀░ ▀▀▀▀ ▀▀▀▀ ░░▀░░ ▀▀▀`]
-
-const LOGO_RIGHT = [`              `, `▀▀█▀▀ █▀▀█ █▀▀█ █▀▀█`, `░░█░░ █▄▄▀ █▄▄█ █░░█`, `░░▀░░ ▀░▀▀ ▀░░▀ █▀▀▀`]
+const LOGO_LINES = [
+  "██████╗  ██████╗  ██████╗ ████████╗███████╗████████╗██████╗  █████╗ ██████╗ ",
+  "██╔══██╗██╔═══██╗██╔═══██╗╚══██╔══╝██╔════╝╚══██╔══╝██╔══██╗██╔══██╗██╔══██╗",
+  "██████╔╝██║   ██║██║   ██║   ██║   ███████╗   ██║   ██████╔╝███████║██████╔╝",
+  "██╔══██╗██║   ██║██║   ██║   ██║   ╚════██║   ██║   ██╔══██╗██╔══██║██╔═══╝ ",
+  "██████╔╝╚██████╔╝╚██████╔╝   ██║   ███████║   ██║   ██║  ██║██║  ██║██║     ",
+  "╚═════╝  ╚═════╝  ╚═════╝    ╚═╝   ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     "
+]
 
 export function Logo() {
   const { theme } = useTheme()
   return (
     <box>
-      <For each={LOGO_LEFT}>
-        {(line, index) => (
-          <box flexDirection="row" gap={1}>
-            <text fg={theme.textMuted} selectable={false}>
-              {line}
-            </text>
-            <text fg={theme.text} attributes={TextAttributes.BOLD} selectable={false}>
-              {LOGO_RIGHT[index()]}
-            </text>
-          </box>
+      <For each={LOGO_LINES}>
+        {(line) => (
+          <text fg={theme.primary} attributes={TextAttributes.BOLD} selectable={false}>
+            {line}
+          </text>
         )}
       </For>
     </box>
