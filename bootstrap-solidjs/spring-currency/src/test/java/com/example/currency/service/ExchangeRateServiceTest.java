@@ -143,4 +143,57 @@ class ExchangeRateServiceTest {
                     () -> String.format("Failed for %s to %s", from, to));
         }
     }
+
+    @Nested
+    @DisplayName("Rate Calculation Tests")
+    class RateCalculationTests {
+
+        @Test
+        @DisplayName("Should calculate correct rate for USD to EUR")
+        void shouldCalculateCorrectRateForUsdToEur() {
+            ConversionRequest request = new ConversionRequest(1.0, Currency.USD, Currency.EUR);
+            ConversionResponse response = service.convert(request);
+
+            assertEquals(0.92, response.rate());
+        }
+
+        @Test
+        @DisplayName("Should calculate correct rate for EUR to USD (inverse)")
+        void shouldCalculateCorrectRateForEurToUsd() {
+            ConversionRequest request = new ConversionRequest(1.0, Currency.EUR, Currency.USD);
+            ConversionResponse response = service.convert(request);
+
+            assertEquals(1.087, response.rate(), 0.001);
+        }
+
+        @Test
+        @DisplayName("Should calculate correct rate for cross currency conversion")
+        void shouldCalculateCorrectRateForCrossCurrency() {
+            // GBP to JPY: 149.50 / 0.79 = 189.24
+            ConversionRequest request = new ConversionRequest(1.0, Currency.GBP, Currency.JPY);
+            ConversionResponse response = service.convert(request);
+
+            assertEquals(189.24, response.result(), 0.01);
+        }
+
+        @Test
+        @DisplayName("Should round results to 2 decimal places")
+        void shouldRoundResultsToTwoDecimalPlaces() {
+            // 100 USD to EUR with rate 0.92 = 92.0 exactly
+            ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
+            ConversionResponse response = service.convert(request);
+
+            assertEquals(92.0, response.result());
+        }
+
+        @Test
+        @DisplayName("Should round up correctly")
+        void shouldRoundUpCorrectly() {
+            // 0.005 should round to 0.01
+            ConversionRequest request = new ConversionRequest(0.01, Currency.USD, Currency.EUR);
+            ConversionResponse response = service.convert(request);
+
+            assertEquals(0.01, response.result(), 0.001);
+        }
+    }
 }

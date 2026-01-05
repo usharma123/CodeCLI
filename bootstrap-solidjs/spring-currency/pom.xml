@@ -65,6 +65,12 @@
                         </goals>
                     </execution>
                 </executions>
+                <configuration>
+                    <excludes>
+                        <!-- Exclude main method from coverage - it's bootstrap code -->
+                        <exclude>**/CurrencyApplication*.class</exclude>
+                    </excludes>
+                </configuration>
             </plugin>
         </plugins>
     </build>
