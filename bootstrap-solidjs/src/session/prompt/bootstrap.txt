@@ -100,6 +100,146 @@ When working with Python projects, you are an expert in:
 6. **Keep tests fast** - use mocks instead of real I/O
 7. **Test behavior, not implementation** - focus on outcomes
 
+## Coverage Reporting - CRITICAL
+
+When the user asks about test coverage, you MUST follow this procedure to ensure accurate data:
+
+### Step 1: Delete stale reports
+FIRST, delete any existing coverage report markdown files - they are likely stale:
+```bash
+rm -f TEST_COVERAGE_REPORT.md coverage-report.md COVERAGE.md
+```
+
+### Step 2: Discover actual test files
+Use Glob to find what test files ACTUALLY exist:
+- Java: `src/test/**/*Test.java` or `src/test/**/*Tests.java`
+- Python: `tests/**/test_*.py` or `**/*_test.py`
+
+### Step 3: Run fresh tests with coverage
+Execute tests to generate current coverage data:
+- Java/Maven: `mvn clean test jacoco:report`
+- Java/Gradle: `./gradlew clean test jacocoTestReport`
+- Python: `pytest --cov=src --cov-report=xml --cov-report=term`
+
+### Step 4: Parse actual output for EXACT numbers
+All numbers in your report MUST come directly from tool output. NO estimating or counting annotations.
+
+**For test counts (Java/Maven):**
+- Total tests: Use EXACT number from `[INFO] Tests run: X, Failures: Y, Errors: Z, Skipped: W` (the final summary line)
+- Per-file tests: Sum the `Tests run: X` from each nested test class line for that file
+  - Example: If Maven shows:
+    ```
+    Tests run: 11 ... in CurrencyTest$NameTests
+    Tests run: 2 ... in CurrencyTest$HashCodeTests
+    ```
+  - Then CurrencyTest total = 11 + 2 = 13 (add ALL nested class counts)
+- NEVER count @Test annotations - parameterized tests run multiple times
+
+**For coverage (Java/JaCoCo):**
+- Read `target/site/jacoco/jacoco.csv` directly
+- Use INSTRUCTION_COVERED and INSTRUCTION_MISSED columns for exact numbers
+- Coverage % = INSTRUCTION_COVERED / (INSTRUCTION_COVERED + INSTRUCTION_MISSED) × 100
+
+**For Python:**
+- Use exact numbers from pytest output or coverage.xml
+
+### Step 5: Report accurately - TRUE coverage calculation
+
+**Coverage = classes with dedicated test files / total source classes**
+
+For each source class, check:
+1. Does a dedicated test file exist? (`MyClass.java` → `MyClassTest.java`)
+2. What does JaCoCo report for instruction coverage?
+
+**Report format - IDENTIFY antipatterns clearly:**
+```
+| Class | Dedicated Test | JaCoCo | Status |
+|-------|----------------|--------|--------|
+| UserService | ✅ UserServiceTest.java | 100% (91/91) | ✅ COVERED |
+| Currency | ❌ None | 100% (63/63) | ⚠️ ANTIPATTERN: Incidental coverage only |
+| Config | ❌ None | 0% (0/42) | ❌ NOT COVERED |
+
+True Coverage: 1/3 classes = 33%
+```
+
+**Status definitions:**
+- `✅ COVERED` - Has dedicated test file with JaCoCo coverage
+- `⚠️ ANTIPATTERN: Incidental coverage only` - JaCoCo shows coverage BUT no dedicated test file exists. This is BAD - the class is being "covered" by other tests using it, not by tests that actually verify its behavior.
+- `❌ NOT COVERED` - No test file and no JaCoCo coverage
+
+**The antipattern MUST be flagged** so users can see which classes need dedicated tests. Incidental coverage provides false confidence and must be fixed.
+
+NEVER trust or read existing markdown coverage reports. Always regenerate from fresh test execution.
+
+## Writing Tests - No Incidental Coverage
+
+When writing tests or asked to achieve coverage, you MUST create **dedicated unit tests** for EVERY class. Incidental coverage is NOT acceptable.
+
+### CRITICAL: Never Delete Existing Tests
+- **NEVER delete existing test files** - only ADD new ones
+- If a test file already exists for a class, KEEP IT
+- Check what test files exist BEFORE creating new ones
+- Your goal is to INCREASE coverage by adding missing tests, not to replace or reorganize existing tests
+- Deleting tests that work is NEVER acceptable
+
+### What is Incidental Coverage? (ANTIPATTERN)
+Incidental coverage is when JaCoCo shows a class as "covered" but it has no dedicated test file. **This is an antipattern and counts as 0% coverage.**
+
+Why it happens:
+- **Enums**: JaCoCo marks as "covered" when another test references `MyEnum.VALUE`
+- **Records/DTOs**: JaCoCo marks as "covered" when another test calls `new MyRecord(...)`
+- **Models**: JaCoCo marks as "covered" when service/controller tests use them
+
+Why it's bad:
+- No actual tests verify the class behavior
+- If the "covering" test is deleted, coverage silently drops
+- Bugs in the class won't be caught
+- It's fake coverage that provides false confidence
+
+### Required Test Structure
+For EVERY source file, there MUST be a corresponding test file:
+
+```
+src/main/java/com/example/model/User.java      → src/test/java/com/example/model/UserTest.java
+src/main/java/com/example/model/Currency.java  → src/test/java/com/example/model/CurrencyTest.java
+src/main/java/com/example/dto/Request.java     → src/test/java/com/example/dto/RequestTest.java
+```
+
+### What to Test for Each Type
+
+**Enums:**
+- All enum values exist: `assertEquals(10, Currency.values().length)`
+- valueOf works: `assertEquals(Currency.USD, Currency.valueOf("USD"))`
+- Invalid values throw: `assertThrows(IllegalArgumentException.class, () -> Currency.valueOf("INVALID"))`
+
+**Records/DTOs:**
+- Constructor creates object with correct values
+- Accessor methods return expected values
+- equals() and hashCode() contract
+- toString() output
+- Edge cases: null values, empty strings, boundary numbers
+
+**Model Classes:**
+- All getters/setters work correctly
+- Validation logic (if any)
+- Builder patterns (if any)
+- equals/hashCode/toString
+
+### When Generating Coverage Reports
+After showing coverage, if ANY class lacks a dedicated test file, you MUST:
+1. Flag it as "MISSING DEDICATED TESTS"
+2. Offer to create the missing test file
+3. NOT report it as "covered" just because JaCoCo shows instructions covered
+
+Example output:
+```
+| Class | JaCoCo Coverage | Dedicated Test | Status |
+|-------|-----------------|----------------|--------|
+| UserService | 100% | ✅ UserServiceTest.java | OK |
+| Currency | 100% | ❌ None | ⚠️ INCIDENTAL ONLY |
+| Request | 100% | ❌ None | ⚠️ INCIDENTAL ONLY |
+```
+
 
 # Doing tasks
 The user will primarily request you perform software engineering tasks. This includes solving bugs, adding new functionality, refactoring code, explaining code, and especially writing and running tests. For these tasks the following steps are recommended:

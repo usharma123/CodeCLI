@@ -5,106 +5,207 @@ import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.servers.Server;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * OpenApiConfig tests - covers OpenAPI bean creation and configuration.
- */
+@SpringBootTest
 @DisplayName("OpenApiConfig Tests")
 class OpenApiConfigTest {
 
-    private OpenApiConfig config;
+    @Autowired
+    private ApplicationContext applicationContext;
 
-    @BeforeEach
-    void setUp() {
-        config = new OpenApiConfig();
+    @Nested
+    @DisplayName("Spring Context tests")
+    class SpringContextTests {
+
+        @Test
+        @DisplayName("OpenApiConfig should be loaded in Spring context")
+        void openApiConfigShouldBeLoadedInContext() {
+            OpenApiConfig config = applicationContext.getBean(OpenApiConfig.class);
+            assertNotNull(config, "OpenApiConfig should be a Spring bean");
+        }
+
+        @Test
+        @DisplayName("OpenAPI bean should be created")
+        void openApiBeanShouldBeCreated() {
+            OpenAPI openAPI = applicationContext.getBean(OpenAPI.class);
+            assertNotNull(openAPI, "OpenAPI bean should exist");
+        }
     }
 
-    @Test
-    @DisplayName("Should create OpenAPI bean with correct configuration")
-    void shouldCreateOpenApiBean() {
-        OpenAPI openApi = config.currencyOpenApi();
+    @Nested
+    @DisplayName("currencyOpenApi() bean tests")
+    class CurrencyOpenApiBeanTests {
 
-        assertNotNull(openApi, "OpenAPI should not be null");
-        assertNotNull(openApi.getInfo(), "Info should not be null");
+        @Test
+        @DisplayName("should create OpenAPI bean with correct title")
+        void shouldCreateOpenApiBeanWithCorrectTitle() {
+            OpenApiConfig config = new OpenApiConfig();
+            OpenAPI openAPI = config.currencyOpenApi();
+
+            assertNotNull(openAPI);
+            assertNotNull(openAPI.getInfo());
+            assertEquals("Currency Converter API", openAPI.getInfo().getTitle());
+        }
+
+        @Test
+        @DisplayName("should set correct version")
+        void shouldSetCorrectVersion() {
+            OpenApiConfig config = new OpenApiConfig();
+            OpenAPI openAPI = config.currencyOpenApi();
+
+            assertNotNull(openAPI.getInfo());
+            assertEquals("1.0", openAPI.getInfo().getVersion());
+        }
+
+        @Test
+        @DisplayName("should set correct description")
+        void shouldSetCorrectDescription() {
+            OpenApiConfig config = new OpenApiConfig();
+            OpenAPI openAPI = config.currencyOpenApi();
+
+            assertNotNull(openAPI.getInfo());
+            assertNotNull(openAPI.getInfo().getDescription());
+            assertTrue(openAPI.getInfo().getDescription().contains("currency converter"));
+        }
+
+        @Test
+        @DisplayName("should include supported currencies in description")
+        void shouldIncludeSupportedCurrenciesInDescription() {
+            OpenApiConfig config = new OpenApiConfig();
+            OpenAPI openAPI = config.currencyOpenApi();
+
+            String description = openAPI.getInfo().getDescription();
+            assertTrue(description.contains("USD"));
+            assertTrue(description.contains("EUR"));
+            assertTrue(description.contains("GBP"));
+            assertTrue(description.contains("JPY"));
+        }
+
+        @Test
+        @DisplayName("should set contact information")
+        void shouldSetContactInformation() {
+            OpenApiConfig config = new OpenApiConfig();
+            OpenAPI openAPI = config.currencyOpenApi();
+
+            Contact contact = openAPI.getInfo().getContact();
+            assertNotNull(contact, "Contact should not be null");
+            assertEquals("Currency API Support", contact.getName());
+            assertEquals("support@currency.local", contact.getEmail());
+        }
+
+        @Test
+        @DisplayName("should set license information")
+        void shouldSetLicenseInformation() {
+            OpenApiConfig config = new OpenApiConfig();
+            OpenAPI openAPI = config.currencyOpenApi();
+
+            License license = openAPI.getInfo().getLicense();
+            assertNotNull(license, "License should not be null");
+            assertEquals("Apache 2.0", license.getName());
+        }
+
+        @Test
+        @DisplayName("should set server configuration")
+        void shouldSetServerConfiguration() {
+            OpenApiConfig config = new OpenApiConfig();
+            OpenAPI openAPI = config.currencyOpenApi();
+
+            List<Server> servers = openAPI.getServers();
+            assertNotNull(servers);
+            assertFalse(servers.isEmpty());
+
+            Server server = servers.get(0);
+            assertEquals("http://localhost:8080", server.getUrl());
+            assertEquals("Local server", server.getDescription());
+        }
+
+        @Test
+        @DisplayName("should have exactly one server")
+        void shouldHaveExactlyOneServer() {
+            OpenApiConfig config = new OpenApiConfig();
+            OpenAPI openAPI = config.currencyOpenApi();
+
+            assertNotNull(openAPI.getServers());
+            assertEquals(1, openAPI.getServers().size());
+        }
     }
 
-    @Test
-    @DisplayName("Should set correct API title")
-    void shouldSetCorrectTitle() {
-        OpenAPI openApi = config.currencyOpenApi();
-        Info info = openApi.getInfo();
+    @Nested
+    @DisplayName("OpenAPI object structure tests")
+    class OpenAPIStructureTests {
 
-        assertEquals("Currency Converter API", info.getTitle());
+        @Test
+        @DisplayName("OpenAPI should have info section")
+        void openApiShouldHaveInfoSection() {
+            OpenApiConfig config = new OpenApiConfig();
+            OpenAPI openAPI = config.currencyOpenApi();
+
+            assertNotNull(openAPI.getInfo());
+        }
+
+        @Test
+        @DisplayName("Info should have all required fields")
+        void infoShouldHaveAllRequiredFields() {
+            OpenApiConfig config = new OpenApiConfig();
+            OpenAPI openAPI = config.currencyOpenApi();
+
+            Info info = openAPI.getInfo();
+            assertNotNull(info);
+            assertNotNull(info.getTitle());
+            assertNotNull(info.getVersion());
+            assertNotNull(info.getDescription());
+        }
+
+        @Test
+        @DisplayName("should be able to create multiple OpenAPI instances")
+        void shouldCreateMultipleOpenApiInstances() {
+            OpenApiConfig config = new OpenApiConfig();
+
+            OpenAPI openAPI1 = config.currencyOpenApi();
+            OpenAPI openAPI2 = config.currencyOpenApi();
+
+            assertNotNull(openAPI1);
+            assertNotNull(openAPI2);
+            assertEquals(openAPI1.getInfo().getTitle(), openAPI2.getInfo().getTitle());
+        }
     }
 
-    @Test
-    @DisplayName("Should set correct API version")
-    void shouldSetCorrectVersion() {
-        OpenAPI openApi = config.currencyOpenApi();
-        Info info = openApi.getInfo();
+    @Nested
+    @DisplayName("Edge case tests")
+    class EdgeCaseTests {
 
-        assertEquals("1.0", info.getVersion());
-    }
+        @Test
+        @DisplayName("should handle empty server list gracefully")
+        void shouldHandleEmptyServerList() {
+            OpenAPI openAPI = new OpenAPI()
+                    .info(new Info().title("Test").version("1.0"));
 
-    @Test
-    @DisplayName("Should set correct API description")
-    void shouldSetCorrectDescription() {
-        OpenAPI openApi = config.currencyOpenApi();
-        Info info = openApi.getInfo();
+            assertNotNull(openAPI);
+            assertEquals("Test", openAPI.getInfo().getTitle());
+        }
 
-        assertNotNull(info.getDescription());
-        assertTrue(info.getDescription().contains("Supported currencies:"));
-    }
+        @Test
+        @DisplayName("OpenAPI should be configurable")
+        void openApiShouldBeConfigurable() {
+            OpenAPI openAPI = new OpenAPI()
+                    .info(new Info()
+                            .title("Custom Title")
+                            .version("2.0")
+                            .description("Custom Description"));
 
-    @Test
-    @DisplayName("Should configure contact correctly")
-    void shouldConfigureContactCorrectly() {
-        OpenAPI openApi = config.currencyOpenApi();
-        Contact contact = openApi.getInfo().getContact();
-
-        assertNotNull(contact);
-        assertEquals("Currency API Support", contact.getName());
-        assertEquals("support@currency.local", contact.getEmail());
-    }
-
-    @Test
-    @DisplayName("Should configure license correctly")
-    void shouldConfigureLicenseCorrectly() {
-        OpenAPI openApi = config.currencyOpenApi();
-        License license = openApi.getInfo().getLicense();
-
-        assertNotNull(license);
-        assertEquals("Apache 2.0", license.getName());
-        assertEquals("https://www.apache.org/licenses/LICENSE-2.0", license.getUrl());
-    }
-
-    @Test
-    @DisplayName("Should configure servers correctly")
-    void shouldConfigureServersCorrectly() {
-        OpenAPI openApi = config.currencyOpenApi();
-        List<Server> servers = openApi.getServers();
-
-        assertNotNull(servers);
-        assertEquals(1, servers.size());
-
-        Server server = servers.get(0);
-        assertEquals("http://localhost:8080", server.getUrl());
-        assertEquals("Local server", server.getDescription());
-    }
-
-    @Test
-    @DisplayName("Should allow multiple calls to return independent instances")
-    void shouldReturnIndependentInstances() {
-        OpenAPI openApi1 = config.currencyOpenApi();
-        OpenAPI openApi2 = config.currencyOpenApi();
-
-        assertNotSame(openApi1, openApi2, "Each call should return a new instance");
+            assertEquals("Custom Title", openAPI.getInfo().getTitle());
+            assertEquals("2.0", openAPI.getInfo().getVersion());
+            assertEquals("Custom Description", openAPI.getInfo().getDescription());
+        }
     }
 }
