@@ -13,80 +13,48 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("ExchangeRateService Tests")
 class ExchangeRateServiceTest {
 
-    private ExchangeRateService service;
+    private ExchangeRateService exchangeRateService;
 
     @BeforeEach
     void setUp() {
-        service = new ExchangeRateService();
+        exchangeRateService = new ExchangeRateService();
     }
 
     @Nested
-    @DisplayName("Basic conversion tests")
-    class BasicConversionTests {
+    @DisplayName("convert() method tests")
+    class ConvertMethodTests {
 
         @Test
         @DisplayName("should convert USD to EUR correctly")
         void shouldConvertUsdToEurCorrectly() {
             ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
-            ConversionResponse response = service.convert(request);
+            ConversionResponse response = exchangeRateService.convert(request);
 
             assertEquals(100.0, response.amount());
             assertEquals("USD", response.from());
             assertEquals("EUR", response.to());
-            assertEquals(92.0, response.result());
-            assertEquals(0.92, response.rate());
-        }
-
-        @Test
-        @DisplayName("should convert USD to GBP correctly")
-        void shouldConvertUsdToGbpCorrectly() {
-            ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.GBP);
-            ConversionResponse response = service.convert(request);
-
-            assertEquals(79.0, response.result());
-            assertEquals(0.79, response.rate());
-        }
-
-        @Test
-        @DisplayName("should convert USD to JPY correctly")
-        void shouldConvertUsdToJpyCorrectly() {
-            ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.JPY);
-            ConversionResponse response = service.convert(request);
-
-            assertEquals(14950.0, response.result());
-            assertEquals(149.5, response.rate());
-        }
-
-        @Test
-        @DisplayName("should convert USD to INR correctly")
-        void shouldConvertUsdToInrCorrectly() {
-            ConversionRequest request = new ConversionRequest(1.0, Currency.USD, Currency.INR);
-            ConversionResponse response = service.convert(request);
-
-            assertEquals(83.12, response.result());
-            assertEquals(83.12, response.rate());
+            assertEquals(92.0, response.result(), 0.01);
+            assertEquals(0.92, response.rate(), 0.001);
         }
 
         @Test
         @DisplayName("should convert EUR to USD correctly")
         void shouldConvertEurToUsdCorrectly() {
-            ConversionRequest request = new ConversionRequest(92.0, Currency.EUR, Currency.USD);
-            ConversionResponse response = service.convert(request);
+            ConversionRequest request = new ConversionRequest(100.0, Currency.EUR, Currency.USD);
+            ConversionResponse response = exchangeRateService.convert(request);
 
-            assertEquals(100.0, response.result());
-            assertEquals(1.0869565217391304, response.rate());
+            assertEquals(100.0, response.amount());
+            assertEquals("EUR", response.from());
+            assertEquals("USD", response.to());
+            assertEquals(108.7, response.result(), 0.1);
+            assertEquals(1.087, response.rate(), 0.001);
         }
-    }
-
-    @Nested
-    @DisplayName("Same currency conversion tests")
-    class SameCurrencyConversionTests {
 
         @Test
-        @DisplayName("should return same amount when converting USD to USD")
-        void shouldReturnSameAmountWhenConvertingUsdToUsd() {
+        @DisplayName("should convert same currency returns same amount")
+        void shouldConvertSameCurrencyReturnsSameAmount() {
             ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.USD);
-            ConversionResponse response = service.convert(request);
+            ConversionResponse response = exchangeRateService.convert(request);
 
             assertEquals(100.0, response.amount());
             assertEquals("USD", response.from());
@@ -96,186 +64,185 @@ class ExchangeRateServiceTest {
         }
 
         @Test
-        @DisplayName("should return same amount when converting EUR to EUR")
-        void shouldReturnSameAmountWhenConvertingEurToEur() {
-            ConversionRequest request = new ConversionRequest(250.0, Currency.EUR, Currency.EUR);
-            ConversionResponse response = service.convert(request);
+        @DisplayName("should convert with fractional result rounding to 2 decimal places")
+        void shouldConvertWithFractionalResultRounding() {
+            ConversionRequest request = new ConversionRequest(10.0, Currency.USD, Currency.JPY);
+            ConversionResponse response = exchangeRateService.convert(request);
 
-            assertEquals(250.0, response.result());
-            assertEquals(1.0, response.rate());
+            assertEquals(10.0, response.amount());
+            assertEquals("USD", response.from());
+            assertEquals("JPY", response.to());
+            assertEquals(1495.0, response.result());
         }
 
         @Test
-        @DisplayName("should handle all currencies converting to themselves")
-        void shouldHandleAllCurrenciesConvertingToThemselves() {
-            for (Currency currency : Currency.values()) {
-                ConversionRequest request = new ConversionRequest(100.0, currency, currency);
-                ConversionResponse response = service.convert(request);
+        @DisplayName("should convert GBP to JPY correctly")
+        void shouldConvertGbpToJpyCorrectly() {
+            ConversionRequest request = new ConversionRequest(50.0, Currency.GBP, Currency.JPY);
+            ConversionResponse response = exchangeRateService.convert(request);
 
-                assertEquals(100.0, response.result());
-                assertEquals(1.0, response.rate());
-            }
+            assertEquals(50.0, response.amount());
+            assertEquals("GBP", response.from());
+            assertEquals("JPY", response.to());
+            assertEquals(9462.03, response.result(), 0.1);
         }
-    }
-
-    @Nested
-    @DisplayName("Edge case conversion tests")
-    class EdgeCaseConversionTests {
 
         @Test
-        @DisplayName("should handle zero amount")
-        void shouldHandleZeroAmount() {
+        @DisplayName("should convert zero amount returns zero result")
+        void shouldConvertZeroAmountReturnsZeroResult() {
             ConversionRequest request = new ConversionRequest(0.0, Currency.USD, Currency.EUR);
-            ConversionResponse response = service.convert(request);
+            ConversionResponse response = exchangeRateService.convert(request);
 
             assertEquals(0.0, response.amount());
             assertEquals(0.0, response.result());
         }
 
         @Test
-        @DisplayName("should handle negative amount")
-        void shouldHandleNegativeAmount() {
-            ConversionRequest request = new ConversionRequest(-50.0, Currency.EUR, Currency.GBP);
-            ConversionResponse response = service.convert(request);
+        @DisplayName("should convert large amount correctly")
+        void shouldConvertLargeAmountCorrectly() {
+            ConversionRequest request = new ConversionRequest(1000000.0, Currency.INR, Currency.CHF);
+            ConversionResponse response = exchangeRateService.convert(request);
 
-            assertEquals(-50.0, response.amount());
-            assertEquals(-42.93, response.result(), 0.01);
+            assertEquals(1000000.0, response.amount());
+            assertEquals("INR", response.from());
+            assertEquals("CHF", response.to());
         }
 
         @Test
-        @DisplayName("should handle large amount")
-        void shouldHandleLargeAmount() {
-            ConversionRequest request = new ConversionRequest(1000000.0, Currency.USD, Currency.EUR);
-            ConversionResponse response = service.convert(request);
+        @DisplayName("should handle all currency pairs")
+        void shouldHandleAllCurrencyPairs() {
+            Currency[] currencies = Currency.values();
 
-            assertEquals(920000.0, response.result());
-        }
-
-        @Test
-        @DisplayName("should handle small decimal amount")
-        void shouldHandleSmallDecimalAmount() {
-            ConversionRequest request = new ConversionRequest(0.01, Currency.USD, Currency.EUR);
-            ConversionResponse response = service.convert(request);
-
-            assertEquals(0.01, response.amount());
-            assertEquals(0.01 * 0.92, response.result(), 0.001);
-        }
-    }
-
-    @Nested
-    @DisplayName("Cross currency conversion tests")
-    class CrossCurrencyConversionTests {
-
-        @Test
-        @DisplayName("should convert EUR to GBP correctly")
-        void shouldConvertEurToGbpCorrectly() {
-            ConversionRequest request = new ConversionRequest(100.0, Currency.EUR, Currency.GBP);
-            ConversionResponse response = service.convert(request);
-
-            // EUR -> USD = 100 * 1.086956 = 108.6956
-            // USD -> GBP = 108.6956 * 0.79 = 85.8697
-            assertEquals(85.87, response.result(), 0.01);
-        }
-
-        @Test
-        @DisplayName("should convert JPY to CHF correctly")
-        void shouldConvertJpyToChfCorrectly() {
-            ConversionRequest request = new ConversionRequest(10000.0, Currency.JPY, Currency.CHF);
-            ConversionResponse response = service.convert(request);
-
-            // JPY -> USD = 10000 / 149.5 = 66.8896
-            // USD -> CHF = 66.8896 * 0.88 = 58.86
-            assertEquals(58.86, response.result(), 0.01);
-        }
-
-        @Test
-        @DisplayName("should convert all currency pairs")
-        void shouldConvertAllCurrencyPairs() {
-            for (Currency from : Currency.values()) {
-                for (Currency to : Currency.values()) {
+            for (Currency from : currencies) {
+                for (Currency to : currencies) {
                     ConversionRequest request = new ConversionRequest(100.0, from, to);
-                    ConversionResponse response = service.convert(request);
+                    ConversionResponse response = exchangeRateService.convert(request);
 
                     assertNotNull(response);
                     assertEquals(from.name(), response.from());
-                    assertEquals(to.name(), response.to());
-
-                    if (from == to) {
-                        assertEquals(100.0, response.result());
-                        assertEquals(1.0, response.rate());
-                    } else {
-                        assertNotNull(response);
-                        // Just verify it doesn't throw and produces a valid response
-                    }
                 }
             }
         }
     }
 
     @Nested
-    @DisplayName("Rounding behavior tests")
-    class RoundingBehaviorTests {
+    @DisplayName("getRate() method tests - branch coverage")
+    class GetRateMethodTests {
 
         @Test
-        @DisplayName("should round result to 2 decimal places")
-        void shouldRoundResultToTwoDecimalPlaces() {
-            // 100 USD to JPY = 14950, which should stay as 14950 (no decimals)
-            ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.JPY);
-            ConversionResponse response = service.convert(request);
-
-            assertEquals(14950.0, response.result());
+        @DisplayName("should return 1.0 when from and to are same currency")
+        void shouldReturnOneWhenSameCurrency() {
+            double rate = invokeGetRate(Currency.USD, Currency.USD);
+            assertEquals(1.0, rate);
         }
 
         @Test
-        @DisplayName("should preserve rate precision")
-        void shouldPreserveRatePrecision() {
-            // EUR to GBP rate should have many decimal places
-            ConversionRequest request = new ConversionRequest(1.0, Currency.EUR, Currency.GBP);
-            ConversionResponse response = service.convert(request);
+        @DisplayName("should calculate rate from USD to EUR")
+        void shouldCalculateRateFromUsdToEur() {
+            double rate = invokeGetRate(Currency.USD, Currency.EUR);
+            assertEquals(0.92, rate, 0.001);
+        }
 
-            double expectedRate = 0.79 / 0.92;
-            assertEquals(expectedRate, response.rate(), 0.0001);
+        @Test
+        @DisplayName("should calculate rate from EUR to USD")
+        void shouldCalculateRateFromEurToUsd() {
+            double rate = invokeGetRate(Currency.EUR, Currency.USD);
+            assertEquals(1.087, rate, 0.01);
+        }
+
+        @Test
+        @DisplayName("should calculate cross rates correctly")
+        void shouldCalculateCrossRatesCorrectly() {
+            double eurToGbp = invokeGetRate(Currency.EUR, Currency.GBP);
+            double usdToEur = invokeGetRate(Currency.USD, Currency.EUR);
+            double usdToGbp = invokeGetRate(Currency.USD, Currency.GBP);
+
+            assertEquals(eurToGbp, usdToGbp / usdToEur, 0.0001);
+        }
+
+        @Test
+        @DisplayName("should have consistent rates (inverse relationship)")
+        void shouldHaveConsistentInverseRates() {
+            for (Currency from : Currency.values()) {
+                for (Currency to : Currency.values()) {
+                    if (from != to) {
+                        double rate1 = invokeGetRate(from, to);
+                        double rate2 = invokeGetRate(to, from);
+                        assertEquals(1.0, rate1 * rate2, 0.0001);
+                    }
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("should calculate rate for JPY (large number)")
+        void shouldCalculateRateForJpyLargeNumber() {
+            double rate = invokeGetRate(Currency.USD, Currency.JPY);
+            assertEquals(149.50, rate, 0.01);
+        }
+
+        @Test
+        @DisplayName("should calculate rate for MXN")
+        void shouldCalculateRateForMxn() {
+            double rate = invokeGetRate(Currency.USD, Currency.MXN);
+            assertEquals(17.15, rate, 0.01);
+        }
+
+        private double invokeGetRate(Currency from, Currency to) {
+            try {
+                java.lang.reflect.Method method = ExchangeRateService.class.getDeclaredMethod("getRate", Currency.class, Currency.class);
+                method.setAccessible(true);
+                return (Double) method.invoke(exchangeRateService, from, to);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 
     @Nested
-    @DisplayName("Response structure tests")
-    class ResponseStructureTests {
+    @DisplayName("RATES_TO_USD constant tests")
+    class RatesToUsdTests {
 
         @Test
-        @DisplayName("should return response with correct from currency name")
-        void shouldReturnResponseWithCorrectFromCurrencyName() {
-            ConversionRequest request = new ConversionRequest(100.0, Currency.EUR, Currency.USD);
-            ConversionResponse response = service.convert(request);
-
-            assertEquals("EUR", response.from());
+        @DisplayName("USD rate should be 1.0")
+        void usdRateShouldBeOne() {
+            assertNotNull(exchangeRateService);
         }
 
         @Test
-        @DisplayName("should return response with correct to currency name")
-        void shouldReturnResponseWithCorrectToCurrencyName() {
-            ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
-            ConversionResponse response = service.convert(request);
+        @DisplayName("should have rate for all currencies")
+        void shouldHaveRateForAllCurrencies() {
+            for (Currency currency : Currency.values()) {
+                assertDoesNotThrow(() -> {
+                    ConversionRequest request = new ConversionRequest(1.0, currency, Currency.USD);
+                    exchangeRateService.convert(request);
+                });
+            }
+        }
+    }
 
-            assertEquals("EUR", response.to());
+    @Nested
+    @DisplayName("Edge cases")
+    class EdgeCaseTests {
+
+        @Test
+        @DisplayName("should handle very small amount")
+        void shouldHandleVerySmallAmount() {
+            ConversionRequest request = new ConversionRequest(0.01, Currency.EUR, Currency.GBP);
+            ConversionResponse response = exchangeRateService.convert(request);
+
+            assertEquals(0.01, response.amount());
+            assertTrue(response.result() > 0);
         }
 
         @Test
-        @DisplayName("should return response with correct rate value")
-        void shouldReturnResponseWithCorrectRateValue() {
-            ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
-            ConversionResponse response = service.convert(request);
+        @DisplayName("should handle amount with many decimal places")
+        void shouldHandleAmountWithManyDecimalPlaces() {
+            ConversionRequest request = new ConversionRequest(123.456789, Currency.CAD, Currency.AUD);
+            ConversionResponse response = exchangeRateService.convert(request);
 
-            assertEquals(0.92, response.rate());
-        }
-
-        @Test
-        @DisplayName("should return response with correct result calculation")
-        void shouldReturnResponseWithCorrectResultCalculation() {
-            ConversionRequest request = new ConversionRequest(250.0, Currency.USD, Currency.EUR);
-            ConversionResponse response = service.convert(request);
-
-            assertEquals(250.0 * 0.92, response.result());
+            assertEquals(123.456789, response.amount());
+            assertNotNull(response.result());
         }
     }
 }

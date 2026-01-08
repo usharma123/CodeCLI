@@ -1,0 +1,33 @@
+ALWAYS USE THIS TOOL when the user asks about: coverage, test coverage, code coverage, quality report, test quality, branch coverage, line coverage, JaCoCo, or coverage report.
+
+Generate a comprehensive test quality report by parsing build artifacts (JaCoCo CSV, Surefire XML) like SonarQube does.
+
+TRIGGER PHRASES (use this tool immediately):
+- "get coverage"
+- "show coverage"
+- "coverage report"
+- "test coverage"
+- "quality report"
+- "check coverage"
+- "run coverage"
+
+USAGE:
+For a Maven project, find the project directory containing pom.xml and use:
+  quality project_path="<path_to_project>"
+
+Example for spring-currency:
+  quality project_path="spring-currency"
+
+FEATURES:
+- Per-class coverage metrics (line, branch, method, instruction)
+- Incidental coverage detection (classes covered but not directly tested)
+- Quality gate evaluation (pass/fail based on thresholds)
+- Baseline comparison to detect regressions
+
+ARTIFACTS PARSED:
+- target/site/jacoco/jacoco.csv - JaCoCo coverage data
+- target/surefire-reports/*.xml - Surefire test results
+
+OPTIONS:
+- update_baseline=true - Save current metrics as new baseline
+- gate=true - Fail if quality gates not met
