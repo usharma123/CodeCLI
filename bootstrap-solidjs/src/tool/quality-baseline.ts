@@ -9,7 +9,8 @@
 
 import * as fs from "fs"
 import * as path from "path"
-import type { ClassCoverage, AggregateCoverage, AggregateTestResults } from "./quality-parsers"
+import type { ClassCoverage, AggregateCoverage, AggregateTestResults, TestMethod } from "./quality-parsers"
+import { scanTestSourceFiles } from "./quality-parsers"
 
 // ============================================================================
 // Types
@@ -43,6 +44,7 @@ export interface QualityBaseline {
     }
 
     testClasses: string[]
+    testMethods: { [className: string]: string[] }
     slowTests: { name: string; className: string; time: number }[]
   }
 }
@@ -85,6 +87,12 @@ export interface QualityDiff {
 
   newSlowTests: { name: string; className: string; time: number }[]
   warnings: QualityWarning[]
+
+  // Source file-based detection (works without artifacts)
+  testMethodsRemoved: { className: string; methods: string[] }[]
+  testMethodsAdded: { className: string; methods: string[] }[]
+  testFilesRemoved: string[]
+  testFilesAdded: string[]
 }
 
 export interface GateResult {
@@ -205,6 +213,7 @@ export async function createBaseline(
   testResults: AggregateTestResults,
   coverageData: ClassCoverage[],
   aggregateCov: AggregateCoverage,
+  testSourceDir?: string,
 ): Promise<QualityBaseline> {
   const commit = await getCurrentCommit(projectRoot)
 
@@ -218,6 +227,15 @@ export async function createBaseline(
   }
 
   const testClasses = testResults.suites.map((s) => s.name).filter((n) => n.includes("Test"))
+
+  // Scan source files for test methods
+  const testMethods: { [className: string]: string[] } = {}
+  if (testSourceDir) {
+    const scannedMethods = scanTestSourceFiles(testSourceDir)
+    for (const [className, methods] of scannedMethods) {
+      testMethods[className] = methods.map((m) => m.methodName)
+    }
+  }
 
   const baseline: QualityBaseline = {
     version: 1,
@@ -253,6 +271,7 @@ export async function createBaseline(
       },
       perClass,
       testClasses,
+      testMethods,
       slowTests: testResults.slowTests.slice(0, 10),
     },
   }
@@ -282,6 +301,10 @@ export function computeDiff(current: QualityBaseline, previous: QualityBaseline 
           message: "First baseline recorded - no previous data to compare",
         },
       ],
+      testMethodsRemoved: [],
+      testMethodsAdded: [],
+      testFilesRemoved: [],
+      testFilesAdded: [],
     }
   }
 
@@ -440,6 +463,105 @@ export function computeDiff(current: QualityBaseline, previous: QualityBaseline 
     classChanges,
     newSlowTests,
     warnings,
+    testMethodsRemoved: [],
+    testMethodsAdded: [],
+    testFilesRemoved: [],
+    testFilesAdded: [],
+  }
+}
+
+// ============================================================================
+// Source File Comparison
+// ============================================================================
+
+export interface SourceDiffResult {
+  testFilesRemoved: string[]
+  testFilesAdded: string[]
+  testMethodsRemoved: { className: string; methods: string[] }[]
+  testMethodsAdded: { className: string; methods: string[] }[]
+}
+
+/**
+ * Compare current source files vs previous baseline to detect deletions.
+ * Works even without artifacts.
+ */
+export function computeSourceDiff(
+  currentMethods: Map<string, TestMethod[]>,
+  previousBaseline: QualityBaseline | null,
+): SourceDiffResult {
+  if (!previousBaseline) {
+    // No previous baseline - everything is "added"
+    const testFilesAdded: string[] = []
+    const testMethodsAdded: { className: string; methods: string[] }[] = []
+
+    for (const [className, methods] of currentMethods) {
+      testFilesAdded.push(className)
+      testMethodsAdded.push({
+        className,
+        methods: methods.map((m) => m.methodName),
+      })
+    }
+
+    return {
+      testFilesRemoved: [],
+      testFilesAdded,
+      testMethodsRemoved: [],
+      testMethodsAdded,
+    }
+  }
+
+  const testFilesRemoved: string[] = []
+  const testFilesAdded: string[] = []
+  const testMethodsRemoved: { className: string; methods: string[] }[] = []
+  const testMethodsAdded: { className: string; methods: string[] }[] = []
+
+  const prevMethods = previousBaseline.metrics.testMethods || {}
+  const prevClasses = new Set(Object.keys(prevMethods))
+  const currClasses = new Set(currentMethods.keys())
+
+  // Find removed test classes (files)
+  for (const className of prevClasses) {
+    if (!currClasses.has(className)) {
+      const methods = prevMethods[className] || []
+      if (methods.length > 0) {
+        testFilesRemoved.push(className)
+        testMethodsRemoved.push({ className, methods })
+      }
+    }
+  }
+
+  // Find added test classes (files)
+  for (const className of currClasses) {
+    if (!prevClasses.has(className)) {
+      const methods = currentMethods.get(className)?.map((m) => m.methodName) || []
+      testFilesAdded.push(className)
+      testMethodsAdded.push({ className, methods })
+    }
+  }
+
+  // Find removed/added test methods within existing classes
+  for (const className of prevClasses) {
+    if (currClasses.has(className)) {
+      const prevMethodSet = new Set(prevMethods[className] || [])
+      const currMethodSet = new Set(currentMethods.get(className)?.map((m) => m.methodName) || [])
+
+      const removed = Array.from(prevMethodSet).filter((m) => !currMethodSet.has(m))
+      const added = Array.from(currMethodSet).filter((m) => !prevMethodSet.has(m))
+
+      if (removed.length > 0) {
+        testMethodsRemoved.push({ className, methods: removed })
+      }
+      if (added.length > 0) {
+        testMethodsAdded.push({ className, methods: added })
+      }
+    }
+  }
+
+  return {
+    testFilesRemoved,
+    testFilesAdded,
+    testMethodsRemoved,
+    testMethodsAdded,
   }
 }
 

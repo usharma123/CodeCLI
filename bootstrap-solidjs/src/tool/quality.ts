@@ -19,10 +19,12 @@ import {
   findJacocoCsv,
   findSurefireDir,
   findTestSourceDir,
+  scanTestSourceFiles,
   type ClassCoverage,
   type AggregateTestResults,
   type AggregateCoverage,
   type IncidentalCoverage,
+  type TestMethod,
 } from "./quality-parsers"
 
 import {
@@ -31,10 +33,13 @@ import {
   loadConfig,
   createBaseline,
   computeDiff,
+  computeSourceDiff,
   evaluateGates,
   type QualityBaseline,
   type QualityDiff,
+  type QualityWarning,
   type GateResult,
+  type SourceDiffResult,
 } from "./quality-baseline"
 
 // ============================================================================
@@ -162,6 +167,37 @@ function generateReport(
       }
     }
     lines.push("")
+  }
+
+  // Source File Changes (Detected)
+  const hasSourceChanges =
+    (diff.testFilesRemoved && diff.testFilesRemoved.length > 0) ||
+    (diff.testMethodsRemoved && diff.testMethodsRemoved.length > 0)
+
+  if (hasSourceChanges) {
+    lines.push("## Source File Changes (Detected)")
+    lines.push("")
+
+    if (diff.testFilesRemoved && diff.testFilesRemoved.length > 0) {
+      lines.push("**Test files deleted from source:**")
+      for (const className of diff.testFilesRemoved) {
+        lines.push(`- **${className}**`)
+      }
+      lines.push("")
+    }
+
+    // Show method deletions from files that still exist
+    const methodsInExistingFiles = (diff.testMethodsRemoved || []).filter(
+      (item) => !(diff.testFilesRemoved || []).includes(item.className),
+    )
+
+    if (methodsInExistingFiles.length > 0) {
+      lines.push("**Test methods deleted from source files:**")
+      for (const item of methodsInExistingFiles) {
+        lines.push(`- **${item.className}**: ${item.methods.join(", ")}`)
+      }
+      lines.push("")
+    }
   }
 
   // Gate Result
@@ -346,11 +382,63 @@ To generate artifacts, run:
     const config = loadConfig(projectPath)
     const previousBaseline = loadBaseline(projectPath)
 
-    // Create current baseline
-    const currentBaseline = await createBaseline(projectPath, testResults, coverageData, aggregateCov)
+    // Scan source files FIRST (works even without artifacts)
+    let currentMethods: Map<string, TestMethod[]> = new Map()
+    let sourceDiff: SourceDiffResult | null = null
+    const sourceFileWarnings: QualityWarning[] = []
+
+    if (testSourceDir) {
+      currentMethods = scanTestSourceFiles(testSourceDir)
+
+      if (previousBaseline) {
+        sourceDiff = computeSourceDiff(currentMethods, previousBaseline)
+
+        // Generate warnings for source file changes
+        if (sourceDiff.testFilesRemoved.length > 0) {
+          sourceFileWarnings.push({
+            level: "critical",
+            code: "TEST_FILES_DELETED",
+            message: `${sourceDiff.testFilesRemoved.length} test file(s) deleted from source`,
+            details: sourceDiff.testFilesRemoved.join(", "),
+          })
+        }
+
+        // Count methods removed (excluding whole file deletions which are counted separately)
+        const methodsInRemovedFiles = sourceDiff.testMethodsRemoved.filter(
+          (item) => sourceDiff!.testFilesRemoved.includes(item.className),
+        )
+        const methodsInExistingFiles = sourceDiff.testMethodsRemoved.filter(
+          (item) => !sourceDiff!.testFilesRemoved.includes(item.className),
+        )
+
+        if (methodsInExistingFiles.length > 0) {
+          const totalMethodsRemoved = methodsInExistingFiles.reduce((sum, item) => sum + item.methods.length, 0)
+          sourceFileWarnings.push({
+            level: "critical",
+            code: "TEST_METHODS_DELETED",
+            message: `${totalMethodsRemoved} test method(s) deleted from source`,
+            details: methodsInExistingFiles.map((item) => `${item.className}: ${item.methods.join(", ")}`).join("; "),
+          })
+        }
+      }
+    }
+
+    // Create current baseline (includes testSourceDir for method scanning)
+    const currentBaseline = await createBaseline(projectPath, testResults, coverageData, aggregateCov, testSourceDir || undefined)
 
     // Compute diff
     const diff = computeDiff(currentBaseline, previousBaseline, config)
+
+    // Merge source file warnings into diff
+    diff.warnings = [...sourceFileWarnings, ...diff.warnings]
+
+    // Merge source diff results into diff
+    if (sourceDiff) {
+      diff.testMethodsRemoved = sourceDiff.testMethodsRemoved
+      diff.testMethodsAdded = sourceDiff.testMethodsAdded
+      diff.testFilesRemoved = sourceDiff.testFilesRemoved
+      diff.testFilesAdded = sourceDiff.testFilesAdded
+    }
 
     // Evaluate gates
     const gateResult = evaluateGates(currentBaseline, diff, config)

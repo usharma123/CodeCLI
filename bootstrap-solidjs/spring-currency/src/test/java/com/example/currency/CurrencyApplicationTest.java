@@ -1,118 +1,126 @@
 package com.example.currency;
 
+import com.example.currency.controller.CurrencyController;
+import com.example.currency.service.ExchangeRateService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@SpringBootTest
 @DisplayName("CurrencyApplication Tests")
 class CurrencyApplicationTest {
 
+    @Autowired
+    private ApplicationContext applicationContext;
+
     @Nested
-    @DisplayName("main() method tests")
-    class MainMethodTests {
+    @DisplayName("Application Context Tests")
+    class ApplicationContextTests {
 
         @Test
-        @DisplayName("main method should start without throwing exception")
-        void mainMethodShouldStartWithoutThrowingException() {
-            // Redirect System.out to capture output
-            ByteArrayOutputStream outContent = new ByteArrayOutputStream();
-            PrintStream originalOut = System.out;
-            System.setOut(new PrintStream(outContent));
-
-            try {
-                Thread mainThread = new Thread(() -> {
-                    try {
-                        CurrencyApplication.main(new String[]{"--spring.main.web-application-type=none"});
-                    } catch (Exception e) {
-                        // Expected - Spring Boot tries to start
-                    }
-                });
-
-                mainThread.setContextClassLoader(CurrencyApplicationTest.class.getClassLoader());
-                mainThread.start();
-                mainThread.join(10000); // Wait max 10 seconds
-
-                assertTrue(mainThread.isAlive() || !mainThread.isAlive());
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } finally {
-                System.setOut(originalOut);
-            }
+        @DisplayName("Should load application context successfully")
+        void shouldLoadApplicationContextSuccessfully() {
+            assertNotNull(applicationContext);
         }
 
         @Test
-        @DisplayName("main method should accept command line arguments")
-        void mainMethodShouldAcceptCommandLineArguments() {
-            // Verify main method can be invoked with args without immediate failure
-            assertDoesNotThrow(() -> {
-                Thread thread = new Thread(() -> {
-                    try {
-                        CurrencyApplication.main(new String[]{
-                            "--spring.main.web-application-type=none",
-                            "--spring.main.banner-mode=off"
-                        });
-                    } catch (Exception e) {
-                        // Spring Boot exits or throws during context refresh
-                        // This is expected behavior
-                    }
-                });
-                thread.setDaemon(true);
-                thread.start();
-                try {
-                    thread.join(5000);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            });
+        @DisplayName("Should have CurrencyController bean")
+        void shouldHaveCurrencyControllerBean() {
+            CurrencyController controller = applicationContext.getBean(CurrencyController.class);
+            assertNotNull(controller);
+        }
+
+        @Test
+        @DisplayName("Should have ExchangeRateService bean")
+        void shouldHaveExchangeRateServiceBean() {
+            ExchangeRateService service = applicationContext.getBean(ExchangeRateService.class);
+            assertNotNull(service);
         }
     }
 
     @Nested
-    @DisplayName("Spring Boot context loading tests")
-    class ContextLoadingTests {
+    @DisplayName("Bean Wiring Tests")
+    class BeanWiringTests {
 
         @Test
-        @DisplayName("Spring context should load successfully")
-        void springContextShouldLoadSuccessfully() {
-            // This test verifies the @SpringBootApplication annotation is properly configured
-            assertNotNull(CurrencyApplication.class.getAnnotation(org.springframework.boot.autoconfigure.SpringBootApplication.class));
+        @DisplayName("Should wire all beans correctly")
+        void shouldWireAllBeansCorrectly() {
+            String[] beanNames = applicationContext.getBeanDefinitionNames();
+            assertTrue(beanNames.length > 0);
         }
 
         @Test
-        @DisplayName("class should be public and non-final")
-        void classShouldBePublicAndNonFinal() {
-            assertTrue(java.lang.reflect.Modifier.isPublic(CurrencyApplication.class.getModifiers()));
-            assertFalse(java.lang.reflect.Modifier.isFinal(CurrencyApplication.class.getModifiers()));
+        @DisplayName("Should have singleton scope for service bean")
+        void shouldHaveSingletonScopeForServiceBean() {
+            ExchangeRateService service1 = applicationContext.getBean(ExchangeRateService.class);
+            ExchangeRateService service2 = applicationContext.getBean(ExchangeRateService.class);
+            assertSame(service1, service2);
         }
 
         @Test
-        @DisplayName("should have main method with correct signature")
-        void shouldHaveMainMethodWithCorrectSignature() throws NoSuchMethodException {
-            var mainMethod = CurrencyApplication.class.getMethod("main", String[].class);
+        @DisplayName("Should have singleton scope for controller bean")
+        void shouldHaveSingletonScopeForControllerBean() {
+            CurrencyController controller1 = applicationContext.getBean(CurrencyController.class);
+            CurrencyController controller2 = applicationContext.getBean(CurrencyController.class);
+            assertSame(controller1, controller2);
+        }
+    }
 
-            assertTrue(java.lang.reflect.Modifier.isStatic(mainMethod.getModifiers()));
-            assertTrue(java.lang.reflect.Modifier.isPublic(mainMethod.getModifiers()));
-            assertEquals(void.class, mainMethod.getReturnType());
+    @Nested
+    @DisplayName("Spring Boot Configuration Tests")
+    class SpringBootConfigurationTests {
+
+        @Test
+        @DisplayName("Should have application context with beans")
+        void shouldHaveApplicationContextWithBeans() {
+            assertTrue(applicationContext.getBeanDefinitionCount() > 0);
         }
 
         @Test
-        @DisplayName("should have SpringBootApplication annotation")
-        void shouldHaveSpringBootApplicationAnnotation() {
-            var annotation = CurrencyApplication.class.getAnnotation(org.springframework.boot.autoconfigure.SpringBootApplication.class);
-            assertNotNull(annotation);
+        @DisplayName("Should be able to retrieve beans by name")
+        void shouldBeAbleToRetrieveBeansByName() {
+            assertDoesNotThrow(() -> 
+                applicationContext.getBean("currencyController")
+            );
         }
 
         @Test
-        @DisplayName("SpringBootApplication should enable auto-configuration")
-        void springBootApplicationShouldEnableAutoConfiguration() {
-            var annotation = CurrencyApplication.class.getAnnotation(org.springframework.boot.autoconfigure.SpringBootApplication.class);
-            assertNotNull(annotation);
-            // Auto-configuration is enabled by default
+        @DisplayName("Should be able to retrieve beans by type")
+        void shouldBeAbleToRetrieveBeansByType() {
+            assertDoesNotThrow(() -> 
+                applicationContext.getBean(ExchangeRateService.class)
+            );
+        }
+    }
+
+    @Nested
+    @DisplayName("Application Startup Tests")
+    class ApplicationStartupTests {
+
+        @Test
+        @DisplayName("Should start application without exceptions")
+        void shouldStartApplicationWithoutExceptions() {
+            assertDoesNotThrow(() -> {
+                CurrencyApplication.main(new String[]{});
+            });
+        }
+
+        @Test
+        @DisplayName("Should have running application context")
+        void shouldHaveRunningApplicationContext() {
+            assertNotNull(applicationContext);
+            assertTrue(applicationContext.getBeanDefinitionCount() > 0);
+        }
+
+        @Test
+        @DisplayName("Should have environment configured")
+        void shouldHaveEnvironmentConfigured() {
+            assertNotNull(applicationContext.getEnvironment());
         }
     }
 }

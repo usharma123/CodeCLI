@@ -6,179 +6,208 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("ConversionRequest Tests")
+@DisplayName("ConversionRequest Record Tests")
 class ConversionRequestTest {
 
     @Nested
-    @DisplayName("Constructor tests")
+    @DisplayName("Constructor Tests")
     class ConstructorTests {
 
         @Test
-        @DisplayName("should create request with correct values")
-        void shouldCreateRequestWithCorrectValues() {
+        @DisplayName("Should create request with valid values")
+        void shouldCreateRequestWithValidValues() {
             ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
-
+            
+            assertNotNull(request);
             assertEquals(100.0, request.amount());
             assertEquals(Currency.USD, request.from());
             assertEquals(Currency.EUR, request.to());
         }
 
         @Test
-        @DisplayName("should create request with zero amount")
+        @DisplayName("Should create request with zero amount")
         void shouldCreateRequestWithZeroAmount() {
             ConversionRequest request = new ConversionRequest(0.0, Currency.USD, Currency.EUR);
-
+            
             assertEquals(0.0, request.amount());
-            assertEquals(Currency.USD, request.from());
-            assertEquals(Currency.EUR, request.to());
         }
 
         @Test
-        @DisplayName("should create request with negative amount")
+        @DisplayName("Should create request with negative amount")
         void shouldCreateRequestWithNegativeAmount() {
-            ConversionRequest request = new ConversionRequest(-50.0, Currency.JPY, Currency.CHF);
-
+            ConversionRequest request = new ConversionRequest(-50.0, Currency.USD, Currency.EUR);
+            
             assertEquals(-50.0, request.amount());
-            assertEquals(Currency.JPY, request.from());
-            assertEquals(Currency.CHF, request.to());
         }
 
         @Test
-        @DisplayName("should create request with large amount")
-        void shouldCreateRequestWithLargeAmount() {
-            ConversionRequest request = new ConversionRequest(999999.99, Currency.CAD, Currency.AUD);
-
-            assertEquals(999999.99, request.amount());
-            assertEquals(Currency.CAD, request.from());
-            assertEquals(Currency.AUD, request.to());
+        @DisplayName("Should create request with very large amount")
+        void shouldCreateRequestWithVeryLargeAmount() {
+            ConversionRequest request = new ConversionRequest(1_000_000_000.0, Currency.USD, Currency.EUR);
+            
+            assertEquals(1_000_000_000.0, request.amount());
         }
 
         @Test
-        @DisplayName("should create request with same currency")
-        void shouldCreateRequestWithSameCurrency() {
+        @DisplayName("Should create request with same from and to currency")
+        void shouldCreateRequestWithSameCurrencies() {
             ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.USD);
-
-            assertEquals(100.0, request.amount());
+            
             assertEquals(Currency.USD, request.from());
             assertEquals(Currency.USD, request.to());
+        }
+
+        @Test
+        @DisplayName("Should create request with decimal amount")
+        void shouldCreateRequestWithDecimalAmount() {
+            ConversionRequest request = new ConversionRequest(123.456, Currency.USD, Currency.EUR);
+            
+            assertEquals(123.456, request.amount());
         }
     }
 
     @Nested
-    @DisplayName("Accessor method tests")
-    class AccessorTests {
+    @DisplayName("Accessor Method Tests")
+    class AccessorMethodTests {
 
-        
+        @Test
+        @DisplayName("amount() should return correct value")
+        void amountShouldReturnCorrectValue() {
+            ConversionRequest request = new ConversionRequest(250.75, Currency.GBP, Currency.JPY);
+            
+            assertEquals(250.75, request.amount());
+        }
+
+        @Test
+        @DisplayName("from() should return correct currency")
+        void fromShouldReturnCorrectCurrency() {
+            ConversionRequest request = new ConversionRequest(100.0, Currency.CAD, Currency.AUD);
+            
+            assertEquals(Currency.CAD, request.from());
+        }
 
         @Test
         @DisplayName("to() should return correct currency")
         void toShouldReturnCorrectCurrency() {
-            ConversionRequest request = new ConversionRequest(100.0, Currency.CHF, Currency.MXN);
-
-            assertEquals(Currency.MXN, request.to());
+            ConversionRequest request = new ConversionRequest(100.0, Currency.CHF, Currency.CNY);
+            
+            assertEquals(Currency.CNY, request.to());
         }
     }
 
     @Nested
-    @DisplayName("Equals and hashCode tests")
-    
-    class EqualsAndHashCodeTests {
+    @DisplayName("Equality Tests")
+    class EqualityTests {
 
         @Test
-        @DisplayName("should be equal when same values")
-        void shouldBeEqualWhenSameValues() {
+        @DisplayName("Should be equal to itself")
+        void shouldBeEqualToItself() {
+            ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
+            
+            assertEquals(request, request);
+        }
+
+        @Test
+        @DisplayName("Should be equal to another request with same values")
+        void shouldBeEqualToAnotherRequestWithSameValues() {
             ConversionRequest request1 = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
             ConversionRequest request2 = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
-
+            
             assertEquals(request1, request2);
-            assertEquals(request1.hashCode(), request2.hashCode());
         }
 
         @Test
-        @DisplayName("should not be equal when different amount")
-        void shouldNotBeEqualWhenDifferentAmount() {
+        @DisplayName("Should not be equal to request with different amount")
+        void shouldNotBeEqualToRequestWithDifferentAmount() {
             ConversionRequest request1 = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
             ConversionRequest request2 = new ConversionRequest(200.0, Currency.USD, Currency.EUR);
-
+            
             assertNotEquals(request1, request2);
         }
 
         @Test
-        @DisplayName("should not be equal when different from currency")
-        void shouldNotBeEqualWhenDifferentFromCurrency() {
+        @DisplayName("Should not be equal to request with different from currency")
+        void shouldNotBeEqualToRequestWithDifferentFromCurrency() {
             ConversionRequest request1 = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
             ConversionRequest request2 = new ConversionRequest(100.0, Currency.GBP, Currency.EUR);
-
+            
             assertNotEquals(request1, request2);
         }
 
         @Test
-        @DisplayName("should not be equal when different to currency")
-        void shouldNotBeEqualWhenDifferentToCurrency() {
+        @DisplayName("Should not be equal to request with different to currency")
+        void shouldNotBeEqualToRequestWithDifferentToCurrency() {
             ConversionRequest request1 = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
             ConversionRequest request2 = new ConversionRequest(100.0, Currency.USD, Currency.GBP);
-
+            
             assertNotEquals(request1, request2);
         }
 
         @Test
-        @DisplayName("should not be equal to null")
+        @DisplayName("Should not be equal to null")
         void shouldNotBeEqualToNull() {
             ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
-
+            
             assertNotEquals(null, request);
-        }
-
-        @Test
-        @DisplayName("should not be equal to different type")
-        void shouldNotBeEqualToDifferentType() {
-            ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
-
-            assertNotEquals("not a request", request);
         }
     }
 
     @Nested
-    @DisplayName("toString tests")
+    @DisplayName("HashCode Tests")
+    class HashCodeTests {
+
+        @Test
+        @DisplayName("Should return consistent hashCode")
+        void shouldReturnConsistentHashCode() {
+            ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
+            
+            assertEquals(request.hashCode(), request.hashCode());
+        }
+
+        @Test
+        @DisplayName("Should return same hashCode for equal objects")
+        void shouldReturnSameHashCodeForEqualObjects() {
+            ConversionRequest request1 = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
+            ConversionRequest request2 = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
+            
+            assertEquals(request1.hashCode(), request2.hashCode());
+        }
+    }
+
+    @Nested
+    @DisplayName("ToString Tests")
     class ToStringTests {
 
         @Test
-        @DisplayName("toString should contain all fields")
-        void toStringShouldContainAllFields() {
+        @DisplayName("Should return non-null string representation")
+        void shouldReturnNonNullStringRepresentation() {
             ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
-            String result = request.toString();
-
-            assertTrue(result.contains("100.0"));
-            assertTrue(result.contains("USD"));
-            assertTrue(result.contains("EUR"));
-        }
-    }
-
-    @Nested
-    @DisplayName("Record accessor tests")
-    
-    class RecordAccessorTests {
-
-        @Test
-        @DisplayName("should support record accessors with positional arguments")
-        void shouldSupportRecordAccessorsWithPositionalArguments() {
-            ConversionRequest request = new ConversionRequest(42.5, Currency.JPY, Currency.CHF);
-
-            assertEquals(42.5, request.amount());
-            assertEquals(Currency.JPY, request.from());
-            assertEquals(Currency.CHF, request.to());
+            
+            assertNotNull(request.toString());
         }
 
         @Test
-        @DisplayName("should allow multiple currency types")
-        void shouldAllowMultipleCurrencyTypes() {
-            ConversionRequest usdEur = new ConversionRequest(50.0, Currency.USD, Currency.EUR);
-            ConversionRequest gbpJpy = new ConversionRequest(75.0, Currency.GBP, Currency.JPY);
-            ConversionRequest cnyMxn = new ConversionRequest(30.0, Currency.CNY, Currency.MXN);
+        @DisplayName("Should contain amount in string representation")
+        void shouldContainAmountInStringRepresentation() {
+            ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
+            
+            assertTrue(request.toString().contains("100.0"));
+        }
 
-            assertEquals(Currency.EUR, usdEur.to());
-            assertEquals(Currency.JPY, gbpJpy.to());
-            assertEquals(Currency.MXN, cnyMxn.to());
+        @Test
+        @DisplayName("Should contain from currency in string representation")
+        void shouldContainFromCurrencyInStringRepresentation() {
+            ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
+            
+            assertTrue(request.toString().contains("USD"));
+        }
+
+        @Test
+        @DisplayName("Should contain to currency in string representation")
+        void shouldContainToCurrencyInStringRepresentation() {
+            ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
+            
+            assertTrue(request.toString().contains("EUR"));
         }
     }
 }

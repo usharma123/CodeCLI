@@ -78,6 +78,13 @@ export interface IncidentalCoverage {
   reason: string
 }
 
+export interface TestMethod {
+  className: string
+  methodName: string
+  filePath: string
+  lineNumber: number
+}
+
 // ============================================================================
 // JaCoCo CSV Parser
 // ============================================================================
@@ -446,6 +453,55 @@ function collectTestFiles(dir: string, files: Map<string, string>): void {
       }
     }
   }
+}
+
+/**
+ * Scan test source files and extract test methods.
+ * Works even when artifacts don't exist yet.
+ */
+export function scanTestSourceFiles(testSourceDir: string): Map<string, TestMethod[]> {
+  const testMethods = new Map<string, TestMethod[]>()
+
+  if (!fs.existsSync(testSourceDir)) {
+    return testMethods
+  }
+
+  const testFiles = new Map<string, string>()
+  collectTestFiles(testSourceDir, testFiles)
+
+  for (const [filePath, content] of testFiles) {
+    // Extract class name
+    const classMatch = content.match(/public\s+(?:final\s+)?class\s+(\w+)/)
+    if (!classMatch) continue
+
+    const className = classMatch[1]
+    const methods: TestMethod[] = []
+
+    // Extract test methods (JUnit 4 @Test, JUnit 5 @Test, @ParameterizedTest, @RepeatedTest)
+    // Match annotation followed by optional annotations/modifiers, then method signature
+    const testMethodRegex = /@(?:Test|ParameterizedTest|RepeatedTest)\b[\s\S]*?(?:public\s+)?(?:void\s+)?(\w+)\s*\([^)]*\)\s*(?:throws\s+[\w,\s]+)?\s*\{/g
+    let match
+
+    while ((match = testMethodRegex.exec(content)) !== null) {
+      const methodName = match[1]
+      // Calculate line number by counting newlines before match
+      const beforeMatch = content.substring(0, match.index)
+      const lineNumber = beforeMatch.split("\n").length
+
+      methods.push({
+        className,
+        methodName,
+        filePath,
+        lineNumber,
+      })
+    }
+
+    if (methods.length > 0) {
+      testMethods.set(className, methods)
+    }
+  }
+
+  return testMethods
 }
 
 // ============================================================================
