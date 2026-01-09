@@ -9,7 +9,7 @@ export const GenerateCommand = {
       for (const method of ["get", "post", "put", "delete", "patch"] as const) {
         const operation = item[method]
         if (!operation?.operationId) continue
-        // @ts-expect-error
+        // @ts-ignore - dynamic property assignment
         operation["x-codeSamples"] = [
           {
             lang: "js",

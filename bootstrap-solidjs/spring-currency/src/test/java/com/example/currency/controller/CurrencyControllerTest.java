@@ -19,6 +19,8 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 @WebMvcTest(CurrencyController.class)
 @DisplayName("CurrencyController Tests")
 class CurrencyControllerTest {
@@ -332,6 +334,41 @@ class CurrencyControllerTest {
                     .andExpect(jsonPath("$.to").exists())
                     .andExpect(jsonPath("$.result").exists())
                     .andExpect(jsonPath("$.rate").exists());
+        }
+    }
+
+    @Nested
+    @DisplayName("Constructor Tests")
+    class ConstructorTests {
+
+        @Test
+        @DisplayName("Should create controller with ExchangeRateService")
+        void shouldCreateControllerWithExchangeRateService() {
+            ExchangeRateService service = mock(ExchangeRateService.class);
+            CurrencyController controller = new CurrencyController(service);
+
+            assertThat(controller).isNotNull();
+        }
+
+        @Test
+        @DisplayName("Should convert using injected service")
+        void shouldConvertUsingInjectedService() {
+            ExchangeRateService service = mock(ExchangeRateService.class);
+            CurrencyController controller = new CurrencyController(service);
+
+            ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
+            ConversionResponse expectedResponse = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
+
+            when(service.convert(request)).thenReturn(expectedResponse);
+
+            ConversionResponse result = controller.convert(request);
+
+            assertThat(result.amount()).isEqualTo(100.0);
+            assertThat(result.from()).isEqualTo("USD");
+            assertThat(result.to()).isEqualTo("EUR");
+            assertThat(result.result()).isEqualTo(92.0);
+
+            verify(service, times(1)).convert(request);
         }
     }
 }

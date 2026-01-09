@@ -85,6 +85,23 @@ export interface TestMethod {
   lineNumber: number
 }
 
+export interface ProductionMethod {
+  className: string
+  methodName: string
+  signature: string // e.g., "calculateTotal/2" (name/paramCount)
+  filePath: string
+  lineNumber: number
+  paramCount: number
+}
+
+export interface ProductionClass {
+  className: string
+  fullName: string
+  package: string
+  filePath: string
+  methods: ProductionMethod[]
+}
+
 // ============================================================================
 // JaCoCo CSV Parser
 // ============================================================================
@@ -470,11 +487,17 @@ export function scanTestSourceFiles(testSourceDir: string): Map<string, TestMeth
   collectTestFiles(testSourceDir, testFiles)
 
   for (const [filePath, content] of testFiles) {
-    // Extract class name
-    const classMatch = content.match(/public\s+(?:final\s+)?class\s+(\w+)/)
-    if (!classMatch) continue
+    // Extract all class names (including package-private, static, abstract, final)
+    // This handles: public class, class (package-private), static class, abstract class, final class
+    const classRegex = /(?:(?:public|protected|private)\s+)?(?:(?:static|final|abstract)\s+)*class\s+(\w+)/g
+    const classesInFile: { name: string; position: number }[] = []
+    let classMatch
+    while ((classMatch = classRegex.exec(content)) !== null) {
+      classesInFile.push({ name: classMatch[1], position: classMatch.index })
+    }
 
-    const className = classMatch[1]
+    if (classesInFile.length === 0) continue
+
     const methods: TestMethod[] = []
 
     // Extract test methods (JUnit 4 @Test, JUnit 5 @Test, @ParameterizedTest, @RepeatedTest)
@@ -484,9 +507,20 @@ export function scanTestSourceFiles(testSourceDir: string): Map<string, TestMeth
 
     while ((match = testMethodRegex.exec(content)) !== null) {
       const methodName = match[1]
+      const methodPosition = match.index
       // Calculate line number by counting newlines before match
       const beforeMatch = content.substring(0, match.index)
       const lineNumber = beforeMatch.split("\n").length
+
+      // Find the nearest enclosing class (the last class definition before this method)
+      let className = classesInFile[0].name // Default to first class
+      for (const cls of classesInFile) {
+        if (cls.position < methodPosition) {
+          className = cls.name
+        } else {
+          break
+        }
+      }
 
       methods.push({
         className,
@@ -496,8 +530,11 @@ export function scanTestSourceFiles(testSourceDir: string): Map<string, TestMeth
       })
     }
 
-    if (methods.length > 0) {
-      testMethods.set(className, methods)
+    // Group methods by class name and add to results
+    for (const method of methods) {
+      const existing = testMethods.get(method.className) || []
+      existing.push(method)
+      testMethods.set(method.className, existing)
     }
   }
 
@@ -549,4 +586,180 @@ export function findTestSourceDir(projectRoot: string): string | null {
   }
 
   return null
+}
+
+export function findMainSourceDir(projectRoot: string): string | null {
+  const candidates = [
+    path.join(projectRoot, "src/main/java"),
+    path.join(projectRoot, "src/main/kotlin"),
+    path.join(projectRoot, "src/main"),
+  ]
+
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      return p
+    }
+  }
+
+  return null
+}
+
+// ============================================================================
+// Production Source Scanning
+// ============================================================================
+
+/**
+ * Extract package declaration from Java/Kotlin source
+ */
+function extractPackage(content: string): string {
+  const packageMatch = content.match(/^package\s+([a-zA-Z0-9_.]+)\s*;?/m)
+  return packageMatch ? packageMatch[1] : ""
+}
+
+/**
+ * Extract class name from Java/Kotlin source
+ * Handles: public, protected, private, package-private, static, final, abstract
+ */
+function extractClassName(content: string): string | null {
+  // Match class (including all access modifiers and combinations)
+  const classMatch = content.match(/(?:(?:public|protected|private)\s+)?(?:(?:static|final|abstract)\s+)*class\s+(\w+)/)
+  if (classMatch) return classMatch[1]
+
+  // Match interface (including all access modifiers)
+  const interfaceMatch = content.match(/(?:(?:public|protected|private)\s+)?(?:(?:static|abstract)\s+)*interface\s+(\w+)/)
+  if (interfaceMatch) return interfaceMatch[1]
+
+  // Match enum (including all access modifiers)
+  const enumMatch = content.match(/(?:(?:public|protected|private)\s+)?enum\s+(\w+)/)
+  if (enumMatch) return enumMatch[1]
+
+  return null
+}
+
+/**
+ * Count parameters in a parameter string.
+ * Handles generics by tracking angle bracket depth.
+ */
+function countParameters(paramsStr: string): number {
+  if (!paramsStr || paramsStr.trim() === "") return 0
+
+  let count = 1
+  let depth = 0
+
+  for (const char of paramsStr) {
+    if (char === "<") depth++
+    else if (char === ">") depth--
+    else if (char === "," && depth === 0) count++
+  }
+
+  return count
+}
+
+/**
+ * Extract method declarations from Java/Kotlin source.
+ * Returns methods with name/paramCount signature format.
+ */
+function extractMethods(content: string, className: string): ProductionMethod[] {
+  const methods: ProductionMethod[] = []
+
+  // Match method signatures:
+  // [modifiers] returnType methodName([params]) [throws] {
+  // Handles: public, private, protected, static, final, abstract, synchronized, native
+  const methodRegex = /(?:(?:public|private|protected|static|final|abstract|synchronized|native)\s+)*(?:[\w<>\[\],\s]+?)\s+(\w+)\s*\(([^)]*)\)\s*(?:throws\s+[\w\s,]+)?\s*\{/g
+
+  let match
+  while ((match = methodRegex.exec(content)) !== null) {
+    const methodName = match[1]
+    const paramsStr = match[2]?.trim() || ""
+
+    // Skip constructors (same name as class)
+    if (methodName === className) continue
+
+    // Skip common false positives
+    if (["if", "while", "for", "switch", "catch", "synchronized"].includes(methodName)) continue
+
+    // Count parameters
+    const paramCount = countParameters(paramsStr)
+
+    // Build signature: methodName/paramCount
+    const signature = `${methodName}/${paramCount}`
+
+    // Calculate line number
+    const beforeMatch = content.substring(0, match.index)
+    const lineNumber = beforeMatch.split("\n").length
+
+    methods.push({
+      className,
+      methodName,
+      signature,
+      paramCount,
+      filePath: "", // Set by caller
+      lineNumber,
+    })
+  }
+
+  return methods
+}
+
+/**
+ * Collect all Java/Kotlin source files in a directory recursively
+ */
+function collectSourceFiles(dir: string, files: Map<string, string>): void {
+  if (!fs.existsSync(dir)) return
+
+  const entries = fs.readdirSync(dir, { withFileTypes: true })
+
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name)
+
+    if (entry.isDirectory() && entry.name !== "target" && entry.name !== "build" && !entry.name.startsWith(".")) {
+      collectSourceFiles(fullPath, files)
+    } else if (entry.isFile() && (entry.name.endsWith(".java") || entry.name.endsWith(".kt"))) {
+      try {
+        files.set(fullPath, fs.readFileSync(fullPath, "utf-8"))
+      } catch {
+        // Ignore unreadable files
+      }
+    }
+  }
+}
+
+/**
+ * Scan production source files and extract all classes and methods.
+ * Works independently of build artifacts.
+ */
+export function scanProductionSourceFiles(mainSourceDir: string): Map<string, ProductionClass> {
+  const classes = new Map<string, ProductionClass>()
+
+  if (!fs.existsSync(mainSourceDir)) {
+    return classes
+  }
+
+  const sourceFiles = new Map<string, string>()
+  collectSourceFiles(mainSourceDir, sourceFiles)
+
+  for (const [filePath, content] of sourceFiles) {
+    const pkg = extractPackage(content)
+    const className = extractClassName(content)
+
+    if (!className) continue
+
+    const fullName = pkg ? `${pkg}.${className}` : className
+    const methods = extractMethods(content, className)
+
+    // Set filePath for each method
+    for (const method of methods) {
+      method.filePath = filePath
+    }
+
+    classes.set(fullName, {
+      className,
+      fullName,
+      package: pkg,
+      filePath,
+      methods,
+    })
+  }
+
+  return classes
 }

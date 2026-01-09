@@ -591,13 +591,13 @@ export namespace Provider {
     function mergeProvider(providerID: string, provider: Partial<Info>) {
       const existing = providers[providerID]
       if (existing) {
-        // @ts-expect-error
+        // @ts-ignore - mergeDeep type compatibility
         providers[providerID] = mergeDeep(existing, provider)
         return
       }
       const match = database[providerID]
       if (!match) return
-      // @ts-expect-error
+      // @ts-ignore - mergeDeep type compatibility
       providers[providerID] = mergeDeep(match, provider)
     }
 

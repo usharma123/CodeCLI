@@ -9,8 +9,8 @@
 
 import * as fs from "fs"
 import * as path from "path"
-import type { ClassCoverage, AggregateCoverage, AggregateTestResults, TestMethod } from "./quality-parsers"
-import { scanTestSourceFiles } from "./quality-parsers"
+import type { ClassCoverage, AggregateCoverage, AggregateTestResults, TestMethod, ProductionClass, ProductionMethod } from "./quality-parsers"
+import { scanTestSourceFiles, scanProductionSourceFiles } from "./quality-parsers"
 
 // ============================================================================
 // Types
@@ -46,6 +46,13 @@ export interface QualityBaseline {
     testClasses: string[]
     testMethods: { [className: string]: string[] }
     slowTests: { name: string; className: string; time: number }[]
+
+    // Production source tracking
+    productionClasses?: {
+      [fullClassName: string]: {
+        methods: { [signature: string]: { lineNumber: number; filePath: string } }
+      }
+    }
   }
 }
 
@@ -214,6 +221,7 @@ export async function createBaseline(
   coverageData: ClassCoverage[],
   aggregateCov: AggregateCoverage,
   testSourceDir?: string,
+  mainSourceDir?: string,
 ): Promise<QualityBaseline> {
   const commit = await getCurrentCommit(projectRoot)
 
@@ -234,6 +242,22 @@ export async function createBaseline(
     const scannedMethods = scanTestSourceFiles(testSourceDir)
     for (const [className, methods] of scannedMethods) {
       testMethods[className] = methods.map((m) => m.methodName)
+    }
+  }
+
+  // Scan production source files
+  const productionClasses: QualityBaseline["metrics"]["productionClasses"] = {}
+  if (mainSourceDir) {
+    const scannedClasses = scanProductionSourceFiles(mainSourceDir)
+    for (const [fullName, cls] of scannedClasses) {
+      const methods: { [signature: string]: { lineNumber: number; filePath: string } } = {}
+      for (const method of cls.methods) {
+        methods[method.signature] = {
+          lineNumber: method.lineNumber,
+          filePath: method.filePath,
+        }
+      }
+      productionClasses[fullName] = { methods }
     }
   }
 
@@ -273,6 +297,7 @@ export async function createBaseline(
       testClasses,
       testMethods,
       slowTests: testResults.slowTests.slice(0, 10),
+      productionClasses: Object.keys(productionClasses).length > 0 ? productionClasses : undefined,
     },
   }
 
@@ -481,6 +506,14 @@ export interface SourceDiffResult {
   testMethodsAdded: { className: string; methods: string[] }[]
 }
 
+export interface ProductionSourceDiff {
+  classesRemoved: string[]
+  classesAdded: string[]
+  methodsRemoved: { className: string; methodSignature: string }[]
+  methodsAdded: { className: string; methodSignature: string }[]
+  methodsAltered: { className: string; oldSignature: string; newSignature: string }[]
+}
+
 /**
  * Compare current source files vs previous baseline to detect deletions.
  * Works even without artifacts.
@@ -563,6 +596,124 @@ export function computeSourceDiff(
     testMethodsRemoved,
     testMethodsAdded,
   }
+}
+
+/**
+ * Compare current production source files vs previous baseline to detect deletions/alterations.
+ * Works independently of build artifacts.
+ */
+export function computeProductionSourceDiff(
+  currentClasses: Map<string, ProductionClass>,
+  previousBaseline: QualityBaseline | null,
+): ProductionSourceDiff {
+  const result: ProductionSourceDiff = {
+    classesRemoved: [],
+    classesAdded: [],
+    methodsRemoved: [],
+    methodsAdded: [],
+    methodsAltered: [],
+  }
+
+  if (!previousBaseline || !previousBaseline.metrics.productionClasses) {
+    // No previous baseline with production classes - everything is "added"
+    for (const [fullName, cls] of currentClasses) {
+      result.classesAdded.push(fullName)
+      for (const method of cls.methods) {
+        result.methodsAdded.push({ className: fullName, methodSignature: method.signature })
+      }
+    }
+    return result
+  }
+
+  const prevClasses = previousBaseline.metrics.productionClasses
+  const prevClassSet = new Set(Object.keys(prevClasses))
+  const currClassSet = new Set(currentClasses.keys())
+
+  // Find removed classes
+  for (const fullName of prevClassSet) {
+    if (!currClassSet.has(fullName)) {
+      result.classesRemoved.push(fullName)
+      const prevMethods = prevClasses[fullName]?.methods || {}
+      for (const signature of Object.keys(prevMethods)) {
+        result.methodsRemoved.push({
+          className: fullName,
+          methodSignature: signature,
+        })
+      }
+    }
+  }
+
+  // Find added classes
+  for (const fullName of currClassSet) {
+    if (!prevClassSet.has(fullName)) {
+      result.classesAdded.push(fullName)
+      const currMethods = currentClasses.get(fullName)?.methods || []
+      for (const method of currMethods) {
+        result.methodsAdded.push({ className: fullName, methodSignature: method.signature })
+      }
+    }
+  }
+
+  // Find method changes in existing classes
+  for (const fullName of prevClassSet) {
+    if (currClassSet.has(fullName)) {
+      const prevMethods = prevClasses[fullName]?.methods || {}
+      const currMethods = currentClasses.get(fullName)?.methods || []
+
+      const prevSignatures = new Set(Object.keys(prevMethods))
+      const currSignatures = new Set(currMethods.map((m) => m.signature))
+
+      // Group by method name (before the /)
+      const prevByName = new Map<string, string[]>()
+      for (const sig of prevSignatures) {
+        const name = sig.split("/")[0]
+        if (!prevByName.has(name)) prevByName.set(name, [])
+        prevByName.get(name)!.push(sig)
+      }
+
+      const currByName = new Map<string, string[]>()
+      for (const sig of currSignatures) {
+        const name = sig.split("/")[0]
+        if (!currByName.has(name)) currByName.set(name, [])
+        currByName.get(name)!.push(sig)
+      }
+
+      // Find removed methods
+      for (const signature of prevSignatures) {
+        if (!currSignatures.has(signature)) {
+          const methodName = signature.split("/")[0]
+          const currSigsWithName = currByName.get(methodName) || []
+
+          // Check if this is an alteration (same name, different param count)
+          if (currSigsWithName.length > 0 && !currSignatures.has(signature)) {
+            // Method exists with different signature - it's altered
+            const newSig = currSigsWithName[0]
+            result.methodsAltered.push({
+              className: fullName,
+              oldSignature: signature,
+              newSignature: newSig,
+            })
+          } else {
+            // Method completely removed
+            result.methodsRemoved.push({
+              className: fullName,
+              methodSignature: signature,
+            })
+          }
+        }
+      }
+
+      // Find added methods (that aren't alterations)
+      const alteredNewSigs = new Set(result.methodsAltered.map((a) => a.newSignature))
+      for (const signature of currSignatures) {
+        if (!prevSignatures.has(signature) && !alteredNewSigs.has(signature)) {
+          result.methodsAdded.push({ className: fullName, methodSignature: signature })
+        }
+      }
+    }
+  }
+
+  return result
 }
 
 // ============================================================================

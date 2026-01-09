@@ -347,7 +347,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
     return {
       theme: new Proxy(values(), {
         get(_target, prop) {
-          // @ts-expect-error
+          // @ts-ignore - proxy dynamic access
           return values()[prop]
         },
       }),

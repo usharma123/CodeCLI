@@ -2415,7 +2415,7 @@ export namespace Server {
         async (c) => {
           const command = c.req.valid("json").command
           await Bus.publish(TuiEvent.CommandExecute, {
-            // @ts-expect-error
+            // @ts-ignore - command mapping
             command: {
               session_new: "session.new",
               session_share: "session.share",

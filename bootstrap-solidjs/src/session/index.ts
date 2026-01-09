@@ -414,7 +414,7 @@ export namespace Session {
         cache: {
           write: safe(
             (input.metadata?.["anthropic"]?.["cacheCreationInputTokens"] ??
-              // @ts-expect-error
+              // @ts-ignore - bedrock metadata access
               input.metadata?.["bedrock"]?.["usage"]?.["cacheWriteInputTokens"] ??
               0) as number,
           ),

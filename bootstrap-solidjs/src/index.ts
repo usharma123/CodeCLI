@@ -1,5 +1,7 @@
 import yargs from "yargs"
-import { hideBin } from "yargs/helpers"
+
+// hideBin equivalent for yargs 18+ compatibility
+const hideBin = (argv: string[]) => argv.slice(2)
 import { RunCommand } from "./cli/cmd/run"
 import { GenerateCommand } from "./cli/cmd/generate"
 import { Log } from "./util/log"
