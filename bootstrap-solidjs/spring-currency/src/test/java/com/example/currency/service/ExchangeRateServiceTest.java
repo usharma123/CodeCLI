@@ -26,30 +26,6 @@ class ExchangeRateServiceTest {
     @DisplayName("Cross Currency Conversion Tests")
     class CrossCurrencyConversionTests {
 
-        @Test
-        @DisplayName("Should convert EUR to GBP correctly")
-        void shouldConvertEurToGbp() {
-            ConversionRequest request = new ConversionRequest(100.0, Currency.EUR, Currency.GBP);
-            
-            ConversionResponse response = service.convert(request);
-            
-            assertNotNull(response);
-            assertEquals("EUR", response.from());
-            assertEquals("GBP", response.to());
-            assertTrue(response.rate() > 0);
-        }
-
-        @Test
-        @DisplayName("Should convert GBP to JPY correctly")
-        void shouldConvertGbpToJpy() {
-            ConversionRequest request = new ConversionRequest(100.0, Currency.GBP, Currency.JPY);
-            
-            ConversionResponse response = service.convert(request);
-            
-            assertEquals("GBP", response.from());
-            assertEquals("JPY", response.to());
-            assertTrue(response.result() > 100.0);
-        }
 
         @Test
         @DisplayName("Should convert CAD to AUD correctly")
@@ -85,6 +61,30 @@ class ExchangeRateServiceTest {
             assertEquals("INR", response.from());
             assertEquals("MXN", response.to());
             assertTrue(response.rate() > 0);
+        }
+
+        @Test
+        @DisplayName("Should convert EUR to GBP correctly")
+        void shouldConvertEurToGbp() {
+            ConversionRequest request = new ConversionRequest(100.0, Currency.EUR, Currency.GBP);
+            
+            ConversionResponse response = service.convert(request);
+            
+            assertEquals("EUR", response.from());
+            assertEquals("GBP", response.to());
+            assertTrue(response.rate() > 0);
+        }
+
+        @Test
+        @DisplayName("Should convert GBP to JPY correctly")
+        void shouldConvertGbpToJpy() {
+            ConversionRequest request = new ConversionRequest(100.0, Currency.GBP, Currency.JPY);
+            
+            ConversionResponse response = service.convert(request);
+            
+            assertEquals("GBP", response.from());
+            assertEquals("JPY", response.to());
+            assertTrue(response.result() > 100.0);
         }
     }
 

@@ -3,13 +3,18 @@
  *
  * Mimics SonarQube's approach: parse machine artifacts (JaCoCo CSV, Surefire XML)
  * directly rather than console output for robust, evidence-based metrics.
+ *
+ * Features automatic staleness detection via git status and file timestamps,
+ * and auto-runs tests when stale artifacts are detected.
  */
 
 import z from "zod"
+import * as fs from "fs"
 import * as path from "path"
 import { Tool } from "./tool"
 import { Instance } from "../project/instance"
 import DESCRIPTION from "./quality.txt"
+import { detectBuildTool } from "../testing/build-tool-detector"
 
 import {
   parseJacocoCsv,
@@ -48,6 +53,46 @@ import {
 } from "./quality-baseline"
 
 // ============================================================================
+// Staleness Detection Types
+// ============================================================================
+
+export interface StalenessCheck {
+  mustRunTests: boolean
+  reasons: string[]
+  gitChanges: {
+    deletedTestFiles: string[]
+    deletedTestMethods: { filePath: string; methods: string[] }[]
+    modifiedTestFiles: string[]
+    untrackedTestFiles: string[]
+  }
+  artifactInfo: {
+    jacocoExists: boolean
+    jacocoMtime: Date | null
+    surefireExists: boolean
+    surefireMtime: Date | null
+  }
+  sourceInfo: {
+    newestTestFileMtime: Date | null
+    newestTestFile: string | null
+  }
+}
+
+export interface TestExecutionResult {
+  success: boolean
+  exitCode: number
+  duration: number // milliseconds
+  summary: {
+    testsRun: number
+    failures: number
+    errors: number
+    skipped: number
+  }
+  output: string // full stdout/stderr for debugging
+  command: string // what was executed
+  timedOut: boolean
+}
+
+// ============================================================================
 // Report Formatting
 // ============================================================================
 
@@ -81,6 +126,8 @@ function generateReport(
   artifactPaths: { jacoco?: string; surefire?: string; testSrc?: string },
   productionDiff?: ProductionSourceDiff | null,
   gitChanges?: GitTestChanges | null,
+  testExecution?: TestExecutionResult | null,
+  staleness?: StalenessCheck | null,
 ): string {
   const lines: string[] = []
 
@@ -92,6 +139,52 @@ function generateReport(
     lines.push(`**Commit:** ${baseline.commit}`)
   }
   lines.push("")
+
+  // Test Execution Section (if tests were run)
+  if (testExecution) {
+    lines.push("## Test Execution")
+    lines.push("")
+    lines.push("| Metric | Value |")
+    lines.push("|--------|-------|")
+    lines.push(`| Command | \`${testExecution.command}\` |`)
+    lines.push(`| Duration | ${(testExecution.duration / 1000).toFixed(1)}s |`)
+    lines.push(`| Status | ${testExecution.success ? "PASS" : testExecution.timedOut ? "TIMEOUT" : "FAIL"} |`)
+    lines.push(`| Tests Run | ${testExecution.summary.testsRun} |`)
+    lines.push(`| Passed | ${testExecution.summary.testsRun - testExecution.summary.failures - testExecution.summary.errors} |`)
+    lines.push(`| Failed | ${testExecution.summary.failures} |`)
+    lines.push(`| Errors | ${testExecution.summary.errors} |`)
+    lines.push(`| Skipped | ${testExecution.summary.skipped} |`)
+    lines.push("")
+
+    // Staleness triggers
+    if (staleness && staleness.reasons.length > 0) {
+      lines.push("**Staleness triggers:**")
+      for (const reason of staleness.reasons) {
+        lines.push(`- ${reason}`)
+      }
+      lines.push("")
+    }
+
+    // Test output (collapsible)
+    if (!testExecution.success || testExecution.summary.failures > 0 || testExecution.summary.errors > 0) {
+      lines.push("<details>")
+      lines.push("<summary>Test Output (click to expand)</summary>")
+      lines.push("")
+      lines.push("```")
+      // Limit output to avoid massive reports
+      const maxOutputLength = 10000
+      if (testExecution.output.length > maxOutputLength) {
+        lines.push(testExecution.output.substring(0, maxOutputLength))
+        lines.push(`\n... (truncated, ${testExecution.output.length - maxOutputLength} more characters)`)
+      } else {
+        lines.push(testExecution.output)
+      }
+      lines.push("```")
+      lines.push("")
+      lines.push("</details>")
+      lines.push("")
+    }
+  }
 
   // Summary Table
   lines.push("## Summary")
@@ -305,14 +398,80 @@ function generateReport(
     }
   }
 
-  // Gate Result
-  lines.push("## Gate Result: " + (gateResult.passed ? "PASS" : "FAIL"))
+  // Quality Gates (SonarQube-style detailed table)
+  const config = {
+    min_line_coverage: 70,
+    min_branch_coverage: 60,
+    max_test_drop: 0,
+    max_slow_test_ms: 5000,
+  }
+  
+  lines.push("## Quality Gates")
   lines.push("")
-  if (!gateResult.passed) {
-    for (const failure of gateResult.failures) {
-      lines.push(`- ${failure}`)
-    }
+  lines.push("| Gate | Threshold | Actual | Status |")
+  lines.push("|------|-----------|--------|--------|")
+  
+  const lineCovStatus = baseline.metrics.coverage.line.percent >= config.min_line_coverage ? "PASS" : "FAIL"
+  lines.push(`| Line Coverage | >= ${config.min_line_coverage}% | ${formatPercent(baseline.metrics.coverage.line.percent)} | ${lineCovStatus} |`)
+  
+  const branchCovStatus = baseline.metrics.coverage.branch.percent >= config.min_branch_coverage ? "PASS" : "FAIL"
+  lines.push(`| Branch Coverage | >= ${config.min_branch_coverage}% | ${formatPercent(baseline.metrics.coverage.branch.percent)} | ${branchCovStatus} |`)
+  
+  const testDropStatus = diff.testsDelta >= -config.max_test_drop ? "PASS" : "FAIL"
+  lines.push(`| Test Count Drop | <= ${config.max_test_drop} | ${diff.testsDelta} | ${testDropStatus} |`)
+  
+  const maxSlowTime = testResults.slowTests.length > 0 ? testResults.slowTests[0].time * 1000 : 0
+  const slowTestStatus = maxSlowTime <= config.max_slow_test_ms ? "PASS" : "FAIL"
+  lines.push(`| Max Slow Test | <= ${config.max_slow_test_ms}ms | ${maxSlowTime.toFixed(0)}ms | ${slowTestStatus} |`)
+  lines.push("")
+  
+  lines.push(`**Overall: ${gateResult.passed ? "PASS" : "FAIL"}**`)
+  lines.push("")
+
+  // Issues Section (SonarQube-style categorized issues)
+  const criticalIssues = diff.warnings.filter(w => w.level === "critical")
+  const warningIssues = diff.warnings.filter(w => w.level === "warning")
+  const infoIssues = diff.warnings.filter(w => w.level === "info")
+  
+  if (criticalIssues.length > 0 || warningIssues.length > 0) {
+    lines.push("## Issues")
     lines.push("")
+    
+    if (criticalIssues.length > 0) {
+      lines.push(`### Critical (${criticalIssues.length})`)
+      lines.push("")
+      for (const issue of criticalIssues) {
+        lines.push(`- **[${issue.code}]** ${issue.message}`)
+        if (issue.details) {
+          lines.push(`  - ${issue.details}`)
+        }
+      }
+      lines.push("")
+    }
+    
+    if (warningIssues.length > 0) {
+      lines.push(`### Warnings (${warningIssues.length})`)
+      lines.push("")
+      for (const issue of warningIssues) {
+        lines.push(`- **[${issue.code}]** ${issue.message}`)
+        if (issue.details) {
+          lines.push(`  - ${issue.details}`)
+        }
+      }
+      lines.push("")
+    }
+    
+    if (infoIssues.length > 0) {
+      lines.push(`### Info (${infoIssues.length})`)
+      lines.push("")
+      for (const issue of infoIssues) {
+        lines.push(`- **[${issue.code}]** ${issue.message}`)
+        if (issue.details) {
+          lines.push(`  - ${issue.details}`)
+        }
+      }
+      lines.push("")
+    }
   }
 
   // Actionable Recommendations
@@ -363,6 +522,286 @@ function generateReport(
   }
 
   return lines.join("\n")
+}
+
+// ============================================================================
+// Staleness Detection
+// ============================================================================
+
+/**
+ * Get the modification time of the newest file in a directory (recursive)
+ */
+async function getNewestFileMtime(
+  dir: string,
+  pattern: RegExp
+): Promise<{ mtime: Date; filePath: string } | null> {
+  let newest: { mtime: Date; filePath: string } | null = null
+
+  const scanDir = async (currentDir: string): Promise<void> => {
+    try {
+      const entries = fs.readdirSync(currentDir, { withFileTypes: true })
+      for (const entry of entries) {
+        const fullPath = path.join(currentDir, entry.name)
+        if (entry.isDirectory() && !entry.name.startsWith(".")) {
+          await scanDir(fullPath)
+        } else if (entry.isFile() && pattern.test(entry.name)) {
+          const stat = fs.statSync(fullPath)
+          if (!newest || stat.mtime > newest.mtime) {
+            newest = { mtime: stat.mtime, filePath: fullPath }
+          }
+        }
+      }
+    } catch {
+      // Ignore errors (permission issues, etc.)
+    }
+  }
+
+  await scanDir(dir)
+  return newest
+}
+
+/**
+ * Check if test artifacts are stale and tests need to be re-run.
+ * Uses git status and file modification times to detect staleness.
+ */
+async function checkTestStaleness(
+  projectPath: string,
+  jacocoCsvPath: string | null,
+  surefireDir: string | null,
+  testSourceDir: string | null
+): Promise<StalenessCheck> {
+  const result: StalenessCheck = {
+    mustRunTests: false,
+    reasons: [],
+    gitChanges: {
+      deletedTestFiles: [],
+      deletedTestMethods: [],
+      modifiedTestFiles: [],
+      untrackedTestFiles: [],
+    },
+    artifactInfo: {
+      jacocoExists: false,
+      jacocoMtime: null,
+      surefireExists: false,
+      surefireMtime: null,
+    },
+    sourceInfo: {
+      newestTestFileMtime: null,
+      newestTestFile: null,
+    },
+  }
+
+  // 1. Check git status for uncommitted test changes
+  const gitChanges = await getGitChangedTestFiles(projectPath)
+
+  if (gitChanges.deleted.length > 0) {
+    result.mustRunTests = true
+    result.gitChanges.deletedTestFiles = gitChanges.deleted
+    result.reasons.push(`Git: ${gitChanges.deleted.length} test file(s) deleted (uncommitted)`)
+  }
+
+  if (gitChanges.modified.length > 0) {
+    result.mustRunTests = true
+    result.gitChanges.modifiedTestFiles = gitChanges.modified
+    result.reasons.push(`Git: ${gitChanges.modified.length} test file(s) modified (uncommitted)`)
+
+    // Check for deleted test methods in modified files
+    for (const modifiedFile of gitChanges.modified) {
+      const deletedMethods = await getDeletedTestMethods(projectPath, modifiedFile)
+      if (deletedMethods.length > 0) {
+        result.gitChanges.deletedTestMethods.push({
+          filePath: modifiedFile,
+          methods: deletedMethods,
+        })
+        result.reasons.push(
+          `Git: ${path.basename(modifiedFile)}: ${deletedMethods.join(", ")} deleted`
+        )
+      }
+    }
+  }
+
+  if (gitChanges.untracked.length > 0) {
+    result.gitChanges.untrackedTestFiles = gitChanges.untracked
+    // Untracked test files mean new tests not in coverage - should re-run
+    result.mustRunTests = true
+    result.reasons.push(`Git: ${gitChanges.untracked.length} new test file(s) not yet in coverage`)
+  }
+
+  // 2. Check artifact existence and modification times
+  if (jacocoCsvPath && fs.existsSync(jacocoCsvPath)) {
+    result.artifactInfo.jacocoExists = true
+    result.artifactInfo.jacocoMtime = fs.statSync(jacocoCsvPath).mtime
+  }
+
+  if (surefireDir && fs.existsSync(surefireDir)) {
+    result.artifactInfo.surefireExists = true
+    // Get newest surefire report mtime
+    const newestSurefire = await getNewestFileMtime(surefireDir, /\.xml$/)
+    if (newestSurefire) {
+      result.artifactInfo.surefireMtime = newestSurefire.mtime
+    }
+  }
+
+  // 3. If no artifacts exist, must run tests
+  if (!result.artifactInfo.jacocoExists && !result.artifactInfo.surefireExists) {
+    result.mustRunTests = true
+    result.reasons.push("Artifacts: No JaCoCo or Surefire reports found")
+  }
+
+  // 4. Compare artifact mtime vs source mtime
+  if (testSourceDir && fs.existsSync(testSourceDir)) {
+    const newestSource = await getNewestFileMtime(testSourceDir, /Test\.java$|Tests\.java$/)
+    if (newestSource) {
+      result.sourceInfo.newestTestFileMtime = newestSource.mtime
+      result.sourceInfo.newestTestFile = newestSource.filePath
+
+      // Compare with artifact mtime
+      const artifactMtime = result.artifactInfo.jacocoMtime || result.artifactInfo.surefireMtime
+      if (artifactMtime && newestSource.mtime > artifactMtime) {
+        result.mustRunTests = true
+        const ageDiff = Math.round((newestSource.mtime.getTime() - artifactMtime.getTime()) / 1000)
+        result.reasons.push(
+          `Artifacts: Test sources ${ageDiff}s newer than coverage reports`
+        )
+      }
+    }
+  }
+
+  return result
+}
+
+// ============================================================================
+// Test Execution
+// ============================================================================
+
+const TEST_EXECUTION_TIMEOUT = 5 * 60 * 1000 // 5 minutes
+
+/**
+ * Execute tests with coverage generation.
+ * Supports Maven and Gradle projects.
+ */
+async function executeTestsWithCoverage(
+  projectPath: string,
+  timeout: number = TEST_EXECUTION_TIMEOUT
+): Promise<TestExecutionResult> {
+  const buildConfig = await detectBuildTool(projectPath)
+
+  let command: string[]
+  let commandStr: string
+
+  if (buildConfig.tool === "maven") {
+    command = ["mvn", "clean", "test", "jacoco:report", "-B"]
+    commandStr = "mvn clean test jacoco:report -B"
+  } else if (buildConfig.tool === "gradle") {
+    command = ["./gradlew", "clean", "test", "jacocoTestReport", "--console=plain"]
+    commandStr = "./gradlew clean test jacocoTestReport --console=plain"
+  } else {
+    return {
+      success: false,
+      exitCode: -1,
+      duration: 0,
+      summary: { testsRun: 0, failures: 0, errors: 0, skipped: 0 },
+      output: `Unsupported build tool. Expected Maven (pom.xml) or Gradle (build.gradle).`,
+      command: "N/A",
+      timedOut: false,
+    }
+  }
+
+  const startTime = Date.now()
+  let output = ""
+  let timedOut = false
+
+  try {
+    const proc = Bun.spawn(command, {
+      cwd: projectPath,
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+
+    // Set up timeout
+    const timeoutPromise = new Promise<"timeout">((resolve) => {
+      setTimeout(() => resolve("timeout"), timeout)
+    })
+
+    const exitPromise = proc.exited
+
+    // Race between completion and timeout
+    const result = await Promise.race([exitPromise, timeoutPromise])
+
+    if (result === "timeout") {
+      proc.kill()
+      timedOut = true
+      output = "Test execution timed out after 5 minutes"
+    } else {
+      // Collect output
+      const stdout = await new Response(proc.stdout).text()
+      const stderr = await new Response(proc.stderr).text()
+      output = stdout + (stderr ? "\n--- STDERR ---\n" + stderr : "")
+    }
+
+    const duration = Date.now() - startTime
+    const exitCode = timedOut ? -1 : await proc.exited
+
+    // Parse test summary from output
+    const summary = parseTestSummary(output, buildConfig.tool)
+
+    return {
+      success: !timedOut && exitCode === 0,
+      exitCode,
+      duration,
+      summary,
+      output,
+      command: commandStr,
+      timedOut,
+    }
+  } catch (err) {
+    return {
+      success: false,
+      exitCode: -1,
+      duration: Date.now() - startTime,
+      summary: { testsRun: 0, failures: 0, errors: 0, skipped: 0 },
+      output: `Failed to execute tests: ${err}`,
+      command: commandStr,
+      timedOut: false,
+    }
+  }
+}
+
+/**
+ * Parse test summary from Maven or Gradle output
+ */
+function parseTestSummary(
+  output: string,
+  tool: "maven" | "gradle" | "unknown"
+): TestExecutionResult["summary"] {
+  const summary = { testsRun: 0, failures: 0, errors: 0, skipped: 0 }
+
+  if (tool === "maven") {
+    // Maven format: "Tests run: X, Failures: Y, Errors: Z, Skipped: W"
+    // Look for the final summary line (there may be multiple per-class lines)
+    const lines = output.split("\n")
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const match = lines[i].match(
+        /Tests run:\s*(\d+),\s*Failures:\s*(\d+),\s*Errors:\s*(\d+),\s*Skipped:\s*(\d+)/
+      )
+      if (match) {
+        summary.testsRun = parseInt(match[1], 10)
+        summary.failures = parseInt(match[2], 10)
+        summary.errors = parseInt(match[3], 10)
+        summary.skipped = parseInt(match[4], 10)
+        break
+      }
+    }
+  } else if (tool === "gradle") {
+    // Gradle format varies, look for "X tests completed, Y failed"
+    const match = output.match(/(\d+)\s+tests?\s+completed,?\s*(\d+)?\s*failed?/i)
+    if (match) {
+      summary.testsRun = parseInt(match[1], 10)
+      summary.failures = match[2] ? parseInt(match[2], 10) : 0
+    }
+  }
+
+  return summary
 }
 
 // ============================================================================
@@ -511,8 +950,10 @@ export const QualityTool = Tool.define("quality", {
   description: DESCRIPTION,
   parameters: z.object({
     project_path: z.string().describe("Path to Maven/Gradle project root (absolute or relative to cwd)"),
-    update_baseline: z.boolean().optional().describe("Save current metrics as new baseline"),
+    update_baseline: z.boolean().optional().describe("Save current metrics as new baseline (default: true after successful test run)"),
     gate: z.boolean().optional().describe("Return non-zero exit if quality gates fail"),
+    run_tests: z.boolean().optional().describe("Force test execution before generating report (default: auto-detect based on git status and artifact age)"),
+    skip_tests: z.boolean().optional().describe("Skip test execution even if staleness detected (use existing artifacts, may be outdated)"),
   }),
   async execute(params, ctx) {
     const projectPath = path.isAbsolute(params.project_path)
@@ -527,36 +968,117 @@ export const QualityTool = Tool.define("quality", {
         project_path: params.project_path,
         update_baseline: params.update_baseline,
         gate: params.gate,
+        run_tests: params.run_tests,
+        skip_tests: params.skip_tests,
       },
     })
 
-    // Find artifacts
-    const jacocoCsvPath = findJacocoCsv(projectPath)
-    const surefireDir = findSurefireDir(projectPath)
+    // ========================================================================
+    // Phase 1: Staleness Detection
+    // ========================================================================
+
     const testSourceDir = findTestSourceDir(projectPath)
+    let jacocoCsvPath = findJacocoCsv(projectPath)
+    let surefireDir = findSurefireDir(projectPath)
+
+    // Check staleness BEFORE parsing any artifacts
+    const staleness = await checkTestStaleness(
+      projectPath,
+      jacocoCsvPath,
+      surefireDir,
+      testSourceDir
+    )
+
+    // Determine if we should run tests
+    const shouldRunTests =
+      params.run_tests === true ||
+      (staleness.mustRunTests && params.skip_tests !== true)
+
+    // ========================================================================
+    // Phase 2: Test Execution (if needed)
+    // ========================================================================
+
+    let testExecution: TestExecutionResult | null = null
+
+    if (shouldRunTests) {
+      // Request write permission for test execution
+      await ctx.ask({
+        permission: "write",
+        patterns: [projectPath + "/target/**"],
+        always: ["*"],
+        metadata: {
+          action: "execute_tests",
+          reasons: staleness.reasons,
+        },
+      })
+
+      testExecution = await executeTestsWithCoverage(projectPath)
+
+      // Refresh artifact paths after test execution
+      jacocoCsvPath = findJacocoCsv(projectPath)
+      surefireDir = findSurefireDir(projectPath)
+    }
+
+    // ========================================================================
+    // Phase 3: Artifact Validation
+    // ========================================================================
 
     if (!jacocoCsvPath && !surefireDir) {
+      // No artifacts even after running tests
+      let errorMessage = `No test artifacts found in ${projectPath}
+
+Expected locations:
+  - target/site/jacoco/jacoco.csv (JaCoCo coverage)
+  - target/surefire-reports/ (Surefire test results)`
+
+      if (testExecution) {
+        errorMessage += `
+
+Test execution ${testExecution.success ? "succeeded" : "failed"} but no artifacts were generated.
+
+Possible causes:
+  - JaCoCo plugin not configured in pom.xml
+  - Tests failed to compile
+  - No tests exist in project
+
+<details>
+<summary>Test Output</summary>
+
+\`\`\`
+${testExecution.output.substring(0, 5000)}${testExecution.output.length > 5000 ? "\n... (truncated)" : ""}
+\`\`\`
+
+</details>`
+      } else {
+        errorMessage += `
+
+To generate artifacts, run:
+  mvn clean test jacoco:report`
+      }
+
       return {
         title: "Quality Report",
         metadata: {
           tests: 0,
+          passed: 0,
+          failed: 0,
           lineCoverage: 0,
           branchCoverage: 0,
           gatesPassed: false,
           baselineUpdated: false,
+          testsExecuted: shouldRunTests,
+          testDuration: testExecution?.duration,
+          stalenessDetected: staleness.mustRunTests,
+          stalenessReasons: staleness.reasons,
         },
-        output: `No test artifacts found in ${projectPath}
-
-Expected locations:
-  - target/site/jacoco/jacoco.csv (JaCoCo coverage)
-  - target/surefire-reports/ (Surefire test results)
-
-To generate artifacts, run:
-  mvn clean test jacoco:report`,
+        output: errorMessage,
       }
     }
 
-    // Parse coverage data
+    // ========================================================================
+    // Phase 4: Parse Coverage Data
+    // ========================================================================
+
     let coverageData: ClassCoverage[] = []
     let aggregateCov: AggregateCoverage = {
       instruction: { missed: 0, covered: 0, percent: 0 },
@@ -575,17 +1097,26 @@ To generate artifacts, run:
           title: "Quality Report",
           metadata: {
             tests: 0,
+            passed: 0,
+            failed: 0,
             lineCoverage: 0,
             branchCoverage: 0,
             gatesPassed: false,
             baselineUpdated: false,
+            testsExecuted: shouldRunTests,
+            testDuration: testExecution?.duration,
+            stalenessDetected: staleness.mustRunTests,
+            stalenessReasons: staleness.reasons,
           },
           output: `Failed to parse JaCoCo CSV: ${err}`,
         }
       }
     }
 
-    // Parse test results
+    // ========================================================================
+    // Phase 5: Parse Test Results
+    // ========================================================================
+
     let testResults: AggregateTestResults = {
       total: 0,
       passed: 0,
@@ -605,27 +1136,42 @@ To generate artifacts, run:
           title: "Quality Report",
           metadata: {
             tests: 0,
+            passed: 0,
+            failed: 0,
             lineCoverage: 0,
             branchCoverage: 0,
             gatesPassed: false,
             baselineUpdated: false,
+            testsExecuted: shouldRunTests,
+            testDuration: testExecution?.duration,
+            stalenessDetected: staleness.mustRunTests,
+            stalenessReasons: staleness.reasons,
           },
           output: `Failed to parse Surefire reports: ${err}`,
         }
       }
     }
 
-    // Detect incidental coverage
+    // ========================================================================
+    // Phase 6: Detect Incidental Coverage
+    // ========================================================================
+
     let incidental: IncidentalCoverage[] = []
     if (testSourceDir && coverageData.length > 0) {
       incidental = detectIncidentalCoverage(coverageData, testSourceDir)
     }
 
-    // Load config and previous baseline
+    // ========================================================================
+    // Phase 7: Load Config and Baseline
+    // ========================================================================
+
     const config = loadConfig(projectPath)
     const previousBaseline = loadBaseline(projectPath)
 
-    // Scan source files FIRST (works even without artifacts)
+    // ========================================================================
+    // Phase 8: Scan Source Files
+    // ========================================================================
+
     let currentMethods: Map<string, TestMethod[]> = new Map()
     let sourceDiff: SourceDiffResult | null = null
     const sourceFileWarnings: QualityWarning[] = []
@@ -647,9 +1193,6 @@ To generate artifacts, run:
         }
 
         // Count methods removed (excluding whole file deletions which are counted separately)
-        const methodsInRemovedFiles = sourceDiff.testMethodsRemoved.filter(
-          (item) => sourceDiff!.testFilesRemoved.includes(item.className),
-        )
         const methodsInExistingFiles = sourceDiff.testMethodsRemoved.filter(
           (item) => !sourceDiff!.testFilesRemoved.includes(item.className),
         )
@@ -666,7 +1209,10 @@ To generate artifacts, run:
       }
     }
 
-    // Scan production source files
+    // ========================================================================
+    // Phase 9: Scan Production Source Files
+    // ========================================================================
+
     const mainSourceDir = findMainSourceDir(projectPath)
     let currentProductionClasses: Map<string, ProductionClass> = new Map()
     let productionDiff: ProductionSourceDiff | null = null
@@ -717,7 +1263,10 @@ To generate artifacts, run:
       }
     }
 
-    // Detect git-based changes (uncommitted deletions/modifications)
+    // ========================================================================
+    // Phase 10: Detect Git Changes (for reporting)
+    // ========================================================================
+
     const gitChanges = await detectGitTestChanges(projectPath)
 
     // Generate warnings for git-detected changes
@@ -742,7 +1291,10 @@ To generate artifacts, run:
       })
     }
 
-    // Create current baseline (includes testSourceDir and mainSourceDir for method scanning)
+    // ========================================================================
+    // Phase 11: Create Baseline and Compute Diff
+    // ========================================================================
+
     const currentBaseline = await createBaseline(
       projectPath,
       testResults,
@@ -752,7 +1304,6 @@ To generate artifacts, run:
       mainSourceDir || undefined,
     )
 
-    // Compute diff
     const diff = computeDiff(currentBaseline, previousBaseline, config)
 
     // Merge source file warnings into diff
@@ -766,10 +1317,16 @@ To generate artifacts, run:
       diff.testFilesAdded = sourceDiff.testFilesAdded
     }
 
-    // Evaluate gates
+    // ========================================================================
+    // Phase 12: Evaluate Gates
+    // ========================================================================
+
     const gateResult = evaluateGates(currentBaseline, diff, config)
 
-    // Generate report
+    // ========================================================================
+    // Phase 13: Generate Report
+    // ========================================================================
+
     const report = generateReport(
       projectPath,
       currentBaseline,
@@ -786,14 +1343,27 @@ To generate artifacts, run:
       },
       productionDiff,
       gitChanges,
+      testExecution,
+      staleness,
     )
 
-    // Update baseline if requested
-    if (params.update_baseline) {
+    // ========================================================================
+    // Phase 14: Auto-Update Baseline
+    // ========================================================================
+
+    // Auto-update baseline after successful test run, or if explicitly requested
+    const shouldUpdateBaseline =
+      params.update_baseline === true ||
+      (testExecution?.success === true && params.update_baseline !== false)
+
+    if (shouldUpdateBaseline) {
       saveBaseline(projectPath, currentBaseline)
     }
 
-    // Throw error if gate check requested and failed
+    // ========================================================================
+    // Phase 15: Gate Check
+    // ========================================================================
+
     if (params.gate && !gateResult.passed) {
       throw new Error(`Quality gates failed:\n${gateResult.failures.join("\n")}`)
     }
@@ -802,10 +1372,16 @@ To generate artifacts, run:
       title: `Quality: ${path.basename(projectPath)}`,
       metadata: {
         tests: testResults.total,
+        passed: testResults.passed,
+        failed: testResults.failed,
         lineCoverage: aggregateCov.line.percent,
         branchCoverage: aggregateCov.branch.percent,
         gatesPassed: gateResult.passed,
-        baselineUpdated: params.update_baseline || false,
+        baselineUpdated: shouldUpdateBaseline,
+        testsExecuted: shouldRunTests,
+        testDuration: testExecution?.duration,
+        stalenessDetected: staleness.mustRunTests,
+        stalenessReasons: staleness.reasons,
       },
       output: report,
     }

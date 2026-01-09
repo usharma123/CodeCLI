@@ -2,6 +2,13 @@ ALWAYS USE THIS TOOL when the user asks about: coverage, test coverage, code cov
 
 Generate a comprehensive test quality report by parsing build artifacts (JaCoCo CSV, Surefire XML) like SonarQube does.
 
+AUTOMATIC STALENESS DETECTION:
+This tool automatically detects when coverage artifacts are stale and re-runs tests:
+- Checks git status for uncommitted test file deletions/modifications
+- Compares artifact timestamps against test source file timestamps
+- Automatically runs `mvn clean test jacoco:report` when staleness is detected
+- Updates baseline automatically after successful test execution
+
 TRIGGER PHRASES (use this tool immediately):
 - "get coverage"
 - "show coverage"
@@ -10,6 +17,8 @@ TRIGGER PHRASES (use this tool immediately):
 - "quality report"
 - "check coverage"
 - "run coverage"
+- "what's the coverage"
+- "coverage after deleting tests"
 
 USAGE:
 For a Maven project, find the project directory containing pom.xml and use:
@@ -18,16 +27,41 @@ For a Maven project, find the project directory containing pom.xml and use:
 Example for spring-currency:
   quality project_path="spring-currency"
 
+PARAMETERS:
+- project_path (required): Path to Maven/Gradle project root
+- run_tests (optional): Force test execution even if artifacts appear fresh
+- skip_tests (optional): Skip test execution, use existing artifacts (may be stale!)
+- update_baseline (optional): Explicitly control baseline update (default: auto-update after successful test run)
+- gate (optional): Fail if quality gates not met
+
 FEATURES:
+- Automatic staleness detection via git status and file timestamps
+- Auto-runs tests when stale artifacts detected (5-minute timeout)
 - Per-class coverage metrics (line, branch, method, instruction)
-- Incidental coverage detection (classes covered but not directly tested)
-- Quality gate evaluation (pass/fail based on thresholds)
+- Quality gate evaluation with detailed SonarQube-style report
+- Incidental coverage detection (antipattern flagging)
+- Issues breakdown by severity (Critical, Warning, Info)
 - Baseline comparison to detect regressions
+- Collapsible test output for failures
+
+STALENESS TRIGGERS (will auto-run tests):
+- Git shows deleted test files (uncommitted)
+- Git shows deleted test methods in modified files
+- Git shows modified test files
+- Git shows untracked test files (new tests not in coverage)
+- JaCoCo/Surefire artifacts older than test source files
+- No artifacts exist
 
 ARTIFACTS PARSED:
 - target/site/jacoco/jacoco.csv - JaCoCo coverage data
 - target/surefire-reports/*.xml - Surefire test results
 
-OPTIONS:
-- update_baseline=true - Save current metrics as new baseline
-- gate=true - Fail if quality gates not met
+REPORT SECTIONS:
+1. Test Execution (if tests were run) - command, duration, pass/fail, staleness triggers
+2. Summary - tests count, coverage percentages, gate status
+3. Quality Gates - detailed threshold vs actual table
+4. Issues - categorized by severity (Critical/Warning/Info)
+5. Per-Class Coverage - sorted by coverage (lowest first)
+6. Incidentally Covered (Antipattern) - classes without dedicated tests
+7. Recommendations - actionable improvement suggestions
+8. Evidence - artifact paths and metadata
