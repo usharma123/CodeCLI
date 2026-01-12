@@ -1447,11 +1447,37 @@ function InlineTool(props: { icon: string; complete: any; pending: string; child
   )
 }
 
-function BlockTool(props: { title: string; children: JSX.Element; onClick?: () => void; part?: ToolPart }) {
+type ToolType = "bash" | "write" | "edit" | "task" | "default"
+
+function BlockTool(props: {
+  title: string
+  children: JSX.Element
+  onClick?: () => void
+  part?: ToolPart
+  toolType?: ToolType
+}) {
   const { theme } = useTheme()
   const renderer = useRenderer()
   const [hover, setHover] = createSignal(false)
   const error = createMemo(() => (props.part?.state.status === "error" ? props.part.state.error : undefined))
+
+  // Tool-specific accent colors for the left border
+  const accentColor = createMemo(() => {
+    if (error()) return theme.error
+    switch (props.toolType) {
+      case "bash":
+        return theme.textMuted
+      case "write":
+        return theme.success
+      case "edit":
+        return theme.info
+      case "task":
+        return theme.primary
+      default:
+        return theme.border
+    }
+  })
+
   return (
     <box
       border={["left"]}
@@ -1462,7 +1488,7 @@ function BlockTool(props: { title: string; children: JSX.Element; onClick?: () =
       gap={1}
       backgroundColor={hover() ? theme.backgroundMenu : theme.backgroundPanel}
       customBorderChars={SplitBorder.customBorderChars}
-      borderColor={theme.background}
+      borderColor={accentColor()}
       onMouseOver={() => props.onClick && setHover(true)}
       onMouseOut={() => setHover(false)}
       onMouseUp={() => {
@@ -1487,7 +1513,7 @@ function Bash(props: ToolProps<typeof BashTool>) {
   return (
     <Switch>
       <Match when={props.metadata.output !== undefined}>
-        <BlockTool title={"# " + (props.input.description ?? "Shell")} part={props.part}>
+        <BlockTool title={"# " + (props.input.description ?? "Shell")} part={props.part} toolType="bash">
           <box gap={1}>
             <text fg={theme.text}>$ {props.input.command}</text>
             <text fg={theme.text}>{output()}</text>
@@ -1518,7 +1544,7 @@ function Write(props: ToolProps<typeof WriteTool>) {
   return (
     <Switch>
       <Match when={props.metadata.diagnostics !== undefined}>
-        <BlockTool title={"# Wrote " + normalizePath(props.input.filePath!)} part={props.part}>
+        <BlockTool title={"# Wrote " + normalizePath(props.input.filePath!)} part={props.part} toolType="write">
           <line_number fg={theme.textMuted} minWidth={3} paddingRight={1}>
             <code
               conceal={false}
@@ -1634,6 +1660,7 @@ function Task(props: ToolProps<typeof TaskTool>) {
               : undefined
           }
           part={props.part}
+          toolType="task"
         >
           <box>
             <text style={{ fg: theme.textMuted }}>
@@ -1690,7 +1717,7 @@ function Edit(props: ToolProps<typeof EditTool>) {
   return (
     <Switch>
       <Match when={props.metadata.diff !== undefined}>
-        <BlockTool title={"← Edit " + normalizePath(props.input.filePath!)} part={props.part}>
+        <BlockTool title={"← Edit " + normalizePath(props.input.filePath!)} part={props.part} toolType="edit">
           <box paddingLeft={1}>
             <diff
               diff={diffContent()}
@@ -1740,7 +1767,7 @@ function Patch(props: ToolProps<typeof PatchTool>) {
   return (
     <Switch>
       <Match when={props.output !== undefined}>
-        <BlockTool title="# Patch" part={props.part}>
+        <BlockTool title="# Patch" part={props.part} toolType="edit">
           <box>
             <text fg={theme.text}>{props.output?.trim()}</text>
           </box>

@@ -3,6 +3,7 @@ import { createMemo, Match, onMount, Show, Switch } from "solid-js"
 import { useTheme } from "@tui/context/theme"
 import { Logo } from "../component/logo"
 import { DidYouKnow, randomizeTip } from "../component/did-you-know"
+import { WelcomeCard } from "../component/welcome-card"
 import { Locale } from "@/util/locale"
 import { useSync } from "../context/sync"
 import { Toast } from "../ui/toast"
@@ -36,7 +37,6 @@ export function Home() {
   const isFirstTimeUser = createMemo(() => sync.data.session.length === 0)
   const tipsHidden = createMemo(() => kv.get("tips_hidden", false))
   const showTips = createMemo(() => {
-    return false
     // Don't show tips for first-time users
     if (isFirstTimeUser()) return false
     return !tipsHidden()
@@ -105,10 +105,11 @@ export function Home() {
         </box>
         <Toast />
       </box>
-      <Show when={!isFirstTimeUser()}>
-        <Show when={showTips()}>
-          <DidYouKnow />
-        </Show>
+      <Show when={isFirstTimeUser()}>
+        <WelcomeCard />
+      </Show>
+      <Show when={!isFirstTimeUser() && showTips()}>
+        <DidYouKnow />
       </Show>
       <box paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={2} flexDirection="row" flexShrink={0} gap={2}>
         <text fg={theme.textMuted}>{directory()}</text>
@@ -129,7 +130,13 @@ export function Home() {
           </Show>
         </box>
         <box flexGrow={1} />
-        <box flexShrink={0}>
+        <box flexShrink={0} flexDirection="row" gap={2}>
+          <text fg={theme.textMuted}>
+            <span style={{ fg: theme.text }}>ctrl+p</span> commands
+          </text>
+          <text fg={theme.textMuted}>
+            <span style={{ fg: theme.text }}>?</span> help
+          </text>
           <text fg={theme.textMuted}>{Installation.VERSION}</text>
         </box>
       </box>

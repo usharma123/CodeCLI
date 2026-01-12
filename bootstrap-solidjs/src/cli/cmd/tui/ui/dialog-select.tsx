@@ -258,7 +258,7 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
                           moveTo(index)
                         }}
                         backgroundColor={active() ? (option.bg ?? theme.primary) : RGBA.fromInts(0, 0, 0, 0)}
-                        paddingLeft={current() || option.gutter ? 1 : 3}
+                        paddingLeft={1}
                         paddingRight={3}
                         gap={1}
                       >
@@ -311,6 +311,10 @@ function Option(props: {
 
   return (
     <>
+      {/* Selection indicator */}
+      <text flexShrink={0} fg={props.active ? fg : theme.background} marginRight={0.5}>
+        {props.active ? "▸" : " "}
+      </text>
       <Show when={props.current}>
         <text flexShrink={0} fg={props.active ? fg : props.current ? theme.primary : theme.text} marginRight={0.5}>
           ●
@@ -326,7 +330,7 @@ function Option(props: {
         fg={props.active ? fg : props.current ? theme.primary : theme.text}
         attributes={props.active ? TextAttributes.BOLD : undefined}
         overflow="hidden"
-        paddingLeft={3}
+        paddingLeft={props.current || props.gutter ? 0 : 1}
       >
         {Locale.truncate(props.title, 61)}
         <Show when={props.description}>
