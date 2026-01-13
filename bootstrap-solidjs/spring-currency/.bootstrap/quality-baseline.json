@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "timestamp": "2026-01-09T16:53:44.506Z",
-  "commit": "eb233005",
+  "timestamp": "2026-01-13T16:27:18.195Z",
+  "commit": "283a1ea3",
   "projectPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/spring-currency",
   "metrics": {
-    "totalTests": 146,
-    "passedTests": 146,
+    "totalTests": 136,
+    "passedTests": 136,
     "failedTests": 0,
     "skippedTests": 0,
     "coverage": {
@@ -80,6 +80,7 @@
       "com.example.currency.service.ExchangeRateServiceTest$ResponseValidationTests",
       "com.example.currency.config.OpenApiConfigTest$ContactTests",
       "com.example.currency.model.ConversionResponseTest$ConstructorTests",
+      "com.example.currency.model.ConversionResponseTest$ResponseConsistencyTests",
       "com.example.currency.config.OpenApiConfigTest$LicenseTests",
       "com.example.currency.ApplicationInstanceTests",
       "com.example.currency.model.ConversionRequestTest$AccessorMethodTests",
@@ -145,11 +146,7 @@
         "shouldMapToApiConvertEndpoint"
       ],
       "ApplicationInstanceTests": [
-        "shouldCreateApplicationInstance",
-        "applicationClassShouldNotBeAbstract"
-      ],
-      "should": [
-        "applicationClassShouldBePublic"
+        "shouldCreateApplicationInstance"
       ],
       "MainMethodTests": [
         "mainMethodShouldBeInvokableWithArgs",
@@ -163,11 +160,11 @@
         "amountShouldReturnCorrectValue",
         "fromShouldReturnCorrectCurrency",
         "toShouldReturnCorrectCurrency",
-        "amountShouldReturnCorrectValue",
         "fromShouldReturnCorrectCurrencyString",
         "toShouldReturnCorrectCurrencyString",
         "resultShouldReturnCorrectConvertedAmount",
-        "rateShouldReturnCorrectExchangeRate"
+        "rateShouldReturnCorrectExchangeRate",
+        "amountShouldReturnCorrectValue"
       ],
       "EqualityTests": [
         "shouldBeEqualToItself",
@@ -179,28 +176,21 @@
         "shouldBeEqualToItself",
         "shouldBeEqualToSameCurrencyViaValueOf",
         "shouldNotBeEqualToDifferentCurrency",
-        "shouldBeEqualToItself",
         "shouldBeEqualToAnotherResponseWithSameValues",
         "shouldNotBeEqualToResponseWithDifferentAmount",
         "shouldNotBeEqualToResponseWithDifferentFromCurrency",
         "shouldNotBeEqualToResponseWithDifferentToCurrency",
         "shouldNotBeEqualToResponseWithDifferentResult",
-        "shouldNotBeEqualToResponseWithDifferentRate",
-        "shouldNotBeEqualToNull"
+        "shouldNotBeEqualToResponseWithDifferentRate"
       ],
       "HashCodeTests": [
         "shouldReturnConsistentHashCode",
         "shouldReturnSameHashCodeForEqualObjects",
         "shouldReturnConsistentHashCode",
         "shouldReturnSameHashCodeForSameValue",
-        "shouldReturnConsistentHashCode",
-        "shouldReturnSameHashCodeForEqualObjects"
+        "shouldHaveSameHashCodeForEqualResponses"
       ],
       "ToStringTests": [
-        "shouldReturnNonNullStringRepresentation",
-        "shouldContainAmountInStringRepresentation",
-        "shouldContainFromCurrencyInStringRepresentation",
-        "shouldContainToCurrencyInStringRepresentation",
         "shouldReturnNonNullStringRepresentation",
         "shouldContainAmountInStringRepresentation",
         "shouldContainFromCurrencyInStringRepresentation",
@@ -229,6 +219,11 @@
       "NameTests": [
         "shouldReturnCorrectNameForAllCurrencies"
       ],
+      "ResponseConsistencyTests": [
+        "shouldHaveConsistentRateAndResultRelationship",
+        "shouldPreserveFromCurrencyString",
+        "shouldPreserveToCurrencyString"
+      ],
       "CrossCurrencyConversionTests": [
         "shouldConvertCadToAud",
         "shouldConvertChfToCny",
@@ -246,18 +241,14 @@
         "shouldMaintainPrecisionForSmallValues"
       ],
       "ResponseValidationTests": [
-        "shouldAlwaysReturnNonNullResponse",
-        "shouldPreserveInputAmountInResponse",
-        "shouldPreserveFromCurrencyInResponse",
-        "shouldPreserveToCurrencyInResponse",
-        "shouldHaveConsistentRateAndResultRelationship"
+        "shouldAlwaysReturnNonNullResponse"
       ]
     },
     "slowTests": [
       {
         "name": "shouldMapToApiConvertEndpoint",
         "className": "com.example.currency.controller.CurrencyControllerTest$RequestMappingTests",
-        "time": 1.064
+        "time": 1.037
       },
       {
         "name": "shouldCreateInstanceWithDefaultConstructor",
@@ -270,13 +261,13 @@
         "time": 0.004
       },
       {
-        "name": "currencyOpenApiShouldWorkOnNewInstance",
-        "className": "com.example.currency.config.OpenApiConfigTest$ConstructorTests",
-        "time": 0.003
-      },
-      {
         "name": "shouldConvertBetweenAllCurrencyPairs(Currency, Currency)[1]",
         "className": "com.example.currency.service.ExchangeRateServiceTest$AllCurrencyPairsTests",
+        "time": 0.004
+      },
+      {
+        "name": "currencyOpenApiShouldWorkOnNewInstance",
+        "className": "com.example.currency.config.OpenApiConfigTest$ConstructorTests",
         "time": 0.003
       },
       {
@@ -290,18 +281,18 @@
         "time": 0.001
       },
       {
-        "name": "shouldConvertChfToCny",
-        "className": "com.example.currency.service.ExchangeRateServiceTest$CrossCurrencyConversionTests",
-        "time": 0.001
-      },
-      {
-        "name": "openApiShouldHaveInfoSection",
+        "name": "openApiInfoShouldHaveDescription",
         "className": "com.example.currency.config.OpenApiConfigTest$CurrencyOpenApiTests",
         "time": 0.001
       },
       {
-        "name": "shouldBeEqualToItself",
-        "className": "com.example.currency.model.CurrencyTest$EqualityTests",
+        "name": "shouldNotBeEqualToResponseWithDifferentFromCurrency",
+        "className": "com.example.currency.model.ConversionResponseTest$EqualityTests",
+        "time": 0.001
+      },
+      {
+        "name": "controllerShouldBeCreatedWithExchangeRateService",
+        "className": "com.example.currency.controller.CurrencyControllerTest$ControllerInjectionTests",
         "time": 0.001
       }
     ],

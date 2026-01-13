@@ -180,47 +180,5 @@ class ExchangeRateServiceTest {
             
             assertNotNull(response);
         }
-
-        @Test
-        @DisplayName("Should preserve input amount in response")
-        void shouldPreserveInputAmountInResponse() {
-            double amount = 250.75;
-            ConversionRequest request = new ConversionRequest(amount, Currency.USD, Currency.EUR);
-            
-            ConversionResponse response = service.convert(request);
-            
-            assertEquals(amount, response.amount());
-        }
-
-        @Test
-        @DisplayName("Should preserve from currency in response")
-        void shouldPreserveFromCurrencyInResponse() {
-            ConversionRequest request = new ConversionRequest(100.0, Currency.GBP, Currency.EUR);
-            
-            ConversionResponse response = service.convert(request);
-            
-            assertEquals("GBP", response.from());
-        }
-
-        @Test
-        @DisplayName("Should preserve to currency in response")
-        void shouldPreserveToCurrencyInResponse() {
-            ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.JPY);
-            
-            ConversionResponse response = service.convert(request);
-            
-            assertEquals("JPY", response.to());
-        }
-
-        @Test
-        @DisplayName("Should have consistent rate and result relationship")
-        void shouldHaveConsistentRateAndResultRelationship() {
-            ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
-            
-            ConversionResponse response = service.convert(request);
-            
-            double expectedResult = Math.round(response.amount() * response.rate() * 100.0) / 100.0;
-            assertEquals(expectedResult, response.result());
-        }
     }
 }

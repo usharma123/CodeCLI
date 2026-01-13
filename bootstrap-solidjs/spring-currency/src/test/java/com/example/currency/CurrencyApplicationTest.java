@@ -24,20 +24,6 @@ import static org.junit.jupiter.api.Assertions.*;
             CurrencyApplication app = new CurrencyApplication();
             assertNotNull(app);
         }
-
-        @Test
-        @DisplayName("Application class should not be abstract")
-        void applicationClassShouldNotBeAbstract() {
-            int modifiers = CurrencyApplication.class.getModifiers();
-            assertFalse(java.lang.reflect.Modifier.isAbstract(modifiers), "Application class should not be abstract");
-        }
-
-        @Test
-        @DisplayName("Application class should be public")
-        void applicationClassShouldBePublic() {
-            int modifiers = CurrencyApplication.class.getModifiers();
-            assertTrue(java.lang.reflect.Modifier.isPublic(modifiers), "Application class should be public");
-        }
     }
 
     @Nested

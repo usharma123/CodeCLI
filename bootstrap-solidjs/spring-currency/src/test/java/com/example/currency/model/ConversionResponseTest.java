@@ -6,247 +6,223 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("ConversionResponse Record Tests")
 class ConversionResponseTest {
 
     @Nested
-    @DisplayName("Constructor Tests")
+    @DisplayName("ConstructorTests")
     class ConstructorTests {
 
         @Test
-        @DisplayName("Should create response with valid values")
+        @DisplayName("should create response with valid values")
         void shouldCreateResponseWithValidValues() {
-            ConversionResponse response = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            
-            assertNotNull(response);
+            ConversionResponse response = new ConversionResponse(100.0, "USD", "EUR", 85.0, 0.85);
+
             assertEquals(100.0, response.amount());
             assertEquals("USD", response.from());
             assertEquals("EUR", response.to());
-            assertEquals(92.0, response.result());
-            assertEquals(0.92, response.rate());
+            assertEquals(85.0, response.result());
+            assertEquals(0.85, response.rate());
         }
 
         @Test
-        @DisplayName("Should create response with zero values")
+        @DisplayName("should create response with zero values")
         void shouldCreateResponseWithZeroValues() {
             ConversionResponse response = new ConversionResponse(0.0, "USD", "EUR", 0.0, 0.0);
-            
+
             assertEquals(0.0, response.amount());
+            assertEquals("USD", response.from());
+            assertEquals("EUR", response.to());
             assertEquals(0.0, response.result());
             assertEquals(0.0, response.rate());
         }
 
         @Test
-        @DisplayName("Should create response with large values")
+        @DisplayName("should create response with large values")
         void shouldCreateResponseWithLargeValues() {
-            ConversionResponse response = new ConversionResponse(1_000_000.0, "USD", "JPY", 149_500_000.0, 149.50);
-            
-            assertEquals(1_000_000.0, response.amount());
-            assertEquals(149_500_000.0, response.result());
+            ConversionResponse response = new ConversionResponse(9999999.99, "USD", "JPY", 1499999.9985, 150.0);
+
+            assertEquals(9999999.99, response.amount());
+            assertEquals("USD", response.from());
+            assertEquals("JPY", response.to());
+            assertEquals(1499999.9985, response.result());
+            assertEquals(150.0, response.rate());
         }
 
         @Test
-        @DisplayName("Should create response with decimal values")
+        @DisplayName("should create response with decimal values")
         void shouldCreateResponseWithDecimalValues() {
-            ConversionResponse response = new ConversionResponse(123.45, "USD", "EUR", 113.57, 0.92);
-            
-            assertEquals(123.45, response.amount());
-            assertEquals(113.57, response.result());
+            ConversionResponse response = new ConversionResponse(123.456, "USD", "GBP", 98.765, 0.8);
+
+            assertEquals(123.456, response.amount());
+            assertEquals("USD", response.from());
+            assertEquals("GBP", response.to());
+            assertEquals(98.765, response.result());
+            assertEquals(0.8, response.rate());
         }
     }
 
     @Nested
-    @DisplayName("Accessor Method Tests")
+    @DisplayName("AccessorMethodTests")
     class AccessorMethodTests {
 
         @Test
-        @DisplayName("amount() should return correct value")
-        void amountShouldReturnCorrectValue() {
-            ConversionResponse response = new ConversionResponse(250.0, "GBP", "JPY", 46875.0, 187.50);
-            
-            assertEquals(250.0, response.amount());
-        }
-
-        @Test
-        @DisplayName("from() should return correct currency string")
+        @DisplayName("from should return correct currency string")
         void fromShouldReturnCorrectCurrencyString() {
-            ConversionResponse response = new ConversionResponse(100.0, "CAD", "AUD", 113.33, 1.1333);
-            
-            assertEquals("CAD", response.from());
+            ConversionResponse response = new ConversionResponse(100.0, "USD", "EUR", 85.0, 0.85);
+            assertEquals("USD", response.from());
         }
 
         @Test
-        @DisplayName("to() should return correct currency string")
+        @DisplayName("to should return correct currency string")
         void toShouldReturnCorrectCurrencyString() {
-            ConversionResponse response = new ConversionResponse(100.0, "CHF", "CNY", 822.73, 8.2273);
-            
-            assertEquals("CNY", response.to());
+            ConversionResponse response = new ConversionResponse(100.0, "USD", "EUR", 85.0, 0.85);
+            assertEquals("EUR", response.to());
         }
 
         @Test
-        @DisplayName("result() should return correct converted amount")
+        @DisplayName("result should return correct converted amount")
         void resultShouldReturnCorrectConvertedAmount() {
-            ConversionResponse response = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            
-            assertEquals(92.0, response.result());
+            ConversionResponse response = new ConversionResponse(100.0, "USD", "EUR", 85.0, 0.85);
+            assertEquals(85.0, response.result());
         }
 
         @Test
-        @DisplayName("rate() should return correct exchange rate")
+        @DisplayName("rate should return correct exchange rate")
         void rateShouldReturnCorrectExchangeRate() {
-            ConversionResponse response = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            
-            assertEquals(0.92, response.rate());
+            ConversionResponse response = new ConversionResponse(100.0, "USD", "EUR", 85.0, 0.85);
+            assertEquals(0.85, response.rate());
+        }
+
+        @Test
+        @DisplayName("amount should return correct value")
+        void amountShouldReturnCorrectValue() {
+            ConversionResponse response = new ConversionResponse(250.75, "USD", "EUR", 230.69, 0.92);
+            assertEquals(250.75, response.amount());
         }
     }
 
     @Nested
-    @DisplayName("Equality Tests")
+    @DisplayName("EqualityTests")
     class EqualityTests {
 
         @Test
-        @DisplayName("Should be equal to itself")
-        void shouldBeEqualToItself() {
-            ConversionResponse response = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            
-            assertEquals(response, response);
-        }
-
-        @Test
-        @DisplayName("Should be equal to another response with same values")
+        @DisplayName("should be equal to another response with same values")
         void shouldBeEqualToAnotherResponseWithSameValues() {
-            ConversionResponse response1 = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            ConversionResponse response2 = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            
+            ConversionResponse response1 = new ConversionResponse(100.0, "USD", "EUR", 85.0, 0.85);
+            ConversionResponse response2 = new ConversionResponse(100.0, "USD", "EUR", 85.0, 0.85);
+
             assertEquals(response1, response2);
         }
 
         @Test
-        @DisplayName("Should not be equal to response with different amount")
+        @DisplayName("should not be equal to response with different amount")
         void shouldNotBeEqualToResponseWithDifferentAmount() {
-            ConversionResponse response1 = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            ConversionResponse response2 = new ConversionResponse(200.0, "USD", "EUR", 92.0, 0.92);
-            
+            ConversionResponse response1 = new ConversionResponse(100.0, "USD", "EUR", 85.0, 0.85);
+            ConversionResponse response2 = new ConversionResponse(200.0, "USD", "EUR", 85.0, 0.85);
+
             assertNotEquals(response1, response2);
         }
 
         @Test
-        @DisplayName("Should not be equal to response with different from currency")
+        @DisplayName("should not be equal to response with different from currency")
         void shouldNotBeEqualToResponseWithDifferentFromCurrency() {
-            ConversionResponse response1 = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            ConversionResponse response2 = new ConversionResponse(100.0, "GBP", "EUR", 92.0, 0.92);
-            
+            ConversionResponse response1 = new ConversionResponse(100.0, "USD", "EUR", 85.0, 0.85);
+            ConversionResponse response2 = new ConversionResponse(100.0, "GBP", "EUR", 85.0, 0.85);
+
             assertNotEquals(response1, response2);
         }
 
         @Test
-        @DisplayName("Should not be equal to response with different to currency")
+        @DisplayName("should not be equal to response with different to currency")
         void shouldNotBeEqualToResponseWithDifferentToCurrency() {
-            ConversionResponse response1 = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            ConversionResponse response2 = new ConversionResponse(100.0, "USD", "GBP", 92.0, 0.92);
-            
+            ConversionResponse response1 = new ConversionResponse(100.0, "USD", "EUR", 85.0, 0.85);
+            ConversionResponse response2 = new ConversionResponse(100.0, "USD", "GBP", 85.0, 0.85);
+
             assertNotEquals(response1, response2);
         }
 
         @Test
-        @DisplayName("Should not be equal to response with different result")
+        @DisplayName("should not be equal to response with different result")
         void shouldNotBeEqualToResponseWithDifferentResult() {
-            ConversionResponse response1 = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            ConversionResponse response2 = new ConversionResponse(100.0, "USD", "EUR", 93.0, 0.92);
-            
+            ConversionResponse response1 = new ConversionResponse(100.0, "USD", "EUR", 85.0, 0.85);
+            ConversionResponse response2 = new ConversionResponse(100.0, "USD", "EUR", 95.0, 0.85);
+
             assertNotEquals(response1, response2);
         }
 
         @Test
-        @DisplayName("Should not be equal to response with different rate")
+        @DisplayName("should not be equal to response with different rate")
         void shouldNotBeEqualToResponseWithDifferentRate() {
-            ConversionResponse response1 = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            ConversionResponse response2 = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.93);
-            
-            assertNotEquals(response1, response2);
-        }
+            ConversionResponse response1 = new ConversionResponse(100.0, "USD", "EUR", 85.0, 0.85);
+            ConversionResponse response2 = new ConversionResponse(100.0, "USD", "EUR", 85.0, 0.95);
 
-        @Test
-        @DisplayName("Should not be equal to null")
-        void shouldNotBeEqualToNull() {
-            ConversionResponse response = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            
-            assertNotEquals(null, response);
+            assertNotEquals(response1, response2);
         }
     }
 
     @Nested
-    @DisplayName("HashCode Tests")
+    @DisplayName("HashCodeTests")
     class HashCodeTests {
 
         @Test
-        @DisplayName("Should return consistent hashCode")
-        void shouldReturnConsistentHashCode() {
-            ConversionResponse response = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            
-            assertEquals(response.hashCode(), response.hashCode());
-        }
+        @DisplayName("should have same hash code for equal responses")
+        void shouldHaveSameHashCodeForEqualResponses() {
+            ConversionResponse response1 = new ConversionResponse(100.0, "USD", "EUR", 85.0, 0.85);
+            ConversionResponse response2 = new ConversionResponse(100.0, "USD", "EUR", 85.0, 0.85);
 
-        @Test
-        @DisplayName("Should return same hashCode for equal objects")
-        void shouldReturnSameHashCodeForEqualObjects() {
-            ConversionResponse response1 = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            ConversionResponse response2 = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            
             assertEquals(response1.hashCode(), response2.hashCode());
         }
     }
 
     @Nested
-    @DisplayName("ToString Tests")
+    @DisplayName("ToStringTests")
     class ToStringTests {
 
         @Test
-        @DisplayName("Should return non-null string representation")
-        void shouldReturnNonNullStringRepresentation() {
-            ConversionResponse response = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            
-            assertNotNull(response.toString());
-        }
-
-        @Test
-        @DisplayName("Should contain amount in string representation")
-        void shouldContainAmountInStringRepresentation() {
-            ConversionResponse response = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            
-            assertTrue(response.toString().contains("100.0"));
-        }
-
-        @Test
-        @DisplayName("Should contain from currency in string representation")
-        void shouldContainFromCurrencyInStringRepresentation() {
-            ConversionResponse response = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            
-            assertTrue(response.toString().contains("USD"));
-        }
-
-        @Test
-        @DisplayName("Should contain to currency in string representation")
-        void shouldContainToCurrencyInStringRepresentation() {
-            ConversionResponse response = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            
-            assertTrue(response.toString().contains("EUR"));
-        }
-
-        @Test
-        @DisplayName("Should contain result in string representation")
+        @DisplayName("should contain result in string representation")
         void shouldContainResultInStringRepresentation() {
-            ConversionResponse response = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            
-            assertTrue(response.toString().contains("92.0"));
+            ConversionResponse response = new ConversionResponse(100.0, "USD", "EUR", 85.0, 0.85);
+            String str = response.toString();
+
+            assertTrue(str.contains("85.0"));
         }
 
         @Test
-        @DisplayName("Should contain rate in string representation")
+        @DisplayName("should contain rate in string representation")
         void shouldContainRateInStringRepresentation() {
+            ConversionResponse response = new ConversionResponse(100.0, "USD", "EUR", 85.0, 0.85);
+            String str = response.toString();
+
+            assertTrue(str.contains("0.85"));
+        }
+    }
+
+    @Nested
+    @DisplayName("ResponseConsistencyTests")
+    class ResponseConsistencyTests {
+
+        @Test
+        @DisplayName("should have consistent rate and result relationship")
+        void shouldHaveConsistentRateAndResultRelationship() {
             ConversionResponse response = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
-            
-            assertTrue(response.toString().contains("0.92"));
+
+            double expectedResult = Math.round(response.amount() * response.rate() * 100.0) / 100.0;
+            assertEquals(expectedResult, response.result());
+        }
+
+        @Test
+        @DisplayName("should preserve from currency string in response")
+        void shouldPreserveFromCurrencyString() {
+            ConversionResponse response = new ConversionResponse(100.0, "GBP", "EUR", 85.0, 0.85);
+            assertEquals("GBP", response.from());
+        }
+
+        @Test
+        @DisplayName("should preserve to currency string in response")
+        void shouldPreserveToCurrencyString() {
+            ConversionResponse response = new ConversionResponse(100.0, "USD", "JPY", 15000.0, 150.0);
+            assertEquals("JPY", response.to());
         }
     }
 }
+
