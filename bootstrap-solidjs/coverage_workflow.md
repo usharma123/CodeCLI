@@ -11,11 +11,10 @@
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         STEP 1: DETECT STALE STATE                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                       │
-│  │ Check Git    │  │ Compare      │  │ Check for    │                       │
-│  │ Status       │  │ Timestamps   │  │ Missing      │                       │
-│  └──────────────┘  └──────────────┘  │ Artifacts    │                       │
-│                                      └──────────────┘                       │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │ Fingerprint  │  │ Git Status   │  │ Timestamp    │  │ Missing      │     │
+│  │ Check        │  │ Detection    │  │ Comparison   │  │ Artifacts    │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘     │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -30,18 +29,19 @@
 │                Fresh│                       │Stale                          |
 │                     ▼                       ▼                               │
 │         ┌────────────────────┐   ┌────────────────────┐                     │
-│         │ Use existing       │   │ Run tests          │                     │
-│         │ artifacts          │   │ mvn clean test     │                     │
+│         │ Use existing       │   │ Run tests (Maven   │                     │
+│         │ artifacts          │   │ or Gradle)         │                     │
 │         └────────────────────┘   └────────────────────┘                     │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                      STEP 3: EXECUTE TESTS                                  │
-│  ┌─────────────────────────────────────────────┐                            │
-│  │ mvn clean test jacoco:report                │                            │
-│  │ Generate JaCoCo CSV & Surefire XML          │                            │
-│  └─────────────────────────────────────────────┘                            │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ Maven: mvn clean test jacoco:report                                 │    │
+│  │ Gradle: ./gradlew test jacocoTestReport                             │    │
+│  │ Generate JaCoCo CSV & Surefire XML                                  │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -58,7 +58,7 @@
 │                         STEP 5: ANALYSIS                                    │
 │  ┌────────────────────┐   ┌────────────────────┐   ┌────────────────────┐   │
 │  │ Calculate Coverage │   │ Detect Incidental  │   │ Evaluate Quality   │   │
-│  │ Metrics            │   │ Coverage           │   │ Gates              │   │
+│  │ Metrics            │   │ Coverage           │   │ Gates + Adjusted   │   │
 │  └────────────────────┘   └────────────────────┘   └────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
@@ -78,11 +78,14 @@
 
 Before generating a report, the tool checks if tests need to be re-run via `checkTestStaleness()`:
 
-| Check | Description |
-|-------|-------------|
-| **Git-based** | Detects deleted/modified/untracked test files, and deleted `@Test` methods via git diff |
-| **Timestamp-based** | Compares artifact modification times (JaCoCo CSV, Surefire XML) vs. newest test source file |
-| **Missing artifacts** | If no coverage data exists, marks as stale |
+The tool uses a **three-layer staleness detection** system:
+
+| Layer | Method | Description |
+|-------|--------|-------------|
+| **Fingerprint-based** | Content-addressable detection | Computes SHA hash of git HEAD, reads config files, and compares source file metadata (mtime + size) to detect changes even without git operations |
+| **Git status** | Git-based detection | Detects deleted/modified/uncommitted test files and deleted `@Test` methods via `git diff` and status |
+| **Timestamp-based** | Fallback comparison | Compares artifact modification times (JaCoCo CSV, Surefire XML) vs. newest test source file |
+| **Missing artifacts** | Coverage existence | If no coverage data exists, marks as stale |
 
 ### Step 2: Decide to Run Tests
 
@@ -146,14 +149,26 @@ Flags classes that show coverage but have **no dedicated test file**:
 | Currency | 100% | **None** | INCIDENTAL |
 
 #### Evaluate Quality Gates
-Default thresholds:
+Default thresholds (configurable via `.bootstrap/quality-config.json`):
 
 | Gate | Default | Description |
 |------|---------|-------------|
 | `min_line_coverage` | 70% | Minimum line coverage required |
 | `min_branch_coverage` | 60% | Minimum branch coverage required |
-| `max_test_drop` | 0 | Maximum test count drop allowed |
+| `max_test_drop` | 0 | Maximum absolute test count drop allowed |
+| `max_test_drop_percent` | 5% | Maximum percentage test count drop allowed |
 | `max_slow_test_ms` | 5000 | Maximum ms per test |
+
+**Test Drop Logic:** Fails only if BOTH absolute count AND percentage thresholds are exceeded.
+
+#### Adjusted Coverage Calculation
+When tests are deleted AND coverage also drops, the tool applies a penalty formula to prevent false positives:
+
+```
+adjustedCoverage = rawCoverage * (currentTests / baselineTests)
+```
+
+This prevents situations where coverage appears stable but tests have been removed.
 
 ## Output: Coverage Report
 
@@ -181,9 +196,12 @@ The tool generates a comprehensive report including:
 
 | Feature | Description |
 |---------|-------------|
-| **Staleness Detection** | Avoids re-running tests when artifacts are fresh |
-| **Automatic Test Execution** | Runs tests when needed, skips when not |
-| **Artifact Parsing** | Parses JaCoCo and Surefire directly (like SonarQube) |
-| **Incidental Coverage Detection** | Flags fake coverage from integration tests |
-| **Quality Gates** | Enforces minimum coverage thresholds |
-| **Baseline Management** | Tracks metrics over time, detects regressions |
+| **Multi-Layer Staleness Detection** | Fingerprint-based + Git status + timestamp comparison for robust CI detection |
+| **Maven & Gradle Support** | Automatically detects project type and runs appropriate test command |
+| **Artifact Parsing** | Parses JaCoCo CSV and Surefire XML directly (like SonarQube) |
+| **Incidental Coverage Detection** | Flags fake coverage from integration tests - identifies classes with coverage but no dedicated tests |
+| **Quality Gates** | Enforces minimum coverage thresholds with adjusted coverage calculation |
+| **Baseline Management** | Tracks metrics over time, stores in `.bootstrap/quality-baseline.json`, detects regressions |
+| **Source Code Scanning** | Detects deleted/added production classes and methods even without artifacts |
+| **Suspicious Coverage Pattern Detection** | Flags tests removed but coverage stable (possible test pollution) and large coverage jumps without new tests |
+| **CI/CD Integration** | JSON output support for CI integration, non-zero exit on gate failure |
