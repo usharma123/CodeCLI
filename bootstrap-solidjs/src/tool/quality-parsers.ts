@@ -203,18 +203,76 @@ export function parseJacocoCsv(csvPath: string): ClassCoverage[] {
 }
 
 /**
- * Calculate aggregate coverage from per-class data.
+ * Check if a class name matches any of the ignore patterns.
+ * Supports glob-style patterns: ** matches any path, * matches any segment.
  */
-export function aggregateCoverage(classes: ClassCoverage[]): AggregateCoverage {
+export function matchesIgnorePattern(fullClassName: string, patterns: string[]): boolean {
+  for (const pattern of patterns) {
+    // Convert glob pattern to regex
+    // ** matches any path (including /)
+    // * matches any segment (excluding /)
+    const regexStr = pattern
+      .replace(/\./g, "\\.") // Escape dots
+      .replace(/\*\*/g, "<<<DOUBLESTAR>>>") // Temporary placeholder
+      .replace(/\*/g, "[^./]*") // Single * matches segment
+      .replace(/<<<DOUBLESTAR>>>/g, ".*") // ** matches anything
+
+    const regex = new RegExp(`^${regexStr}$|${regexStr}`)
+    if (regex.test(fullClassName)) {
+      return true
+    }
+  }
+  return false
+}
+
+/**
+ * Filter classes based on ignore patterns.
+ * Returns classes that do NOT match any ignore pattern.
+ */
+export function filterClassesByPatterns(
+  classes: ClassCoverage[],
+  ignorePatterns: string[]
+): { included: ClassCoverage[]; excluded: ClassCoverage[] } {
+  if (!ignorePatterns || ignorePatterns.length === 0) {
+    return { included: classes, excluded: [] }
+  }
+
+  const included: ClassCoverage[] = []
+  const excluded: ClassCoverage[] = []
+
+  for (const cls of classes) {
+    if (matchesIgnorePattern(cls.fullName, ignorePatterns)) {
+      excluded.push(cls)
+    } else {
+      included.push(cls)
+    }
+  }
+
+  return { included, excluded }
+}
+
+/**
+ * Calculate aggregate coverage from per-class data.
+ * Optionally filter out classes matching ignore patterns.
+ */
+export function aggregateCoverage(
+  classes: ClassCoverage[],
+  ignorePatterns?: string[]
+): AggregateCoverage {
+  // Filter classes if patterns provided
+  const filteredClasses = ignorePatterns
+    ? filterClassesByPatterns(classes, ignorePatterns).included
+    : classes
+
   const agg = {
     instruction: { missed: 0, covered: 0, percent: 0 },
     branch: { missed: 0, covered: 0, percent: 0 },
     line: { missed: 0, covered: 0, percent: 0 },
     method: { missed: 0, covered: 0, percent: 0 },
-    classCount: classes.length,
+    classCount: filteredClasses.length,
   }
 
-  for (const cls of classes) {
+  for (const cls of filteredClasses) {
     agg.instruction.missed += cls.instruction.missed
     agg.instruction.covered += cls.instruction.covered
     agg.branch.missed += cls.branch.missed

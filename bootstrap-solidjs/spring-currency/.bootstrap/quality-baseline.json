@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "timestamp": "2026-01-13T16:27:18.195Z",
-  "commit": "283a1ea3",
+  "timestamp": "2026-01-13T18:43:49.464Z",
+  "commit": "d0312578",
   "projectPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/spring-currency",
   "metrics": {
-    "totalTests": 136,
-    "passedTests": 136,
+    "totalTests": 430,
+    "passedTests": 330,
     "failedTests": 0,
-    "skippedTests": 0,
+    "skippedTests": 100,
     "coverage": {
       "line": {
         "percent": 100,
@@ -69,29 +69,32 @@
     },
     "testClasses": [
       "com.example.currency.model.CurrencyTest$ValueErrorTests",
-      "com.example.currency.service.ExchangeRateServiceTest$CrossCurrencyConversionTests",
+      "com.example.currency.service.ExchangeRateServiceTest$CrossCurrencyTests",
+      "com.example.currency.CurrencyApplicationTest$MainMethodTests",
       "com.example.currency.config.OpenApiConfigTest$CurrencyOpenApiTests",
       "com.example.currency.model.CurrencyTest$EqualityTests",
       "com.example.currency.model.ConversionResponseTest$EqualityTests",
-      "com.example.currency.MainMethodTests",
       "com.example.currency.controller.CurrencyControllerTest$ControllerInjectionTests",
       "com.example.currency.model.CurrencyTest$EnumValuesTests",
       "com.example.currency.model.ConversionRequestTest$EqualityTests",
+      "com.example.currency.CurrencyApplicationTest$ApplicationInstanceTests",
+      "com.example.currency.service.ExchangeRateServiceTest$UsdConversionTests",
       "com.example.currency.service.ExchangeRateServiceTest$ResponseValidationTests",
       "com.example.currency.config.OpenApiConfigTest$ContactTests",
       "com.example.currency.model.ConversionResponseTest$ConstructorTests",
       "com.example.currency.model.ConversionResponseTest$ResponseConsistencyTests",
       "com.example.currency.config.OpenApiConfigTest$LicenseTests",
-      "com.example.currency.ApplicationInstanceTests",
       "com.example.currency.model.ConversionRequestTest$AccessorMethodTests",
       "com.example.currency.model.ConversionRequestTest$HashCodeTests",
       "com.example.currency.model.CurrencyTest$NameTests",
       "com.example.currency.config.OpenApiConfigTest$ConstructorTests",
+      "com.example.currency.service.ExchangeRateServiceTest$SameCurrencyTests",
       "com.example.currency.service.ExchangeRateServiceTest$EdgeCaseTests",
       "com.example.currency.model.ConversionResponseTest$AccessorMethodTests",
-      "com.example.currency.SpringContextIntegrationTests",
       "com.example.currency.model.ConversionResponseTest$HashCodeTests",
       "com.example.currency.model.CurrencyTest$HashCodeTests",
+      "com.example.currency.service.ExchangeRateServiceTest$RoundTripTests",
+      "com.example.currency.CurrencyApplicationTest$SpringContextIntegrationTests",
       "com.example.currency.model.ConversionRequestTest$ConstructorTests",
       "com.example.currency.controller.CurrencyControllerTest$RequestMappingTests",
       "com.example.currency.model.ConversionRequestTest$ToStringTests",
@@ -224,31 +227,53 @@
         "shouldPreserveFromCurrencyString",
         "shouldPreserveToCurrencyString"
       ],
-      "CrossCurrencyConversionTests": [
-        "shouldConvertCadToAud",
-        "shouldConvertChfToCny",
-        "shouldConvertInrToMxn",
-        "shouldConvertEurToGbp",
-        "shouldConvertGbpToJpy"
+      "SameCurrencyTests": [
+        "sameCurrencyShouldReturnRateOfOne",
+        "usdToUsdZeroAmount",
+        "eurToEurLargeAmount"
+      ],
+      "UsdConversionTests": [
+        "usdToEurShouldApplyCorrectRate",
+        "usdToGbpShouldApplyCorrectRate",
+        "usdToJpyShouldApplyCorrectRate",
+        "eurToUsdShouldApplyInverseRate",
+        "gbpToUsdShouldApplyInverseRate"
+      ],
+      "CrossCurrencyTests": [
+        "eurToGbpShouldUseCrossRate",
+        "jpyToCadShouldUseCrossRate",
+        "chfToCnyShouldUseCrossRate",
+        "audToInrShouldUseCrossRate",
+        "mxnToEurShouldUseCrossRate",
+        "cadToChfShouldUseCrossRate"
       ],
       "AllCurrencyPairsTests": [
-        "shouldConvertBetweenAllCurrencyPairs",
-        "shouldHandleSameCurrencyForAllCurrencies"
+        "allCurrencyPairsShouldReturnValidResponse",
+        "sameCurrencyRateShouldBeOne",
+        "crossCurrencyRateShouldBePositive"
       ],
       "EdgeCaseTests": [
-        "shouldHandleVerySmallAmounts",
-        "shouldHandleFractionalResultsCorrectly",
-        "shouldMaintainPrecisionForSmallValues"
+        "zeroAmountShouldReturnZeroResult",
+        "verySmallAmountShouldWork",
+        "veryLargeAmountShouldWork",
+        "negativeAmountShouldWork"
+      ],
+      "RoundTripTests": [
+        "roundTripShouldReturnApproximateOriginal",
+        "roundTripJpyShouldReturnApproximateOriginal",
+        "roundTripGbpCadShouldReturnApproximateOriginal"
       ],
       "ResponseValidationTests": [
-        "shouldAlwaysReturnNonNullResponse"
+        "responseShouldHaveCorrectCurrencyStrings",
+        "responseRateShouldMatchCalculated",
+        "responseResultShouldBeRounded"
       ]
     },
     "slowTests": [
       {
         "name": "shouldMapToApiConvertEndpoint",
         "className": "com.example.currency.controller.CurrencyControllerTest$RequestMappingTests",
-        "time": 1.037
+        "time": 1.006
       },
       {
         "name": "shouldCreateInstanceWithDefaultConstructor",
@@ -257,13 +282,18 @@
       },
       {
         "name": "currencyApplicationShouldBeLoadableInSpringContext",
-        "className": "com.example.currency.SpringContextIntegrationTests",
-        "time": 0.004
+        "className": "com.example.currency.CurrencyApplicationTest$SpringContextIntegrationTests",
+        "time": 0.005
       },
       {
-        "name": "shouldConvertBetweenAllCurrencyPairs(Currency, Currency)[1]",
-        "className": "com.example.currency.service.ExchangeRateServiceTest$AllCurrencyPairsTests",
-        "time": 0.004
+        "name": "shouldBeEqualToItself",
+        "className": "com.example.currency.model.ConversionRequestTest$EqualityTests",
+        "time": 0.003
+      },
+      {
+        "name": "shouldReturnCorrectNameForAllCurrencies(Currency)[1]",
+        "className": "com.example.currency.model.CurrencyTest$NameTests",
+        "time": 0.003
       },
       {
         "name": "currencyOpenApiShouldWorkOnNewInstance",
@@ -271,8 +301,13 @@
         "time": 0.003
       },
       {
-        "name": "shouldReturnCorrectNameForAllCurrencies(Currency)[1]",
-        "className": "com.example.currency.model.CurrencyTest$NameTests",
+        "name": "shouldContainToCurrencyInStringRepresentation",
+        "className": "com.example.currency.model.ConversionRequestTest$ToStringTests",
+        "time": 0.002
+      },
+      {
+        "name": "shouldContainRateInStringRepresentation",
+        "className": "com.example.currency.model.ConversionResponseTest$ToStringTests",
         "time": 0.002
       },
       {
@@ -281,18 +316,8 @@
         "time": 0.001
       },
       {
-        "name": "openApiInfoShouldHaveDescription",
-        "className": "com.example.currency.config.OpenApiConfigTest$CurrencyOpenApiTests",
-        "time": 0.001
-      },
-      {
-        "name": "shouldNotBeEqualToResponseWithDifferentFromCurrency",
-        "className": "com.example.currency.model.ConversionResponseTest$EqualityTests",
-        "time": 0.001
-      },
-      {
-        "name": "controllerShouldBeCreatedWithExchangeRateService",
-        "className": "com.example.currency.controller.CurrencyControllerTest$ControllerInjectionTests",
+        "name": "shouldThrowExceptionForLowercaseCurrency",
+        "className": "com.example.currency.model.CurrencyTest$ValueErrorTests",
         "time": 0.001
       }
     ],

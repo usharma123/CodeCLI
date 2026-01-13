@@ -4,7 +4,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
@@ -13,6 +12,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@DisplayName("CurrencyApplication Tests")
+class CurrencyApplicationTest {
 
     @Nested
     @DisplayName("Application Instance Tests")
@@ -77,3 +78,4 @@ import static org.junit.jupiter.api.Assertions.*;
             assertNotNull(CurrencyApplication.class, "CurrencyApplication class should be loadable");
         }
     }
+}

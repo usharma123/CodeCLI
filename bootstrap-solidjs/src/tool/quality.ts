@@ -52,6 +52,13 @@ import {
   type ProductionSourceDiff,
 } from "./quality-baseline"
 
+import {
+  checkFingerprintStaleness,
+  computeFingerprint,
+  saveFingerprint,
+  loadFingerprint,
+} from "./quality-fingerprint"
+
 // ============================================================================
 // Staleness Detection Types
 // ============================================================================
@@ -74,6 +81,10 @@ export interface StalenessCheck {
   sourceInfo: {
     newestTestFileMtime: Date | null
     newestTestFile: string | null
+  }
+  fingerprint?: {
+    used: boolean
+    reasons: string[]
   }
 }
 
@@ -189,26 +200,67 @@ function generateReport(
   // Summary Table
   lines.push("## Summary")
   lines.push("")
-  lines.push("| Metric | Current | Gate |")
-  lines.push("|--------|---------|------|")
+
+  // Check if we have adjusted coverage (tests were deleted)
+  const hasAdjustedCoverage = diff.adjustedCoverage !== undefined
+
+  if (hasAdjustedCoverage) {
+    lines.push("| Metric | Raw (JaCoCo) | Adjusted | Gate |")
+    lines.push("|--------|--------------|----------|------|")
+  } else {
+    lines.push("| Metric | Current | Gate |")
+    lines.push("|--------|---------|------|")
+  }
 
   // Tests
   const testStatus = diff.testsDelta < 0 ? "WARN" : "PASS"
-  lines.push(`| Tests | ${baseline.metrics.totalTests} | ${testStatus} |`)
+  const testDeltaStr = diff.testsDelta !== 0 ? ` (${diff.testsDelta > 0 ? "+" : ""}${diff.testsDelta})` : ""
+  if (hasAdjustedCoverage) {
+    lines.push(`| Tests | ${baseline.metrics.totalTests}${testDeltaStr} | - | ${testStatus} |`)
+  } else {
+    lines.push(`| Tests | ${baseline.metrics.totalTests}${testDeltaStr} | ${testStatus} |`)
+  }
 
   // Line Coverage
-  const lineStatus = gateResult.failures.some((f) => f.includes("Line coverage")) ? "FAIL" : "PASS"
-  lines.push(`| Line Coverage | ${formatPercent(baseline.metrics.coverage.line.percent)} | ${lineStatus} |`)
+  const lineStatus = gateResult.failures.some((f) => f.includes("Line coverage") || f.includes("Adjusted")) ? "FAIL" : "PASS"
+  if (hasAdjustedCoverage && diff.adjustedCoverage) {
+    lines.push(`| Line Coverage | ${formatPercent(baseline.metrics.coverage.line.percent)} | **${formatPercent(diff.adjustedCoverage.line)}** | ${lineStatus} |`)
+  } else {
+    lines.push(`| Line Coverage | ${formatPercent(baseline.metrics.coverage.line.percent)} | ${lineStatus} |`)
+  }
 
   // Branch Coverage
   const branchStatus = gateResult.failures.some((f) => f.includes("Branch coverage")) ? "FAIL" : "PASS"
   const branchNote = baseline.metrics.coverage.branch.percent === 0 ? " (< 60%)" : ""
-  lines.push(`| Branch Coverage | ${formatPercent(baseline.metrics.coverage.branch.percent)}${branchNote} | ${branchStatus} |`)
+  if (hasAdjustedCoverage && diff.adjustedCoverage) {
+    lines.push(`| Branch Coverage | ${formatPercent(baseline.metrics.coverage.branch.percent)}${branchNote} | **${formatPercent(diff.adjustedCoverage.branch)}** | ${branchStatus} |`)
+  } else {
+    lines.push(`| Branch Coverage | ${formatPercent(baseline.metrics.coverage.branch.percent)}${branchNote} | ${branchStatus} |`)
+  }
 
   // Additional metrics
-  lines.push(`| Instruction Coverage | ${formatPercent(baseline.metrics.coverage.instruction.percent)} | INFO |`)
+  if (hasAdjustedCoverage && diff.adjustedCoverage) {
+    lines.push(`| Instruction Coverage | ${formatPercent(baseline.metrics.coverage.instruction.percent)} | **${formatPercent(diff.adjustedCoverage.instruction)}** | INFO |`)
+  } else {
+    lines.push(`| Instruction Coverage | ${formatPercent(baseline.metrics.coverage.instruction.percent)} | INFO |`)
+  }
   lines.push(`| Method Coverage | ${formatPercent(baseline.metrics.coverage.method.percent)} | INFO |`)
   lines.push("")
+
+  // Adjusted coverage explanation
+  if (hasAdjustedCoverage && diff.adjustedCoverage) {
+    lines.push("### ⚠️ Coverage Adjusted")
+    lines.push("")
+    lines.push(`**${diff.adjustedCoverage.reason}**`)
+    lines.push("")
+    lines.push(`- Raw coverage (JaCoCo): ${formatPercent(baseline.metrics.coverage.line.percent)}`)
+    lines.push(`- Test retention ratio: ${(diff.adjustedCoverage.testRetentionRatio * 100).toFixed(1)}%`)
+    lines.push(`- Adjusted coverage: ${formatPercent(baseline.metrics.coverage.line.percent)} × ${(diff.adjustedCoverage.testRetentionRatio * 100).toFixed(1)}% = **${formatPercent(diff.adjustedCoverage.line)}**`)
+    lines.push("")
+    lines.push("> Coverage penalized because raw coverage doesn't reflect deleted tests.")
+    lines.push("> If deleted tests were redundant, consider updating the baseline.")
+    lines.push("")
+  }
 
   // Per-Class Coverage
   lines.push("## Per-Class Coverage")
@@ -562,13 +614,18 @@ async function getNewestFileMtime(
 
 /**
  * Check if test artifacts are stale and tests need to be re-run.
- * Uses git status and file modification times to detect staleness.
+ *
+ * Uses a multi-layered approach:
+ * 1. Fingerprint-based detection (primary) - content-addressable, handles CI edge cases
+ * 2. Git status detection - catches uncommitted changes
+ * 3. Timestamp-based detection (fallback) - used when no fingerprint exists
  */
 async function checkTestStaleness(
   projectPath: string,
   jacocoCsvPath: string | null,
   surefireDir: string | null,
-  testSourceDir: string | null
+  testSourceDir: string | null,
+  mainSourceDir: string | null = null
 ): Promise<StalenessCheck> {
   const result: StalenessCheck = {
     mustRunTests: false,
@@ -591,7 +648,58 @@ async function checkTestStaleness(
     },
   }
 
-  // 1. Check git status for uncommitted test changes
+  // Check artifact existence first
+  if (jacocoCsvPath && fs.existsSync(jacocoCsvPath)) {
+    result.artifactInfo.jacocoExists = true
+    result.artifactInfo.jacocoMtime = fs.statSync(jacocoCsvPath).mtime
+  }
+
+  if (surefireDir && fs.existsSync(surefireDir)) {
+    result.artifactInfo.surefireExists = true
+    const newestSurefire = await getNewestFileMtime(surefireDir, /\.xml$/)
+    if (newestSurefire) {
+      result.artifactInfo.surefireMtime = newestSurefire.mtime
+    }
+  }
+
+  // If no artifacts exist, must run tests
+  if (!result.artifactInfo.jacocoExists && !result.artifactInfo.surefireExists) {
+    result.mustRunTests = true
+    result.reasons.push("Artifacts: No JaCoCo or Surefire reports found")
+    return result
+  }
+
+  // ========================================================================
+  // Layer 1: Fingerprint-based staleness detection (primary)
+  // ========================================================================
+
+  const fingerprintResult = await checkFingerprintStaleness(projectPath, testSourceDir, mainSourceDir)
+
+  if (fingerprintResult) {
+    result.fingerprint = {
+      used: true,
+      reasons: fingerprintResult.reasons,
+    }
+
+    if (fingerprintResult.isStale) {
+      result.mustRunTests = true
+      // Prefix fingerprint reasons to distinguish from other detection methods
+      for (const reason of fingerprintResult.reasons) {
+        result.reasons.push(`Fingerprint: ${reason}`)
+      }
+    }
+  } else {
+    // No stored fingerprint - will rely on git + timestamp fallback
+    result.fingerprint = {
+      used: false,
+      reasons: ["No stored fingerprint found - using fallback detection"],
+    }
+  }
+
+  // ========================================================================
+  // Layer 2: Git status detection (always run for detailed change info)
+  // ========================================================================
+
   const gitChanges = await getGitChangedTestFiles(projectPath)
 
   if (gitChanges.deleted.length > 0) {
@@ -622,46 +730,27 @@ async function checkTestStaleness(
 
   if (gitChanges.untracked.length > 0) {
     result.gitChanges.untrackedTestFiles = gitChanges.untracked
-    // Untracked test files mean new tests not in coverage - should re-run
     result.mustRunTests = true
     result.reasons.push(`Git: ${gitChanges.untracked.length} new test file(s) not yet in coverage`)
   }
 
-  // 2. Check artifact existence and modification times
-  if (jacocoCsvPath && fs.existsSync(jacocoCsvPath)) {
-    result.artifactInfo.jacocoExists = true
-    result.artifactInfo.jacocoMtime = fs.statSync(jacocoCsvPath).mtime
-  }
+  // ========================================================================
+  // Layer 3: Timestamp-based detection (fallback when no fingerprint)
+  // ========================================================================
 
-  if (surefireDir && fs.existsSync(surefireDir)) {
-    result.artifactInfo.surefireExists = true
-    // Get newest surefire report mtime
-    const newestSurefire = await getNewestFileMtime(surefireDir, /\.xml$/)
-    if (newestSurefire) {
-      result.artifactInfo.surefireMtime = newestSurefire.mtime
-    }
-  }
-
-  // 3. If no artifacts exist, must run tests
-  if (!result.artifactInfo.jacocoExists && !result.artifactInfo.surefireExists) {
-    result.mustRunTests = true
-    result.reasons.push("Artifacts: No JaCoCo or Surefire reports found")
-  }
-
-  // 4. Compare artifact mtime vs source mtime
-  if (testSourceDir && fs.existsSync(testSourceDir)) {
+  // Only use timestamp fallback if fingerprint wasn't available
+  if (!fingerprintResult && testSourceDir && fs.existsSync(testSourceDir)) {
     const newestSource = await getNewestFileMtime(testSourceDir, /Test\.java$|Tests\.java$/)
     if (newestSource) {
       result.sourceInfo.newestTestFileMtime = newestSource.mtime
       result.sourceInfo.newestTestFile = newestSource.filePath
 
-      // Compare with artifact mtime
       const artifactMtime = result.artifactInfo.jacocoMtime || result.artifactInfo.surefireMtime
       if (artifactMtime && newestSource.mtime > artifactMtime) {
         result.mustRunTests = true
         const ageDiff = Math.round((newestSource.mtime.getTime() - artifactMtime.getTime()) / 1000)
         result.reasons.push(
-          `Artifacts: Test sources ${ageDiff}s newer than coverage reports`
+          `Artifacts: Test sources ${ageDiff}s newer than coverage reports (timestamp fallback)`
         )
       }
     }
@@ -954,6 +1043,7 @@ export const QualityTool = Tool.define("quality", {
     gate: z.boolean().optional().describe("Return non-zero exit if quality gates fail"),
     run_tests: z.boolean().optional().describe("Force test execution before generating report (default: auto-detect based on git status and artifact age)"),
     skip_tests: z.boolean().optional().describe("Skip test execution even if staleness detected (use existing artifacts, may be outdated)"),
+    json_output: z.string().optional().describe("Path to write JSON output (enables machine-readable output for CI integration)"),
   }),
   async execute(params, ctx) {
     const projectPath = path.isAbsolute(params.project_path)
@@ -978,6 +1068,7 @@ export const QualityTool = Tool.define("quality", {
     // ========================================================================
 
     const testSourceDir = findTestSourceDir(projectPath)
+    const mainSourceDir = findMainSourceDir(projectPath)
     let jacocoCsvPath = findJacocoCsv(projectPath)
     let surefireDir = findSurefireDir(projectPath)
 
@@ -986,7 +1077,8 @@ export const QualityTool = Tool.define("quality", {
       projectPath,
       jacocoCsvPath,
       surefireDir,
-      testSourceDir
+      testSourceDir,
+      mainSourceDir
     )
 
     // Determine if we should run tests
@@ -1168,6 +1260,11 @@ To generate artifacts, run:
     const config = loadConfig(projectPath)
     const previousBaseline = loadBaseline(projectPath)
 
+    // Re-calculate aggregate coverage with ignorePatterns if configured
+    if (config.ignorePatterns && config.ignorePatterns.length > 0 && coverageData.length > 0) {
+      aggregateCov = aggregateCoverage(coverageData, config.ignorePatterns)
+    }
+
     // ========================================================================
     // Phase 8: Scan Source Files
     // ========================================================================
@@ -1213,7 +1310,7 @@ To generate artifacts, run:
     // Phase 9: Scan Production Source Files
     // ========================================================================
 
-    const mainSourceDir = findMainSourceDir(projectPath)
+    // mainSourceDir already found in Phase 1 for fingerprint detection
     let currentProductionClasses: Map<string, ProductionClass> = new Map()
     let productionDiff: ProductionSourceDiff | null = null
 
@@ -1321,7 +1418,7 @@ To generate artifacts, run:
     // Phase 12: Evaluate Gates
     // ========================================================================
 
-    const gateResult = evaluateGates(currentBaseline, diff, config)
+    const gateResult = evaluateGates(currentBaseline, diff, config, previousBaseline?.metrics.totalTests)
 
     // ========================================================================
     // Phase 13: Generate Report
@@ -1348,7 +1445,7 @@ To generate artifacts, run:
     )
 
     // ========================================================================
-    // Phase 14: Auto-Update Baseline
+    // Phase 14: Auto-Update Baseline and Fingerprint
     // ========================================================================
 
     // Auto-update baseline after successful test run, or if explicitly requested
@@ -1358,6 +1455,10 @@ To generate artifacts, run:
 
     if (shouldUpdateBaseline) {
       saveBaseline(projectPath, currentBaseline)
+
+      // Save fingerprint for next run's staleness detection
+      const fingerprint = await computeFingerprint(projectPath, testSourceDir, mainSourceDir)
+      saveFingerprint(projectPath, fingerprint)
     }
 
     // ========================================================================
@@ -1368,21 +1469,88 @@ To generate artifacts, run:
       throw new Error(`Quality gates failed:\n${gateResult.failures.join("\n")}`)
     }
 
+    // ========================================================================
+    // Phase 16: Write JSON Output (if requested)
+    // ========================================================================
+
+    const resultMetadata = {
+      tests: testResults.total,
+      passed: testResults.passed,
+      failed: testResults.failed,
+      lineCoverage: aggregateCov.line.percent,
+      branchCoverage: aggregateCov.branch.percent,
+      gatesPassed: gateResult.passed,
+      baselineUpdated: shouldUpdateBaseline,
+      testsExecuted: shouldRunTests,
+      testDuration: testExecution?.duration,
+      stalenessDetected: staleness.mustRunTests,
+      stalenessReasons: staleness.reasons,
+    }
+
+    if (params.json_output) {
+      const jsonOutput = {
+        version: 1,
+        timestamp: new Date().toISOString(),
+        project: path.basename(projectPath),
+        projectPath: projectPath,
+        summary: resultMetadata,
+        coverage: {
+          aggregate: aggregateCov,
+          perClass: coverageData.map((cls) => ({
+            className: cls.className,
+            fullName: cls.fullName,
+            package: cls.package,
+            line: cls.line.percent,
+            branch: cls.branch.percent,
+            instruction: cls.instruction.percent,
+            method: cls.method.percent,
+          })),
+        },
+        tests: {
+          total: testResults.total,
+          passed: testResults.passed,
+          failed: testResults.failed,
+          errors: testResults.errors,
+          skipped: testResults.skipped,
+          duration: testResults.totalTime,
+          slowTests: testResults.slowTests,
+        },
+        gates: {
+          passed: gateResult.passed,
+          failures: gateResult.failures,
+          config: config.gates,
+        },
+        diff: diff
+          ? {
+              testsDelta: diff.testsDelta,
+              coverageDelta: diff.coverageDelta,
+              testsRemoved: diff.testsRemoved,
+              testsAdded: diff.testsAdded,
+              warnings: diff.warnings,
+            }
+          : null,
+        incidentalCoverage: incidental.map((i) => ({
+          className: i.className,
+          fullName: i.fullName,
+          reason: i.reason,
+        })),
+      }
+
+      const jsonPath = path.isAbsolute(params.json_output)
+        ? params.json_output
+        : path.join(projectPath, params.json_output)
+
+      const jsonDir = path.dirname(jsonPath)
+      if (!fs.existsSync(jsonDir)) {
+        fs.mkdirSync(jsonDir, { recursive: true })
+      }
+
+      fs.writeFileSync(jsonPath, JSON.stringify(jsonOutput, null, 2), "utf-8")
+    }
+
     return {
       title: `Quality: ${path.basename(projectPath)}`,
-      metadata: {
-        tests: testResults.total,
-        passed: testResults.passed,
-        failed: testResults.failed,
-        lineCoverage: aggregateCov.line.percent,
-        branchCoverage: aggregateCov.branch.percent,
-        gatesPassed: gateResult.passed,
-        baselineUpdated: shouldUpdateBaseline,
-        testsExecuted: shouldRunTests,
-        testDuration: testExecution?.duration,
-        stalenessDetected: staleness.mustRunTests,
-        stalenessReasons: staleness.reasons,
-      },
+      metadata: resultMetadata,
       output: report,
     }
   },

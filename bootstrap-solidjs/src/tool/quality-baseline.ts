@@ -61,6 +61,7 @@ export interface QualityConfig {
     min_line_coverage: number
     min_branch_coverage: number
     max_test_drop: number
+    max_test_drop_percent?: number // Optional: percentage-based test drop tolerance
     max_slow_test_ms: number
   }
   ignorePatterns: string[]
@@ -82,6 +83,16 @@ export interface QualityDiff {
     line: number
     branch: number
     instruction: number
+  }
+
+  // Adjusted coverage - penalizes raw coverage when tests are deleted
+  adjustedCoverage?: {
+    line: number
+    branch: number
+    instruction: number
+    testRetentionRatio: number // currentTests / baselineTests
+    penalty: string // e.g., "47.8% of raw coverage (65/136 tests)"
+    reason: string
   }
 
   classChanges: {
@@ -116,6 +127,7 @@ const DEFAULT_CONFIG: QualityConfig = {
     min_line_coverage: 70,
     min_branch_coverage: 60,
     max_test_drop: 0,
+    max_test_drop_percent: 5, // Allow up to 5% test count drop by default
     max_slow_test_ms: 5000,
   },
   ignorePatterns: ["**/config/**", "**/*Application.java"],
@@ -452,6 +464,46 @@ export function computeDiff(current: QualityBaseline, previous: QualityBaseline 
     })
   }
 
+  // Calculate adjusted coverage when tests are deleted AND coverage also dropped
+  // If tests were deleted but coverage stayed stable, assume refactoring (don't penalize)
+  let adjustedCoverage: QualityDiff["adjustedCoverage"] = undefined
+  const coverageDropThreshold = -5 // Only penalize if coverage dropped by more than 5%
+
+  if (testsDelta < 0 && previous.metrics.totalTests > 0) {
+    const testRetentionRatio = current.metrics.totalTests / previous.metrics.totalTests
+    const coverageAlsoDropped = coverageDelta.line < coverageDropThreshold
+
+    if (coverageAlsoDropped) {
+      // Tests deleted AND coverage dropped = real test deletion, apply penalty
+      adjustedCoverage = {
+        line: current.metrics.coverage.line.percent * testRetentionRatio,
+        branch: current.metrics.coverage.branch.percent * testRetentionRatio,
+        instruction: current.metrics.coverage.instruction.percent * testRetentionRatio,
+        testRetentionRatio,
+        penalty: `${(testRetentionRatio * 100).toFixed(1)}% of raw coverage`,
+        reason: `${Math.abs(testsDelta)} tests deleted AND coverage dropped ${Math.abs(coverageDelta.line).toFixed(1)}%`,
+      }
+
+      // Add critical warning when adjusted coverage drops significantly
+      if (adjustedCoverage.line < config.gates.min_line_coverage && current.metrics.coverage.line.percent >= config.gates.min_line_coverage) {
+        warnings.push({
+          level: "critical",
+          code: "ADJUSTED_COVERAGE_BELOW_THRESHOLD",
+          message: `Adjusted line coverage ${adjustedCoverage.line.toFixed(1)}% < ${config.gates.min_line_coverage}% threshold`,
+          details: `Raw coverage ${current.metrics.coverage.line.percent.toFixed(1)}% penalized by test deletion ratio (${(testRetentionRatio * 100).toFixed(1)}%)`,
+        })
+      }
+    } else {
+      // Tests deleted but coverage stable = likely refactoring, just warn
+      warnings.push({
+        level: "info",
+        code: "TESTS_REFACTORED",
+        message: `${Math.abs(testsDelta)} tests removed but coverage stable - likely refactoring`,
+        details: `Coverage changed only ${coverageDelta.line.toFixed(1)}%. If tests were intentionally removed, update baseline.`,
+      })
+    }
+  }
+
   // Suspicious: large coverage jump without test additions
   if (coverageDelta.line > 10 && testsAdded.length === 0) {
     warnings.push({
@@ -485,6 +537,7 @@ export function computeDiff(current: QualityBaseline, previous: QualityBaseline 
     testsRemoved,
     testsAdded,
     coverageDelta,
+    adjustedCoverage,
     classChanges,
     newSlowTests,
     warnings,
@@ -720,19 +773,55 @@ export function computeProductionSourceDiff(
 // Gate Evaluation
 // ============================================================================
 
-export function evaluateGates(current: QualityBaseline, diff: QualityDiff, config: QualityConfig): GateResult {
+export function evaluateGates(current: QualityBaseline, diff: QualityDiff, config: QualityConfig, previousTestCount?: number): GateResult {
   const failures: string[] = []
 
-  if (current.metrics.coverage.line.percent < config.gates.min_line_coverage) {
-    failures.push(`Line coverage ${current.metrics.coverage.line.percent.toFixed(1)}% < ${config.gates.min_line_coverage}%`)
+  // Use adjusted coverage if tests were deleted, otherwise use raw coverage
+  const effectiveLineCoverage = diff.adjustedCoverage?.line ?? current.metrics.coverage.line.percent
+  const effectiveBranchCoverage = diff.adjustedCoverage?.branch ?? current.metrics.coverage.branch.percent
+
+  if (effectiveLineCoverage < config.gates.min_line_coverage) {
+    if (diff.adjustedCoverage) {
+      failures.push(
+        `Adjusted line coverage ${effectiveLineCoverage.toFixed(1)}% < ${config.gates.min_line_coverage}% (raw: ${current.metrics.coverage.line.percent.toFixed(1)}%, penalized by test deletion)`
+      )
+    } else {
+      failures.push(`Line coverage ${effectiveLineCoverage.toFixed(1)}% < ${config.gates.min_line_coverage}%`)
+    }
   }
 
-  if (current.metrics.coverage.branch.percent < config.gates.min_branch_coverage) {
-    failures.push(`Branch coverage ${current.metrics.coverage.branch.percent.toFixed(1)}% < ${config.gates.min_branch_coverage}%`)
+  if (effectiveBranchCoverage < config.gates.min_branch_coverage) {
+    if (diff.adjustedCoverage) {
+      failures.push(
+        `Adjusted branch coverage ${effectiveBranchCoverage.toFixed(1)}% < ${config.gates.min_branch_coverage}% (raw: ${current.metrics.coverage.branch.percent.toFixed(1)}%, penalized by test deletion)`
+      )
+    } else {
+      failures.push(`Branch coverage ${effectiveBranchCoverage.toFixed(1)}% < ${config.gates.min_branch_coverage}%`)
+    }
   }
 
-  if (diff.testsDelta < -config.gates.max_test_drop) {
-    failures.push(`Test count dropped by ${Math.abs(diff.testsDelta)} (max allowed: ${config.gates.max_test_drop})`)
+  // Test count drop check - passes if EITHER absolute OR percentage threshold is met
+  if (diff.testsDelta < 0) {
+    const absoluteDrop = Math.abs(diff.testsDelta)
+    const absoluteThreshold = config.gates.max_test_drop
+
+    // Calculate percentage drop if we have previous test count
+    let percentageDrop = 0
+    let percentageThreshold = config.gates.max_test_drop_percent ?? 0
+
+    if (previousTestCount && previousTestCount > 0) {
+      percentageDrop = (absoluteDrop / previousTestCount) * 100
+    }
+
+    // Gate fails only if BOTH thresholds are exceeded
+    const exceedsAbsolute = absoluteDrop > absoluteThreshold
+    const exceedsPercentage = percentageDrop > percentageThreshold
+
+    if (exceedsAbsolute && exceedsPercentage) {
+      failures.push(
+        `Test count dropped by ${absoluteDrop} (${percentageDrop.toFixed(1)}%) - exceeds both absolute (${absoluteThreshold}) and percentage (${percentageThreshold}%) limits`
+      )
+    }
   }
 
   const criticalWarnings = diff.warnings.filter((w) => w.level === "critical")

@@ -8,22 +8,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@ExtendWith(MockitoExtension.class)
+@DisplayName("CurrencyController Tests")
 class CurrencyControllerTest {
 
     @Nested
@@ -56,7 +52,7 @@ class CurrencyControllerTest {
             ConversionRequest request = new ConversionRequest(100.0, Currency.USD, Currency.EUR);
             ConversionResponse response = new ConversionResponse(100.0, "USD", "EUR", 92.0, 0.92);
 
-            ExchangeRateService mockService = org.mockito.Mockito.mock(ExchangeRateService.class);
+            ExchangeRateService mockService = mock(ExchangeRateService.class);
             when(mockService.convert(any(ConversionRequest.class))).thenReturn(response);
             CurrencyController controller = new CurrencyController(mockService);
 

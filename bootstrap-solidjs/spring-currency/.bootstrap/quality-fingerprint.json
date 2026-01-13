@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "timestamp": "2026-01-13T18:43:49.507Z",
+  "git": {
+    "sha": "d03125789f0cb834cf4b9600177941cb0615c9f1",
+    "isDirty": true,
+    "dirtyHash": "16c1293e88364480"
+  },
+  "configs": {
+    "pom.xml": "d93173f2f6a9fc10"
+  },
+  "sources": {
+    "testFingerprint": "8f5e2f1456aab260",
+    "mainFingerprint": "e55f23bfc3b8404b",
+    "testFileCount": 7,
+    "mainFileCount": 7
+  }
+}
