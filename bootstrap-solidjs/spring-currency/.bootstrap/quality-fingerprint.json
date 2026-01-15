@@ -1,18 +1,18 @@
 {
   "version": 1,
-  "timestamp": "2026-01-14T18:57:19.526Z",
+  "timestamp": "2026-01-15T19:34:59.426Z",
   "git": {
-    "sha": "81c056dfcab76a10f977d247faf4671a66d894f1",
+    "sha": "609397c0a12997d716ee947e74a486f56a0fee19",
     "isDirty": true,
-    "dirtyHash": "44cb6c1a724b5bc0"
+    "dirtyHash": "55a738f0bad54e44"
   },
   "configs": {
     "pom.xml": "d93173f2f6a9fc10"
   },
   "sources": {
-    "testFingerprint": "9f4a08efc82d2a57",
+    "testFingerprint": "7fb47c12e7d72707",
     "mainFingerprint": "e55f23bfc3b8404b",
-    "testFileCount": 8,
+    "testFileCount": 7,
     "mainFileCount": 7
   }
 }

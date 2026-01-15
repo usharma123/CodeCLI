@@ -1,150 +1,182 @@
 package com.example.currency.model;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
+
+import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayName("Currency Enum Tests")
 class CurrencyTest {
 
-    @Test
-    @DisplayName("All currency values should exist")
-    void testAllCurrencyValuesExist() {
-        assertEquals(10, Currency.values().length, "Currency enum should have exactly 10 values");
-    }
+    @Nested
+    @DisplayName("Currency Values Tests")
+    class ValuesTests {
 
-    @ParameterizedTest
-    @EnumSource(Currency.class)
-    @DisplayName("All currency enum values should have valid names")
-    void testCurrencyValuesHaveValidNames(Currency currency) {
-        assertNotNull(currency.name(), "Currency name should not be null");
-        assertFalse(currency.name().isEmpty(), "Currency name should not be empty");
-    }
+        @Test
+        @DisplayName("should have exactly 10 currency values")
+        void shouldHaveExactlyTenCurrencyValues() {
+            assertEquals(10, Currency.values().length);
+        }
 
-    @Test
-    @DisplayName("USD valueOf should return USD enum")
-    void testValueOfUSD() {
-        assertEquals(Currency.USD, Currency.valueOf("USD"));
-    }
+        @Test
+        @DisplayName("should contain USD currency")
+        void shouldContainUSD() {
+            Currency[] values = Currency.values();
+            assertTrue(java.util.Arrays.stream(values).anyMatch(c -> c.name().equals("USD")));
+        }
 
-    @Test
-    @DisplayName("EUR valueOf should return EUR enum")
-    void testValueOfEUR() {
-        assertEquals(Currency.EUR, Currency.valueOf("EUR"));
-    }
+        @Test
+        @DisplayName("should contain all expected currencies")
+        void shouldContainAllExpectedCurrencies() {
+            String[] expectedCurrencies = {"USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "INR", "MXN"};
 
-    @Test
-    @DisplayName("GBP valueOf should return GBP enum")
-    void testValueOfGBP() {
-        assertEquals(Currency.GBP, Currency.valueOf("GBP"));
-    }
+            for (String expected : expectedCurrencies) {
+                assertNotNull(Currency.valueOf(expected), "Currency " + expected + " should exist");
+            }
+        }
 
-    @Test
-    @DisplayName("JPY valueOf should return JPY enum")
-    void testValueOfJPY() {
-        assertEquals(Currency.JPY, Currency.valueOf("JPY"));
-    }
+        @Test
+        @DisplayName("values() should return all currencies in consistent order")
+        void valuesShouldReturnAllCurrenciesInConsistentOrder() {
+            Currency[] firstCall = Currency.values();
+            Currency[] secondCall = Currency.values();
 
-    @Test
-    @DisplayName("CAD valueOf should return CAD enum")
-    void testValueOfCAD() {
-        assertEquals(Currency.CAD, Currency.valueOf("CAD"));
-    }
-
-    @Test
-    @DisplayName("AUD valueOf should return AUD enum")
-    void testValueOfAUD() {
-        assertEquals(Currency.AUD, Currency.valueOf("AUD"));
-    }
-
-    @Test
-    @DisplayName("CHF valueOf should return CHF enum")
-    void testValueOfCHF() {
-        assertEquals(Currency.CHF, Currency.valueOf("CHF"));
-    }
-
-    @Test
-    @DisplayName("CNY valueOf should return CNY enum")
-    void testValueOfCNY() {
-        assertEquals(Currency.CNY, Currency.valueOf("CNY"));
-    }
-
-    @Test
-    @DisplayName("INR valueOf should return INR enum")
-    void testValueOfINR() {
-        assertEquals(Currency.INR, Currency.valueOf("INR"));
-    }
-
-    @Test
-    @DisplayName("MXN valueOf should return MXN enum")
-    void testValueOfMXN() {
-        assertEquals(Currency.MXN, Currency.valueOf("MXN"));
-    }
-
-    @Test
-    @DisplayName("Invalid valueOf should throw IllegalArgumentException")
-    void testInvalidValueOf() {
-        assertThrows(IllegalArgumentException.class, () -> Currency.valueOf("INVALID"));
-    }
-
-    @Test
-    @DisplayName("Invalid valueOf lowercase should throw IllegalArgumentException")
-    void testInvalidValueOfLowercase() {
-        assertThrows(IllegalArgumentException.class, () -> Currency.valueOf("usd"));
-    }
-
-    @Test
-    @DisplayName("valueOf with null should throw NullPointerException")
-    void testValueOfNull() {
-        assertThrows(NullPointerException.class, () -> Currency.valueOf(null));
-    }
-
-    @Test
-    @DisplayName("Each currency should be accessible by ordinal")
-    void testCurrencyOrdinals() {
-        Currency[] values = Currency.values();
-        for (int i = 0; i < values.length; i++) {
-            assertEquals(i, values[i].ordinal(), "Ordinal should match index for " + values[i]);
+            assertEquals(firstCall.length, secondCall.length);
+            for (int i = 0; i < firstCall.length; i++) {
+                assertEquals(firstCall[i], secondCall[i]);
+            }
         }
     }
 
-    @Test
-    @DisplayName("compareTo should work correctly between currencies")
-    void testCompareTo() {
-        assertTrue(Currency.USD.compareTo(Currency.EUR) < 0, "USD should be less than EUR by ordinal");
-        assertEquals(0, Currency.USD.compareTo(Currency.USD), "Same currency should compare as 0");
+    @Nested
+    @DisplayName("ValueOf Tests")
+    class ValueOfTests {
+
+        @Test
+        @DisplayName("valueOf should return correct currency for valid name")
+        void valueOfShouldReturnCorrectCurrency() {
+            assertEquals(Currency.USD, Currency.valueOf("USD"));
+            assertEquals(Currency.EUR, Currency.valueOf("EUR"));
+            assertEquals(Currency.GBP, Currency.valueOf("GBP"));
+        }
+
+        @Test
+        @DisplayName("valueOf should throw IllegalArgumentException for invalid name")
+        void valueOfShouldThrowForInvalidName() {
+            assertThrows(IllegalArgumentException.class, () -> Currency.valueOf("INVALID"));
+            assertThrows(IllegalArgumentException.class, () -> Currency.valueOf("usd")); // case sensitive
+            assertThrows(IllegalArgumentException.class, () -> Currency.valueOf(""));
+            assertThrows(IllegalArgumentException.class, () -> Currency.valueOf("DOLLAR"));
+        }
     }
 
-    @Test
-    @DisplayName("equals should work correctly")
-    void testEquals() {
-        assertEquals(Currency.USD, Currency.USD, "Same currency instance should be equal");
-        assertNotEquals(Currency.USD, Currency.EUR, "Different currencies should not be equal");
+    @Nested
+    @DisplayName("Name Method Tests")
+    class NameTests {
+
+        @Test
+        @DisplayName("name() should return correct string representation")
+        void nameShouldReturnCorrectStringRepresentation() {
+            assertEquals("USD", Currency.USD.name());
+            assertEquals("EUR", Currency.EUR.name());
+            assertEquals("GBP", Currency.GBP.name());
+            assertEquals("JPY", Currency.JPY.name());
+        }
+
+        @Test
+        @DisplayName("all currencies should have non-null names")
+        void allCurrenciesShouldHaveNonNullNames() {
+            for (Currency currency : Currency.values()) {
+                assertNotNull(currency.name());
+                assertFalse(currency.name().isEmpty());
+            }
+        }
     }
 
-    @Test
-    @DisplayName("hashCode should be consistent")
-    void testHashCode() {
-        assertEquals(Currency.USD.hashCode(), Currency.USD.hashCode(), "Same currency should have same hashCode");
-        assertNotEquals(Currency.USD.hashCode(), Currency.EUR.hashCode(), "Different currencies may have different hashCodes");
+    @Nested
+    @DisplayName("Ordinal Method Tests")
+    class OrdinalTests {
+
+        @Test
+        @DisplayName("ordinal() should return consistent values")
+        void ordinalShouldReturnConsistentValues() {
+            Currency[] values = Currency.values();
+            for (int i = 0; i < values.length; i++) {
+                assertEquals(i, values[i].ordinal());
+            }
+        }
+
+        @Test
+        @DisplayName("ordinal() should be unique for each currency")
+        void ordinalShouldBeUniqueForEachCurrency() {
+            java.util.Set<Integer> ordinals = new java.util.HashSet<>();
+            for (Currency currency : Currency.values()) {
+                assertTrue(ordinals.add(currency.ordinal()), "Ordinal should be unique for " + currency.name());
+            }
+        }
     }
 
-    @Test
-    @DisplayName("toString should return currency code")
-    void testToString() {
-        assertEquals("USD", Currency.USD.toString());
-        assertEquals("EUR", Currency.EUR.toString());
-        assertEquals("GBP", Currency.GBP.toString());
+    @Nested
+    @DisplayName("CompareTo Tests")
+    class CompareToTests {
+
+        @Test
+        @DisplayName("compareTo should follow ordinal order")
+        void compareToShouldFollowOrdinalOrder() {
+            Currency[] values = Currency.values();
+            for (int i = 0; i < values.length - 1; i++) {
+                assertTrue(values[i].compareTo(values[i + 1]) < 0);
+                assertTrue(values[i + 1].compareTo(values[i]) > 0);
+            }
+        }
+
+        @Test
+        @DisplayName("compareTo should return 0 for same currency")
+        void compareToShouldReturnZeroForSameCurrency() {
+            assertEquals(0, Currency.USD.compareTo(Currency.USD));
+            assertEquals(0, Currency.EUR.compareTo(Currency.EUR));
+        }
     }
 
-    @Test
-    @DisplayName("name() should return currency code")
-    void testName() {
-        assertEquals("USD", Currency.USD.name());
-        assertEquals("JPY", Currency.JPY.name());
-        assertEquals("MXN", Currency.MXN.name());
+    @Nested
+    @DisplayName("Equals and HashCode Tests")
+    class EqualsHashCodeTests {
+
+        @Test
+        @DisplayName("equals should return true for same currency")
+        void equalsShouldReturnTrueForSameCurrency() {
+            assertTrue(Currency.USD.equals(Currency.USD));
+            assertTrue(Currency.EUR.equals(Currency.EUR));
+        }
+
+        @Test
+        @DisplayName("equals should return false for different currencies")
+        void equalsShouldReturnFalseForDifferentCurrencies() {
+            assertFalse(Currency.USD.equals(Currency.EUR));
+            assertFalse(Currency.GBP.equals(Currency.JPY));
+        }
+
+        @Test
+        @DisplayName("hashCode should be consistent for same currency")
+        void hashCodeShouldBeConsistentForSameCurrency() {
+            assertEquals(Currency.USD.hashCode(), Currency.USD.hashCode());
+            assertEquals(Currency.EUR.hashCode(), Currency.EUR.hashCode());
+        }
+    }
+
+    @Nested
+    @DisplayName("ToString Tests")
+    class ToStringTests {
+
+        @Test
+        @DisplayName("toString should return the same as name")
+        void toStringShouldReturnSameAsName() {
+            for (Currency currency : Currency.values()) {
+                assertEquals(currency.name(), currency.toString());
+            }
+        }
     }
 }
