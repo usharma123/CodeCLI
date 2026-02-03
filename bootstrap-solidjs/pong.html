@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pong Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #1a1a2e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            color: #eee;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            font-size: 2.5em;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            letter-spacing: 0.2em;
+        }
+
+        #gameContainer {
+            position: relative;
+            border: 4px solid #4a4a6a;
+            border-radius: 8px;
+            box-shadow: 0 0 30px rgba(100, 100, 200, 0.3);
+        }
+
+        canvas {
+            display: block;
+            background: #0f0f1a;
+        }
+
+        #controls {
+            margin-top: 25px;
+            text-align: center;
+            color: #888;
+            font-size: 0.9em;
+            line-height: 1.8;
+        }
+
+        .key {
+            display: inline-block;
+            background: #2a2a4a;
+            padding: 4px 12px;
+            border-radius: 4px;
+            margin: 0 3px;
+            border: 1px solid #4a4a6a;
+            color: #aaa;
+        }
+
+        #message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2em;
+            text-align: center;
+            pointer-events: none;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        #message.show {
+            opacity: 1;
+        }
+
+        .score-display {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>PONG</h1>
+    <div class="score-display">
+        <span id="leftScore">0</span> - <span id="rightScore">0</span>
+        <span id="modeDisplay" style="margin-left: 20px; font-size: 0.8em; color: #888;"></span>
+    </div>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="500"></canvas>
+        <div id="message"></div>
+    </div>
+    <div id="controls">
+        <p><span class="key">W</span> / <span class="key">S</span> Left paddle &nbsp;&nbsp;|&nbsp;&nbsp;
+           <span class="key">↑</span> / <span class="key">↓</span> Right paddle (when human)</p>
+        <p><span class="key">Space</span> Start/Pause &nbsp;&nbsp;|&nbsp;&nbsp;
+           <span class="key">R</span> Restart &nbsp;&nbsp;|&nbsp;&nbsp;
+           <span class="key">H</span> Toggle Human/AI for right paddle</p>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const messageEl = document.getElementById('message');
+        const leftScoreEl = document.getElementById('leftScore');
+        const rightScoreEl = document.getElementById('rightScore');
+
+        // Game settings
+        const WINNING_SCORE = 7;
+        const PADDLE_WIDTH = 12;
+        const PADDLE_HEIGHT = 90;
+        const BALL_SIZE = 14;
+        const INITIAL_BALL_SPEED = 6;
+        const PADDLE_SPEED = 8;
+        const AI_SPEED = 5;
+
+        // Game state
+        let game = {
+            leftScore: 0,
+            rightScore: 0,
+            paused: false,
+            gameOver: false,
+            winner: null,
+            started: false,
+            rightPlayerHuman: false
+        };
+
+        // Ball
+        let ball = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            dx: INITIAL_BALL_SPEED,
+            dy: INITIAL_BALL_SPEED,
+            speed: INITIAL_BALL_SPEED
+        };
+
+        // Paddles
+        let leftPaddle = {
+            x: 20,
+            y: canvas.height / 2 - PADDLE_HEIGHT / 2,
+            width: PADDLE_WIDTH,
+            height: PADDLE_HEIGHT,
+            dy: 0,
+            isAI: false
+        };
+
+        let rightPaddle = {
+            x: canvas.width - 20 - PADDLE_WIDTH,
+            y: canvas.height / 2 - PADDLE_HEIGHT / 2,
+            width: PADDLE_WIDTH,
+            height: PADDLE_HEIGHT,
+            dy: 0,
+            isAI: true
+        };
+
+        // Input handling
+        const keys = {};
+
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+
+            if (e.key === ' ' || e.key === 'Space') {
+                e.preventDefault();
+                if (game.gameOver) {
+                    resetGame();
+                } else if (!game.started) {
+                    game.started = true;
+                    hideMessage();
+                } else {
+                    game.paused = !game.paused;
+                    if (game.paused) {
+                        showMessage('PAUSED');
+                    } else {
+                        hideMessage();
+                    }
+                }
+            }
+
+            if (e.key === 'r' || e.key === 'R') {
+                if (game.gameOver) {
+                    resetGame();
+                } else if (game.started) {
+                    resetBall();
+                }
+            }
+
+            if (e.key === 'n' || e.key === 'N') {
+                fullReset();
+            }
+
+            // AI toggle for testing
+            if (e.key === 'a' || e.key === 'A') {
+                leftPaddle.isAI = !leftPaddle.isAI;
+            }
+
+            // Toggle human/AI for right paddle
+            if (e.key === 'h' || e.key === 'H') {
+                game.rightPlayerHuman = !game.rightPlayerHuman;
+                updateModeDisplay();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+
+        function showMessage(text) {
+            messageEl.textContent = text;
+            messageEl.classList.add('show');
+        }
+
+        function hideMessage() {
+            messageEl.classList.remove('show');
+        }
+
+        function fullReset() {
+            game.leftScore = 0;
+            game.rightScore = 0;
+            game.paused = false;
+            game.gameOver = false;
+            game.winner = null;
+            game.started = false;
+            game.rightPlayerHuman = false;
+            updateScoreDisplay();
+            updateModeDisplay();
+            resetBall();
+            leftPaddle.y = canvas.height / 2 - PADDLE_HEIGHT / 2;
+            rightPaddle.y = canvas.height / 2 - PADDLE_HEIGHT / 2;
+            showMessage('Press SPACE to start');
+        }
+
+        function resetGame() {
+            game.gameOver = false;
+            game.winner = null;
+            game.started = true;
+            game.paused = false;
+            game.leftScore = 0;
+            game.rightScore = 0;
+            updateScoreDisplay();
+            resetBall();
+            leftPaddle.y = canvas.height / 2 - PADDLE_HEIGHT / 2;
+            rightPaddle.y = canvas.height / 2 - PADDLE_HEIGHT / 2;
+            hideMessage();
+        }
+
+        function resetBall() {
+            ball.x = canvas.width / 2;
+            ball.y = canvas.height / 2;
+            ball.speed = INITIAL_BALL_SPEED;
+            ball.dx = (Math.random() > 0.5 ? 1 : -1) * ball.speed;
+            ball.dy = (Math.random() > 0.5 ? 1 : -1) * ball.speed;
+        }
+
+        function updateScoreDisplay() {
+            leftScoreEl.textContent = game.leftScore;
+            rightScoreEl.textContent = game.rightScore;
+        }
+
+        function updateModeDisplay() {
+            const modeEl = document.getElementById('modeDisplay');
+            if (game.rightPlayerHuman) {
+                modeEl.textContent = '[Right: HUMAN (↑/↓)]';
+                modeEl.style.color = '#6f6';
+            } else {
+                modeEl.textContent = '[Right: AI]';
+                modeEl.style.color = '#888';
+            }
+        }
+
+        function movePaddles() {
+            // Left paddle
+            if (leftPaddle.isAI) {
+                // Simple AI for left paddle
+                const targetY = ball.y - PADDLE_HEIGHT / 2;
+                if (leftPaddle.y < targetY - 20) {
+                    leftPaddle.y += AI_SPEED;
+                } else if (leftPaddle.y > targetY + 20) {
+                    leftPaddle.y -= AI_SPEED;
+                }
+            } else {
+                if (keys['w'] || keys['W']) {
+                    leftPaddle.y -= PADDLE_SPEED;
+                }
+                if (keys['s'] || keys['S']) {
+                    leftPaddle.y += PADDLE_SPEED;
+                }
+            }
+
+            // Right paddle
+            if (game.rightPlayerHuman) {
+                // Human control for right paddle
+                if (keys['ArrowUp']) {
+                    rightPaddle.y -= PADDLE_SPEED;
+                }
+                if (keys['ArrowDown']) {
+                    rightPaddle.y += PADDLE_SPEED;
+                }
+            } else {
+                // AI control for right paddle
+                const targetY = ball.y - PADDLE_HEIGHT / 2;
+                if (rightPaddle.y < targetY - 20) {
+                    rightPaddle.y += AI_SPEED;
+                } else if (rightPaddle.y > targetY + 20) {
+                    rightPaddle.y -= AI_SPEED;
+                }
+            }
+
+            // Clamp paddle positions
+            leftPaddle.y = Math.max(0, Math.min(canvas.height - PADDLE_HEIGHT, leftPaddle.y));
+            rightPaddle.y = Math.max(0, Math.min(canvas.height - PADDLE_HEIGHT, rightPaddle.y));
+        }
+
+        function moveBall() {
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+
+            // Top and bottom wall collision
+            if (ball.y <= BALL_SIZE / 2 || ball.y >= canvas.height - BALL_SIZE / 2) {
+                ball.dy *= -1;
+                ball.y = Math.max(BALL_SIZE / 2, Math.min(canvas.height - BALL_SIZE / 2, ball.y));
+            }
+
+            // Left paddle collision
+            if (ball.x - BALL_SIZE / 2 <= leftPaddle.x + leftPaddle.width &&
+                ball.x + BALL_SIZE / 2 >= leftPaddle.x &&
+                ball.y >= leftPaddle.y && ball.y <= leftPaddle.y + leftPaddle.height) {
+
+                ball.dx = Math.abs(ball.dx);
+                ball.x = leftPaddle.x + leftPaddle.width + BALL_SIZE / 2;
+
+                // Add spin based on where ball hits paddle
+                const hitPos = (ball.y - leftPaddle.y) / leftPaddle.height;
+                ball.dy = (hitPos - 0.5) * ball.speed * 1.5;
+
+                // Increase speed
+                ball.speed = Math.min(ball.speed * 1.05, 15);
+                const newSpeed = ball.speed;
+                ball.dx = newSpeed;
+            }
+
+            // Right paddle collision
+            if (ball.x + BALL_SIZE / 2 >= rightPaddle.x &&
+                ball.x - BALL_SIZE / 2 <= rightPaddle.x + rightPaddle.width &&
+                ball.y >= rightPaddle.y && ball.y <= rightPaddle.y + rightPaddle.height) {
+
+                ball.dx = -Math.abs(ball.dx);
+                ball.x = rightPaddle.x - BALL_SIZE / 2;
+
+                // Add spin based on where ball hits paddle
+                const hitPos = (ball.y - rightPaddle.y) / rightPaddle.height;
+                ball.dy = (hitPos - 0.5) * ball.speed * 1.5;
+
+                // Increase speed
+                ball.speed = Math.min(ball.speed * 1.05, 15);
+                const newSpeed = ball.speed;
+                ball.dx = -newSpeed;
+            }
+
+            // Score detection
+            if (ball.x <= 0) {
+                game.rightScore++;
+                updateScoreDisplay();
+                checkWinner();
+                if (!game.gameOver) resetBall();
+            } else if (ball.x >= canvas.width) {
+                game.leftScore++;
+                updateScoreDisplay();
+                checkWinner();
+                if (!game.gameOver) resetBall();
+            }
+        }
+
+        function checkWinner() {
+            if (game.leftScore >= WINNING_SCORE) {
+                game.gameOver = true;
+                game.winner = 'LEFT WINS!';
+                showMessage(game.winner + '<br><span style="font-size:0.5em">Press R to restart</span>');
+            } else if (game.rightScore >= WINNING_SCORE) {
+                game.gameOver = true;
+                game.winner = 'RIGHT WINS!';
+                showMessage(game.winner + '<br><span style="font-size:0.5em">Press R to restart</span>');
+            }
+        }
+
+        function draw() {
+            // Clear canvas
+            ctx.fillStyle = '#0f0f1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw center line
+            ctx.setLineDash([15, 15]);
+            ctx.strokeStyle = '#3a3a5a';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Draw paddles with glow
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#6a6aff';
+            ctx.fillStyle = '#6a6aff';
+            ctx.fillRect(leftPaddle.x, leftPaddle.y, leftPaddle.width, leftPaddle.height);
+
+            ctx.shadowColor = '#ff6a6a';
+            ctx.fillStyle = '#ff6a6a';
+            ctx.fillRect(rightPaddle.x, rightPaddle.y, rightPaddle.width, rightPaddle.height);
+
+            // Draw ball with glow
+            ctx.shadowColor = '#ffffff';
+            ctx.shadowBlur = 20;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, BALL_SIZE / 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Reset shadow
+            ctx.shadowBlur = 0;
+        }
+
+        function gameLoop() {
+            if (!game.paused && !game.gameOver && game.started) {
+                movePaddles();
+                moveBall();
+            }
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start the game
+        updateModeDisplay();
+        showMessage('Press SPACE to start');
+        gameLoop();
+    </script>
+</body>
+</html>

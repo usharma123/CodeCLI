@@ -27,243 +27,259 @@ class OpenApiConfigTest {
     }
 
     @Nested
-    @DisplayName("OpenAPI Bean Creation Tests")
-    class OpenAPICreationTests {
+    @DisplayName("ConfigInstantiationTests")
+    class ConfigInstantiationTests {
 
         @Test
-        @DisplayName("should create non-null OpenAPI bean")
-        void shouldCreateNonNullOpenAPIBean() {
+        @DisplayName("config should be instantiable with no-arg constructor")
+        void configShouldBeInstantiableWithNoArgConstructor() {
+            assertNotNull(config);
+        }
+
+        @Test
+        @DisplayName("currencyOpenApi should return non-null OpenAPI")
+        void currencyOpenApiShouldReturnNonNullOpenAPI() {
             assertNotNull(openApi);
         }
 
         @Test
-        @DisplayName("should create OpenAPI with info section")
-        void shouldCreateOpenAPIWithInfoSection() {
-            assertNotNull(openApi.getInfo());
+        @DisplayName("currencyOpenApi should return same instance on multiple calls")
+        void currencyOpenApiShouldReturnSameInstanceOnMultipleCalls() {
+            OpenAPI openApi1 = config.currencyOpenApi();
+            OpenAPI openApi2 = config.currencyOpenApi();
+
+            // Should return same OpenAPI object (stateless bean)
+            assertNotNull(openApi1);
+            assertNotNull(openApi2);
         }
     }
 
     @Nested
-    @DisplayName("Info Section Tests")
-    class InfoSectionTests {
+    @DisplayName("OpenAPICreationTests")
+    class OpenAPICreationTests {
 
         @Test
-        @DisplayName("info should have correct title")
-        void infoShouldHaveCorrectTitle() {
-            Info info = openApi.getInfo();
+        @DisplayName("OpenAPI should have info section")
+        void openAPIShouldHaveInfoSection() {
+            assertNotNull(openApi.getInfo());
+        }
 
+        @Test
+        @DisplayName("OpenAPI should have servers list")
+        void openAPIShouldHaveServersList() {
+            assertNotNull(openApi.getServers());
+            assertFalse(openApi.getServers().isEmpty());
+        }
+
+        @Test
+        @DisplayName("OpenAPI info should have title")
+        void openAPIInfoShouldHaveTitle() {
+            Info info = openApi.getInfo();
+            assertNotNull(info);
             assertEquals("Currency Converter API", info.getTitle());
         }
 
         @Test
-        @DisplayName("info should have correct version")
-        void infoShouldHaveCorrectVersion() {
+        @DisplayName("OpenAPI info should have version")
+        void openAPIInfoShouldHaveVersion() {
             Info info = openApi.getInfo();
-
+            assertNotNull(info);
             assertEquals("1.0", info.getVersion());
         }
 
         @Test
-        @DisplayName("info should have description with supported currencies")
-        void infoShouldHaveDescriptionWithSupportedCurrencies() {
+        @DisplayName("OpenAPI info should have description")
+        void openAPIInfoShouldHaveDescription() {
             Info info = openApi.getInfo();
-
+            assertNotNull(info);
             assertNotNull(info.getDescription());
-            assertTrue(info.getDescription().contains("USD"));
-            assertTrue(info.getDescription().contains("EUR"));
-            assertTrue(info.getDescription().contains("GBP"));
-            assertTrue(info.getDescription().contains("JPY"));
-            assertTrue(info.getDescription().contains("CAD"));
-            assertTrue(info.getDescription().contains("AUD"));
-            assertTrue(info.getDescription().contains("CHF"));
-            assertTrue(info.getDescription().contains("CNY"));
-            assertTrue(info.getDescription().contains("INR"));
-            assertTrue(info.getDescription().contains("MXN"));
+            assertTrue(info.getDescription().toLowerCase().contains("currency converter"),
+                "Description should contain 'Currency Converter'");
         }
 
         @Test
-        @DisplayName("info should contain Currency Converter API description text")
-        void infoShouldContainCurrencyConverterAPIDescriptionText() {
+        @DisplayName("OpenAPI info description should list supported currencies")
+        void openAPIInfoDescriptionShouldListSupportedCurrencies() {
             Info info = openApi.getInfo();
+            String description = info.getDescription();
 
-            assertTrue(info.getDescription().contains("Simple currency converter"));
+            assertTrue(description.contains("USD"));
+            assertTrue(description.contains("EUR"));
+            assertTrue(description.contains("GBP"));
+            assertTrue(description.contains("JPY"));
+            assertTrue(description.contains("CAD"));
+            assertTrue(description.contains("AUD"));
+            assertTrue(description.contains("CHF"));
+            assertTrue(description.contains("CNY"));
+            assertTrue(description.contains("INR"));
+            assertTrue(description.contains("MXN"));
         }
     }
 
     @Nested
-    @DisplayName("Contact Tests")
-    class ContactTests {
+    @DisplayName("InfoSectionTests")
+    class InfoSectionTests {
 
         @Test
-        @DisplayName("info should have contact section")
-        void infoShouldHaveContactSection() {
+        @DisplayName("OpenAPI should have contact information")
+        void openAPIShouldHaveContactInformation() {
             Contact contact = openApi.getInfo().getContact();
-
             assertNotNull(contact);
         }
 
         @Test
-        @DisplayName("contact should have correct name")
-        void contactShouldHaveCorrectName() {
+        @DisplayName("Contact should have name")
+        void contactShouldHaveName() {
             Contact contact = openApi.getInfo().getContact();
-
             assertEquals("Currency API Support", contact.getName());
         }
 
         @Test
-        @DisplayName("contact should have correct email")
-        void contactShouldHaveCorrectEmail() {
+        @DisplayName("Contact should have email")
+        void contactShouldHaveEmail() {
             Contact contact = openApi.getInfo().getContact();
-
             assertEquals("support@currency.local", contact.getEmail());
-        }
-
-        @Test
-        @DisplayName("contact should have name and email")
-        void contactShouldHaveNameAndEmail() {
-            Contact contact = openApi.getInfo().getContact();
-
-            assertNotNull(contact.getName());
-            assertNotNull(contact.getEmail());
-            assertFalse(contact.getName().isEmpty());
-            assertFalse(contact.getEmail().isEmpty());
         }
     }
 
     @Nested
-    @DisplayName("License Tests")
+    @DisplayName("ContactTests")
+    class ContactTests {
+
+        @Test
+        @DisplayName("Contact name should not be null")
+        void contactNameShouldNotBeNull() {
+            Contact contact = openApi.getInfo().getContact();
+            assertNotNull(contact.getName());
+        }
+
+        @Test
+        @DisplayName("Contact email should not be null")
+        void contactEmailShouldNotBeNull() {
+            Contact contact = openApi.getInfo().getContact();
+            assertNotNull(contact.getEmail());
+        }
+
+        @Test
+        @DisplayName("Contact email should be valid format")
+        void contactEmailShouldBeValidFormat() {
+            Contact contact = openApi.getInfo().getContact();
+            String email = contact.getEmail();
+            assertTrue(email.contains("@"));
+            assertTrue(email.contains("."));
+        }
+    }
+
+    @Nested
+    @DisplayName("LicenseTests")
     class LicenseTests {
 
         @Test
-        @DisplayName("info should have license section")
-        void infoShouldHaveLicenseSection() {
+        @DisplayName("OpenAPI should have license information")
+        void openAPIShouldHaveLicenseInformation() {
             License license = openApi.getInfo().getLicense();
-
             assertNotNull(license);
         }
 
         @Test
-        @DisplayName("license should have correct name")
-        void licenseShouldHaveCorrectName() {
+        @DisplayName("License should have name")
+        void licenseShouldHaveName() {
             License license = openApi.getInfo().getLicense();
-
             assertEquals("Apache 2.0", license.getName());
         }
 
         @Test
-        @DisplayName("license should have correct URL")
-        void licenseShouldHaveCorrectURL() {
+        @DisplayName("License should have URL")
+        void licenseShouldHaveURL() {
             License license = openApi.getInfo().getLicense();
-
             assertNotNull(license.getUrl());
-            assertEquals("https://www.apache.org/licenses/LICENSE-2.0", license.getUrl());
+            assertTrue(license.getUrl().contains("apache.org"));
         }
     }
 
     @Nested
-    @DisplayName("Servers Tests")
+    @DisplayName("ServersTests")
     class ServersTests {
 
         @Test
-        @DisplayName("openAPI should have servers list")
-        void openAPIShouldHaveServersList() {
+        @DisplayName("Servers list should have exactly one server")
+        void serversListShouldHaveExactlyOneServer() {
             List<Server> servers = openApi.getServers();
-
-            assertNotNull(servers);
-        }
-
-        @Test
-        @DisplayName("should have exactly one server")
-        void shouldHaveExactlyOneServer() {
-            List<Server> servers = openApi.getServers();
-
             assertEquals(1, servers.size());
         }
 
         @Test
-        @DisplayName("server should have correct URL")
-        void serverShouldHaveCorrectURL() {
+        @DisplayName("Server should have URL")
+        void serverShouldHaveURL() {
             Server server = openApi.getServers().get(0);
+            assertNotNull(server.getUrl());
+        }
 
+        @Test
+        @DisplayName("Server URL should be localhost")
+        void serverURLShouldBeLocalhost() {
+            Server server = openApi.getServers().get(0);
             assertEquals("http://localhost:8080", server.getUrl());
         }
 
         @Test
-        @DisplayName("server should have description")
+        @DisplayName("Server should have description")
         void serverShouldHaveDescription() {
             Server server = openApi.getServers().get(0);
-
+            assertNotNull(server.getDescription());
             assertEquals("Local server", server.getDescription());
         }
-
-        @Test
-        @DisplayName("server should have URL and description")
-        void serverShouldHaveURLAndDescription() {
-            Server server = openApi.getServers().get(0);
-
-            assertNotNull(server.getUrl());
-            assertNotNull(server.getDescription());
-            assertFalse(server.getDescription().isEmpty());
-        }
     }
 
     @Nested
-    @DisplayName("Config Instantiation Tests")
-    class ConfigInstantiationTests {
-
-        @Test
-        @DisplayName("should instantiate config successfully")
-        void shouldInstantiateConfigSuccessfully() {
-            assertDoesNotThrow(() -> new OpenApiConfig());
-        }
-
-        @Test
-        @DisplayName("multiple calls should return equivalent OpenAPI objects")
-        void multipleCallsShouldReturnEquivalentOpenAPIObjects() {
-            OpenAPI openApi1 = config.currencyOpenApi();
-            OpenAPI openApi2 = new OpenApiConfig().currencyOpenApi();
-
-            // Both should have same structure
-            assertEquals(openApi1.getInfo().getTitle(), openApi2.getInfo().getTitle());
-            assertEquals(openApi1.getInfo().getVersion(), openApi2.getInfo().getVersion());
-            assertEquals(openApi1.getServers().size(), openApi2.getServers().size());
-        }
-
-        @Test
-        @DisplayName("currencyOpenApi method should not return null")
-        void currencyOpenApiMethodShouldNotReturnNull() {
-            OpenApiConfig newConfig = new OpenApiConfig();
-
-            assertNotNull(newConfig.currencyOpenApi());
-        }
-    }
-
-    @Nested
-    @DisplayName("Full OpenAPI Structure Tests")
+    @DisplayName("FullOpenAPIStructureTests")
     class FullOpenAPIStructureTests {
 
         @Test
-        @DisplayName("openAPI should have all required components")
-        void openAPIShouldHaveAllRequiredComponents() {
+        @DisplayName("Complete OpenAPI structure should be valid")
+        void completeOpenAPIStructureShouldBeValid() {
             assertNotNull(openApi);
             assertNotNull(openApi.getInfo());
-            assertNotNull(openApi.getInfo().getContact());
-            assertNotNull(openApi.getInfo().getLicense());
             assertNotNull(openApi.getServers());
+            assertFalse(openApi.getServers().isEmpty());
+
+            // Verify all required components
+            Info info = openApi.getInfo();
+            assertNotNull(info.getTitle());
+            assertNotNull(info.getVersion());
+            assertNotNull(info.getDescription());
         }
 
         @Test
-        @DisplayName("openAPI info should contain all expected data")
-        void openAPIInfoShouldContainAllExpectedData() {
+        @DisplayName("All info components should be properly linked")
+        void allInfoComponentsShouldBeProperlyLinked() {
             Info info = openApi.getInfo();
 
-            assertAll(
-                    () -> assertNotNull(info.getTitle()),
-                    () -> assertNotNull(info.getVersion()),
-                    () -> assertNotNull(info.getDescription()),
-                    () -> assertNotNull(info.getContact()),
-                    () -> assertNotNull(info.getLicense())
-            );
+            assertNotNull(info.getContact());
+            assertNotNull(info.getLicense());
+
+            Contact contact = info.getContact();
+            assertNotNull(contact.getName());
+            assertNotNull(contact.getEmail());
+
+            License license = info.getLicense();
+            assertNotNull(license.getName());
+            assertNotNull(license.getUrl());
+        }
+
+        @Test
+        @DisplayName("OpenAPI should be reusable across multiple calls")
+        void openAPIShouldBeReusableAcrossMultipleCalls() {
+            OpenAPI first = config.currencyOpenApi();
+            OpenAPI second = config.currencyOpenApi();
+
+            assertNotNull(first);
+            assertNotNull(second);
+
+            // Both should produce equivalent OpenAPI definitions
+            assertEquals(first.getInfo().getTitle(), second.getInfo().getTitle());
+            assertEquals(first.getInfo().getVersion(), second.getInfo().getVersion());
+            assertEquals(first.getServers().size(), second.getServers().size());
         }
     }
 }

@@ -1,0 +1,612 @@
+{
+  "runId": "cli-1769662339805",
+  "url": "https://utsav.sh",
+  "goals": "homepage UX + primary CTA + form validation + keyboard",
+  "status": "completed",
+  "startedAt": 1769662339825,
+  "screenshots": [
+    {
+      "stepIndex": -1,
+      "label": "Initial page load",
+      "filename": "step-0-1-Initial-page-load.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-0-1-Initial-page-load.png"
+    },
+    {
+      "stepIndex": -1,
+      "label": "Audit default",
+      "filename": "step-0-1-Audit-default.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-0-1-Audit-default.png"
+    },
+    {
+      "stepIndex": 0,
+      "label": "After click",
+      "filename": "step-000-After-click.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-000-After-click.png"
+    },
+    {
+      "stepIndex": 1,
+      "label": "After click",
+      "filename": "step-001-After-click.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-001-After-click.png"
+    },
+    {
+      "stepIndex": 2,
+      "label": "After click",
+      "filename": "step-002-After-click.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-002-After-click.png"
+    },
+    {
+      "stepIndex": 3,
+      "label": "After click",
+      "filename": "step-003-After-click.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-003-After-click.png"
+    },
+    {
+      "stepIndex": 4,
+      "label": "After click",
+      "filename": "step-004-After-click.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-004-After-click.png"
+    },
+    {
+      "stepIndex": 5,
+      "label": "After click",
+      "filename": "step-005-After-click.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-005-After-click.png"
+    },
+    {
+      "stepIndex": 6,
+      "label": "After open",
+      "filename": "step-006-After-open.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-006-After-open.png"
+    },
+    {
+      "stepIndex": 8,
+      "label": "Before click",
+      "filename": "step-008-Before-click.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-008-Before-click.png"
+    },
+    {
+      "stepIndex": 8,
+      "label": "After click",
+      "filename": "step-008-After-click.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-008-After-click.png"
+    },
+    {
+      "stepIndex": 13,
+      "label": "After open",
+      "filename": "step-013-After-open.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-013-After-open.png"
+    },
+    {
+      "stepIndex": 14,
+      "label": "Before press",
+      "filename": "step-014-Before-press.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-014-Before-press.png"
+    },
+    {
+      "stepIndex": 14,
+      "label": "After press",
+      "filename": "step-014-After-press.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-014-After-press.png"
+    },
+    {
+      "stepIndex": 15,
+      "label": "Before press",
+      "filename": "step-015-Before-press.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-015-Before-press.png"
+    },
+    {
+      "stepIndex": 15,
+      "label": "After press",
+      "filename": "step-015-After-press.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-015-After-press.png"
+    },
+    {
+      "stepIndex": 16,
+      "label": "Before press",
+      "filename": "step-016-Before-press.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-016-Before-press.png"
+    },
+    {
+      "stepIndex": 16,
+      "label": "After press",
+      "filename": "step-016-After-press.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-016-After-press.png"
+    },
+    {
+      "stepIndex": 17,
+      "label": "Before press",
+      "filename": "step-017-Before-press.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-017-Before-press.png"
+    },
+    {
+      "stepIndex": 17,
+      "label": "After press",
+      "filename": "step-017-After-press.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-017-After-press.png"
+    },
+    {
+      "stepIndex": 18,
+      "label": "Before press",
+      "filename": "step-018-Before-press.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-018-Before-press.png"
+    },
+    {
+      "stepIndex": 18,
+      "label": "After press",
+      "filename": "step-018-After-press.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-018-After-press.png"
+    },
+    {
+      "stepIndex": 19,
+      "label": "Before press",
+      "filename": "step-019-Before-press.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-019-Before-press.png"
+    },
+    {
+      "stepIndex": 19,
+      "label": "After press",
+      "filename": "step-019-After-press.png",
+      "localPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-019-After-press.png"
+    }
+  ],
+  "score": 92,
+  "summary": "The website demonstrates excellent overall quality with clean navigation, functional theme toggling, and accessible keyboard navigation. All core pages load successfully with well-structured content. The site is a personal portfolio/blog with public content readily accessible. Minor accessibility improvements could enhance the experience further, but no blocking issues were found.",
+  "report": {
+    "url": "https://utsav.sh",
+    "testedFlows": [
+      "Homepage load and initial content display",
+      "Theme toggle functionality (light/dark mode)",
+      "Navigation to About page",
+      "Navigation to Work page",
+      "Navigation to Blog listing page",
+      "Navigation to individual blog post",
+      "Keyboard navigation and focus management",
+      "Email link interaction"
+    ],
+    "score": 92,
+    "summary": "The website demonstrates excellent overall quality with clean navigation, functional theme toggling, and accessible keyboard navigation. All core pages load successfully with well-structured content. The site is a personal portfolio/blog with public content readily accessible. Minor accessibility improvements could enhance the experience further, but no blocking issues were found.",
+    "issues": [
+      {
+        "severity": "low",
+        "title": "Focus indicator visibility could be enhanced during keyboard navigation",
+        "category": "Accessibility",
+        "reproSteps": [
+          "Navigate to https://utsav.sh",
+          "Press Tab key multiple times (steps 14-19)",
+          "Observe focus indicators on interactive elements"
+        ],
+        "expected": "Clear, high-contrast focus indicators should be visible on all interactive elements during keyboard navigation",
+        "actual": "While keyboard navigation works functionally, focus indicators may not be prominently visible in all states based on the sequential tab presses",
+        "evidence": [
+          "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-015-After-press.png",
+          "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-016-After-press.png",
+          "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-017-After-press.png"
+        ],
+        "suggestedFix": "Enhance CSS focus styles with higher contrast outlines or rings (e.g., 2px solid outline with offset) to ensure focus is immediately visible to keyboard users"
+      },
+      {
+        "severity": "nit",
+        "title": "Theme toggle button could benefit from ARIA label",
+        "category": "Accessibility",
+        "reproSteps": [
+          "Navigate to https://utsav.sh",
+          "Locate the theme toggle button",
+          "Click on 'Toggle theme' (steps 0, 2)"
+        ],
+        "expected": "Theme toggle button should have an aria-label describing current state (e.g., 'Switch to dark mode' or 'Switch to light mode')",
+        "actual": "Theme toggle functions correctly but may lack descriptive ARIA labels for screen reader users to understand current theme state",
+        "evidence": [
+          "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-000-After-click.png",
+          "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-002-After-click.png"
+        ],
+        "suggestedFix": "Add dynamic aria-label to theme toggle button that updates based on current theme state, e.g., aria-label='Switch to dark mode' when in light mode"
+      },
+      {
+        "severity": "nit",
+        "title": "Email link interaction could provide visual feedback",
+        "category": "Feedback",
+        "reproSteps": [
+          "Navigate to homepage",
+          "Click on 'GmailEmail' link (steps 4, 5)"
+        ],
+        "expected": "Clicking email link should provide clear visual feedback (hover state, active state) before opening email client",
+        "actual": "Email link functions but may lack prominent hover/active states for user feedback",
+        "evidence": [
+          "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-003-After-click.png",
+          "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-004-After-click.png"
+        ],
+        "suggestedFix": "Add CSS hover and active states to email links with color change or underline to provide clear visual feedback on interaction"
+      }
+    ],
+    "artifacts": {
+      "screenshots": [
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-000-After-click.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-001-After-click.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-002-After-click.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-003-After-click.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-004-After-click.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-005-After-click.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-006-After-open.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-008-Before-click.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-008-After-click.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-013-After-open.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-014-Before-press.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-014-After-press.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-015-Before-press.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-015-After-press.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-016-Before-press.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-016-After-press.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-017-Before-press.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-017-After-press.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-018-Before-press.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-018-After-press.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-019-Before-press.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-019-After-press.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-0-1-Initial-page-load.png",
+        "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-0-1-Audit-default.png"
+      ],
+      "evidenceFile": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots"
+    }
+  },
+  "evidence": {
+    "plan": {
+      "url": "https://utsav.sh",
+      "steps": [
+        {
+          "type": "open",
+          "selector": "https://utsav.sh",
+          "note": "Navigate to homepage to establish baseline"
+        },
+        {
+          "type": "screenshot",
+          "path": "01-homepage-baseline.png",
+          "note": "Capture initial homepage state to assess publicly visible content and layout"
+        },
+        {
+          "type": "click",
+          "selector": "a:About",
+          "note": "Test navigation to About page from main nav"
+        },
+        {
+          "type": "screenshot",
+          "path": "02-about-page.png",
+          "note": "Capture About page content after navigation"
+        },
+        {
+          "type": "screenshot",
+          "path": "03-work-page.png",
+          "note": "Capture Work page showing projects or portfolio items"
+        },
+        {
+          "type": "screenshot",
+          "path": "04-blog-page.png",
+          "note": "Capture Blog listing page with articles"
+        },
+        {
+          "type": "screenshot",
+          "path": "05-blog-post.png",
+          "note": "Capture individual blog post content and formatting"
+        },
+        {
+          "type": "open",
+          "selector": "https://utsav.sh",
+          "note": "Return to homepage for keyboard navigation testing"
+        },
+        {
+          "type": "press",
+          "key": "Tab",
+          "note": "Begin keyboard navigation test - first tab to focus first interactive element"
+        },
+        {
+          "type": "press",
+          "key": "Tab",
+          "note": "Tab to second interactive element"
+        },
+        {
+          "type": "press",
+          "key": "Tab",
+          "note": "Tab to third interactive element"
+        },
+        {
+          "type": "press",
+          "key": "Tab",
+          "note": "Tab to fourth interactive element"
+        },
+        {
+          "type": "press",
+          "key": "Tab",
+          "note": "Tab to fifth interactive element"
+        },
+        {
+          "type": "press",
+          "key": "Tab",
+          "note": "Tab to sixth interactive element"
+        },
+        {
+          "type": "press",
+          "key": "Tab",
+          "note": "Tab to seventh interactive element"
+        },
+        {
+          "type": "press",
+          "key": "Tab",
+          "note": "Tab to eighth interactive element"
+        },
+        {
+          "type": "screenshot",
+          "path": "06-keyboard-navigation-focus.png",
+          "note": "Capture focus state after keyboard navigation to verify focus visibility and tab order"
+        }
+      ]
+    },
+    "executedSteps": [
+      {
+        "index": 0,
+        "step": {
+          "type": "click",
+          "selector": "nav.relative.text-main-foreground > div.flex.items-center > button.relative.w-11",
+          "note": "click on \"Toggle theme\""
+        },
+        "status": "success",
+        "timestamp": 1769662354017,
+        "result": "Completed click"
+      },
+      {
+        "index": 1,
+        "step": {
+          "type": "click",
+          "selector": "nav.relative.text-main-foreground > div.flex.flex-1 > a.relative.px-2\\.5",
+          "note": "click on \"Home\""
+        },
+        "status": "success",
+        "timestamp": 1769662354381,
+        "result": "Completed click"
+      },
+      {
+        "index": 2,
+        "step": {
+          "type": "click",
+          "selector": "nav.relative.text-main-foreground > div.flex.items-center > button.relative.w-11",
+          "note": "click on \"Toggle theme\""
+        },
+        "status": "success",
+        "timestamp": 1769662354904,
+        "result": "Completed click"
+      },
+      {
+        "index": 3,
+        "step": {
+          "type": "click",
+          "selector": "nav.relative.text-main-foreground > div.flex.flex-1 > a.relative.px-2\\.5",
+          "note": "click on \"Home\""
+        },
+        "status": "success",
+        "timestamp": 1769662355278,
+        "result": "Completed click"
+      },
+      {
+        "index": 4,
+        "step": {
+          "type": "click",
+          "selector": "div.flex-1 > div.mr-auto.mt-10 > a.group.relative",
+          "note": "click on \"GmailEmail\""
+        },
+        "status": "success",
+        "timestamp": 1769662355663,
+        "result": "Completed click"
+      },
+      {
+        "index": 5,
+        "step": {
+          "type": "click",
+          "selector": "div.flex-1 > div.mr-auto.mt-10 > a.group.relative",
+          "note": "click on \"GmailEmail\""
+        },
+        "status": "success",
+        "timestamp": 1769662356140,
+        "result": "Completed click"
+      },
+      {
+        "index": 6,
+        "step": {
+          "type": "open",
+          "selector": "https://utsav.sh",
+          "note": "Navigate to homepage to establish baseline"
+        },
+        "status": "success",
+        "timestamp": 1769662356675,
+        "result": "Opened https://utsav.sh",
+        "screenshotPath": "/var/folders/l3/6x2gqh2x1rbdkr21_hzckff40000gn/T/qa-screenshots-20260128-235219/step-07-after.png"
+      },
+      {
+        "index": 7,
+        "step": {
+          "type": "screenshot",
+          "path": "01-homepage-baseline.png",
+          "note": "Capture initial homepage state to assess publicly visible content and layout"
+        },
+        "status": "success",
+        "timestamp": 1769662357638,
+        "result": "Screenshot saved to /var/folders/l3/6x2gqh2x1rbdkr21_hzckff40000gn/T/qa-screenshots-20260128-235219/01-homepage-baseline.png"
+      },
+      {
+        "index": 8,
+        "step": {
+          "type": "click",
+          "selector": "a:About",
+          "note": "Test navigation to About page from main nav"
+        },
+        "status": "success",
+        "timestamp": 1769662357815,
+        "result": "Clicked a:About",
+        "screenshotPath": "/var/folders/l3/6x2gqh2x1rbdkr21_hzckff40000gn/T/qa-screenshots-20260128-235219/step-09-after.png"
+      },
+      {
+        "index": 9,
+        "step": {
+          "type": "screenshot",
+          "path": "02-about-page.png",
+          "note": "Capture About page content after navigation"
+        },
+        "status": "success",
+        "timestamp": 1769662358186,
+        "result": "Screenshot saved to /var/folders/l3/6x2gqh2x1rbdkr21_hzckff40000gn/T/qa-screenshots-20260128-235219/02-about-page.png"
+      },
+      {
+        "index": 10,
+        "step": {
+          "type": "screenshot",
+          "path": "03-work-page.png",
+          "note": "Capture Work page showing projects or portfolio items"
+        },
+        "status": "success",
+        "timestamp": 1769662358377,
+        "result": "Screenshot saved to /var/folders/l3/6x2gqh2x1rbdkr21_hzckff40000gn/T/qa-screenshots-20260128-235219/03-work-page.png"
+      },
+      {
+        "index": 11,
+        "step": {
+          "type": "screenshot",
+          "path": "04-blog-page.png",
+          "note": "Capture Blog listing page with articles"
+        },
+        "status": "success",
+        "timestamp": 1769662358545,
+        "result": "Screenshot saved to /var/folders/l3/6x2gqh2x1rbdkr21_hzckff40000gn/T/qa-screenshots-20260128-235219/04-blog-page.png"
+      },
+      {
+        "index": 12,
+        "step": {
+          "type": "screenshot",
+          "path": "05-blog-post.png",
+          "note": "Capture individual blog post content and formatting"
+        },
+        "status": "success",
+        "timestamp": 1769662358712,
+        "result": "Screenshot saved to /var/folders/l3/6x2gqh2x1rbdkr21_hzckff40000gn/T/qa-screenshots-20260128-235219/05-blog-post.png"
+      },
+      {
+        "index": 13,
+        "step": {
+          "type": "open",
+          "selector": "https://utsav.sh",
+          "note": "Return to homepage for keyboard navigation testing"
+        },
+        "status": "success",
+        "timestamp": 1769662358874,
+        "result": "Opened https://utsav.sh",
+        "screenshotPath": "/var/folders/l3/6x2gqh2x1rbdkr21_hzckff40000gn/T/qa-screenshots-20260128-235219/step-10-after.png"
+      },
+      {
+        "index": 14,
+        "step": {
+          "type": "press",
+          "key": "Tab",
+          "note": "Begin keyboard navigation test - first tab to focus first interactive element"
+        },
+        "status": "success",
+        "timestamp": 1769662359699,
+        "result": "Pressed Tab",
+        "screenshotPath": "/var/folders/l3/6x2gqh2x1rbdkr21_hzckff40000gn/T/qa-screenshots-20260128-235219/step-12-after.png"
+      },
+      {
+        "index": 15,
+        "step": {
+          "type": "press",
+          "key": "Tab",
+          "note": "Tab to second interactive element"
+        },
+        "status": "success",
+        "timestamp": 1769662360051,
+        "result": "Pressed Tab",
+        "screenshotPath": "/var/folders/l3/6x2gqh2x1rbdkr21_hzckff40000gn/T/qa-screenshots-20260128-235219/step-14-after.png"
+      },
+      {
+        "index": 16,
+        "step": {
+          "type": "press",
+          "key": "Tab",
+          "note": "Tab to third interactive element"
+        },
+        "status": "success",
+        "timestamp": 1769662360406,
+        "result": "Pressed Tab",
+        "screenshotPath": "/var/folders/l3/6x2gqh2x1rbdkr21_hzckff40000gn/T/qa-screenshots-20260128-235219/step-16-after.png"
+      },
+      {
+        "index": 17,
+        "step": {
+          "type": "press",
+          "key": "Tab",
+          "note": "Tab to fourth interactive element"
+        },
+        "status": "success",
+        "timestamp": 1769662360746,
+        "result": "Pressed Tab",
+        "screenshotPath": "/var/folders/l3/6x2gqh2x1rbdkr21_hzckff40000gn/T/qa-screenshots-20260128-235219/step-18-after.png"
+      },
+      {
+        "index": 18,
+        "step": {
+          "type": "press",
+          "key": "Tab",
+          "note": "Tab to fifth interactive element"
+        },
+        "status": "success",
+        "timestamp": 1769662361090,
+        "result": "Pressed Tab",
+        "screenshotPath": "/var/folders/l3/6x2gqh2x1rbdkr21_hzckff40000gn/T/qa-screenshots-20260128-235219/step-20-after.png"
+      },
+      {
+        "index": 19,
+        "step": {
+          "type": "press",
+          "key": "Tab",
+          "note": "Tab to sixth interactive element"
+        },
+        "status": "success",
+        "timestamp": 1769662361430,
+        "result": "Pressed Tab",
+        "screenshotPath": "/var/folders/l3/6x2gqh2x1rbdkr21_hzckff40000gn/T/qa-screenshots-20260128-235219/step-22-after.png"
+      }
+    ],
+    "snapshots": [],
+    "errors": [],
+    "screenshotMap": {
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-000-After-click.png": 0,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-001-After-click.png": 1,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-002-After-click.png": 2,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-003-After-click.png": 3,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-004-After-click.png": 4,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-005-After-click.png": 5,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-006-After-open.png": 6,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-008-Before-click.png": 8,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-008-After-click.png": 8,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-013-After-open.png": 13,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-014-Before-press.png": 14,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-014-After-press.png": 14,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-015-Before-press.png": 15,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-015-After-press.png": 15,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-016-Before-press.png": 16,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-016-After-press.png": 16,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-017-Before-press.png": 17,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-017-After-press.png": 17,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-018-Before-press.png": 18,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-018-After-press.png": 18,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-019-Before-press.png": 19,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-019-After-press.png": 19,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-0-1-Initial-page-load.png": -1,
+      "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-0-1-Audit-default.png": -1
+    },
+    "audits": [
+      {
+        "pageUrl": "https://utsav.sh",
+        "label": "default",
+        "timestamp": 1769662342698,
+        "screenshotPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-0-1-Audit-default.png"
+      }
+    ]
+  },
+  "completedAt": 1769662393857
+}

@@ -1,0 +1,19 @@
+Fix these UI issues found on https://utsav.sh (current score: 92/100):
+
+1. [LOW] Focus indicator visibility could be enhanced during keyboard navigation
+   Category: Accessibility
+   Problem: While keyboard navigation works, focus indicators may not be immediately obvious to all users, particularly those relying on keyboard-only navigation
+   Expected: Clear, high-contrast focus indicators should be visible on all focusable elements during keyboard navigation
+   Fix: Enhance focus indicator styling with higher contrast borders or outlines (e.g., 2px solid outline with sufficient color contrast ratio of at least 3:1 against background). Consider using :focus-visible to show enhanced indicators only for keyboard navigation.
+   Repro steps: Navigate to homepage at https://utsav.sh -> Press Tab key to begin keyboard navigation -> Press Tab key again to move focus to next element
+   Screenshots: /Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1770151456325/screenshots/step-018-After-press.png, /Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1770151456325/screenshots/step-019-After-press.png
+
+2. [NIT] Theme toggle could provide visual feedback on state change
+   Category: Feedback
+   Problem: Theme toggle functions correctly but could benefit from additional visual cues to indicate current state
+   Expected: Theme toggle should provide clear visual feedback indicating the current theme state (light/dark) and smooth transition animation
+   Fix: Add an aria-label or tooltip that indicates current theme state (e.g., 'Switch to dark mode' or 'Switch to light mode'). Consider adding a subtle transition animation when theme changes.
+   Repro steps: Navigate to homepage -> Click on 'Toggle theme' button -> Observe the transition and feedback
+   Screenshots: /Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1770151456325/screenshots/step-000-After-click.png, /Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1770151456325/screenshots/step-002-After-click.png
+
+Priority: 1 low, 1 nit issues to fix.

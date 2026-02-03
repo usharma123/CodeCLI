@@ -1,0 +1,27 @@
+Fix these UI issues found on https://utsav.sh (current score: 92/100):
+
+1. [LOW] Focus indicator visibility could be enhanced during keyboard navigation
+   Category: Accessibility
+   Problem: While keyboard navigation works functionally, focus indicators may not be prominently visible in all states based on the sequential tab presses
+   Expected: Clear, high-contrast focus indicators should be visible on all interactive elements during keyboard navigation
+   Fix: Enhance CSS focus styles with higher contrast outlines or rings (e.g., 2px solid outline with offset) to ensure focus is immediately visible to keyboard users
+   Repro steps: Navigate to https://utsav.sh -> Press Tab key multiple times (steps 14-19) -> Observe focus indicators on interactive elements
+   Screenshots: /Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-015-After-press.png, /Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-016-After-press.png, /Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-017-After-press.png
+
+2. [NIT] Theme toggle button could benefit from ARIA label
+   Category: Accessibility
+   Problem: Theme toggle functions correctly but may lack descriptive ARIA labels for screen reader users to understand current theme state
+   Expected: Theme toggle button should have an aria-label describing current state (e.g., 'Switch to dark mode' or 'Switch to light mode')
+   Fix: Add dynamic aria-label to theme toggle button that updates based on current theme state, e.g., aria-label='Switch to dark mode' when in light mode
+   Repro steps: Navigate to https://utsav.sh -> Locate the theme toggle button -> Click on 'Toggle theme' (steps 0, 2)
+   Screenshots: /Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-000-After-click.png, /Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-002-After-click.png
+
+3. [NIT] Email link interaction could provide visual feedback
+   Category: Feedback
+   Problem: Email link functions but may lack prominent hover/active states for user feedback
+   Expected: Clicking email link should provide clear visual feedback (hover state, active state) before opening email client
+   Fix: Add CSS hover and active states to email links with color change or underline to provide clear visual feedback on interaction
+   Repro steps: Navigate to homepage -> Click on 'GmailEmail' link (steps 4, 5)
+   Screenshots: /Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-003-After-click.png, /Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/.ui-qa-runs/cli-1769662339805/screenshots/step-004-After-click.png
+
+Priority: 1 low, 2 nit issues to fix.
