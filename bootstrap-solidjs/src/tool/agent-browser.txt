@@ -1,0 +1,226 @@
+Run Vercel agent-browser CLI commands for browser automation and UI/UX testing.
+
+Use this tool when the user asks you to test the UI, check a page, verify a form, run a browser test, take a screenshot, inspect page elements, perform visual/interaction testing, or test functional/business logic on the frontend (e.g., "test that this input converts to that output", "verify the calculation works", "check the filter updates the list").
+
+## Core Workflow
+
+Always follow the snapshot-then-interact pattern:
+
+1. Open a page: `open <url>`
+2. Take an interactive snapshot: `snapshot -i`
+3. Read the ref numbers from the snapshot output
+4. Interact with elements using their ref numbers (e.g., `click @ref`, `fill @ref "text"`)
+5. Re-snapshot after any action that changes the page
+6. Verify expected state
+
+## Command Reference
+
+### Navigation
+- `open <url>` — navigate to a URL
+- `back` — go back
+- `forward` — go forward
+- `reload` — reload the page
+- `close` — close the browser
+
+### Snapshot
+- `snapshot` — capture page structure as text
+- `snapshot -i` — capture interactive elements only (recommended)
+
+### Interaction
+- `click @<ref>` — click an element
+- `fill @<ref> "<text>"` — clear and fill an input
+- `type @<ref> "<text>"` — type text without clearing
+- `hover @<ref>` — hover over an element
+- `select @<ref> "<value>"` — select a dropdown option
+- `check @<ref>` — check a checkbox
+- `uncheck @<ref>` — uncheck a checkbox
+- `drag @<src> @<dst>` — drag from one element to another
+- `scroll up|down|left|right` — scroll the page
+- `upload @<ref> "<path>"` — upload a file to a file input
+
+### Keyboard
+- `press Enter|Tab|Escape|ArrowDown|...` — press a key
+- `keydown <key>` — key down event
+- `keyup <key>` — key up event
+
+### Inspection
+- `get text @<ref>` — get text content of an element
+- `get html @<ref>` — get inner HTML of an element
+- `get value @<ref>` — get value of an input element
+- `get attr @<ref> <name>` — get an attribute value
+- `get title` — get page title
+- `get url` — get current URL
+
+### State Checks
+- `is visible @<ref>` — check if element is visible
+- `is enabled @<ref>` — check if element is enabled
+- `is checked @<ref>` — check if checkbox/radio is checked
+
+### Semantic Find
+- `find role <role>` — find elements by ARIA role
+- `find text "<text>"` — find elements by text content
+- `find label "<label>"` — find elements by label
+- `find placeholder "<text>"` — find elements by placeholder
+- `find testid "<id>"` — find elements by data-testid
+
+### Wait
+- `wait @<ref>` — wait for an element to appear
+- `wait --text "<text>"` — wait for text to appear on page
+- `wait --url "<pattern>"` — wait for URL to match
+- `wait --load networkidle` — wait for network to be idle
+
+### JavaScript Evaluation
+- `eval "<expression>"` — execute JavaScript in the browser and return the result
+- `eval -b "<base64>"` — execute base64-encoded JavaScript (avoids shell escaping issues)
+
+### Clipboard
+- `clipboard read` — read current clipboard text content
+- `clipboard copy "<text>"` — write text to the clipboard
+- `clipboard paste` — paste clipboard content
+
+### Capture
+- `screenshot` — take a screenshot of the viewport
+- `screenshot --full` — take a full-page screenshot
+- `pdf` — generate a PDF of the page
+
+### Dialogs
+- `dialog accept` — accept an alert/confirm/prompt dialog
+- `dialog dismiss` — dismiss a dialog
+
+### Browser State
+- `cookies` — list cookies
+- `storage local` — access local storage
+- `emulatemedia <feature> <value>` — emulate media features (e.g., color-scheme dark)
+- `highlight "<selector>"` — visually highlight matching elements
+
+## Testing Patterns
+
+### Page Load Verification
+```
+open http://localhost:3000
+snapshot -i
+get title
+```
+
+### Form Submission Test
+```
+open http://localhost:3000/login
+snapshot -i
+fill @<username-ref> "testuser"
+fill @<password-ref> "password123"
+click @<submit-ref>
+wait --url "/dashboard"
+snapshot -i
+```
+
+### Element State Verification
+```
+snapshot -i
+is visible @<ref>
+is enabled @<ref>
+get text @<ref>
+```
+
+### Navigation Flow Test
+```
+open http://localhost:3000
+snapshot -i
+click @<nav-link-ref>
+wait --load networkidle
+snapshot -i
+get url
+```
+
+### Copy-to-Clipboard Verification
+```
+snapshot -i
+click @<copy-button-ref>
+clipboard read
+```
+
+### Input-to-Output Transformation (Business Logic)
+Test that entering a value in one field produces the correct result in another.
+```
+snapshot -i
+fill @<input-ref> "100"
+press Tab                        (or click away to trigger onChange)
+get text @<output-ref>           → compare against expected value
+```
+For computed fields that update live (no button needed), just fill and read:
+```
+fill @<input-ref> "hello"
+get value @<output-ref>          → verify transformed value (e.g., "HELLO")
+```
+
+### Multi-Step Business Logic Flow
+Test a workflow where multiple inputs/actions produce a final result.
+```
+snapshot -i
+fill @<quantity-ref> "5"
+select @<product-ref> "Widget A"
+fill @<discount-ref> "10"
+click @<calculate-ref>
+wait --load networkidle
+get text @<total-ref>            → verify calculated total
+get text @<tax-ref>              → verify tax amount
+```
+
+### Filter / Search Verification
+Test that filtering or searching updates a list correctly.
+```
+snapshot -i
+fill @<search-ref> "active"
+press Enter
+snapshot -i                      → re-snapshot to see updated list
+get text @<results-count-ref>    → verify count changed
+find text "No results"           → or verify empty state if expected
+```
+
+### Conditional UI Logic
+Test that toggling a control shows/hides elements or changes state.
+```
+snapshot -i
+check @<toggle-ref>
+snapshot -i
+is visible @<conditional-section-ref>   → should now be visible
+uncheck @<toggle-ref>
+snapshot -i
+is visible @<conditional-section-ref>   → should now be hidden
+```
+
+### Validation / Error State Testing
+Test that invalid input triggers error messages.
+```
+snapshot -i
+fill @<email-ref> "not-an-email"
+click @<submit-ref>
+snapshot -i
+find text "valid email"          → verify error message appears
+is visible @<error-ref>
+get text @<error-ref>            → read exact error message
+```
+
+### Reading Computed JavaScript State
+When the result isn't visible in the DOM, use eval to inspect app state directly.
+```
+fill @<input-ref> "test data"
+click @<process-ref>
+eval "document.querySelector('#result').dataset.rawValue"
+eval "JSON.stringify(window.__appState.lastResult)"
+```
+
+### Responsive / Scroll Test
+```
+open http://localhost:3000
+scroll down
+snapshot -i
+screenshot --full
+```
+
+## Usage Notes
+
+- Each tool call executes one CLI command. Pass arguments as separate strings in the args array.
+- Always re-snapshot after any action that changes the page (clicks, form fills, navigation).
+- Use `snapshot -i` over `snapshot` — it filters to interactive elements and is easier to work with.
+- Ref numbers (`@<ref>`) are assigned per snapshot and may change after page updates.
+- If the CLI is not installed globally, the tool will automatically fall back to `bunx agent-browser`.

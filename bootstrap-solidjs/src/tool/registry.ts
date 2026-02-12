@@ -25,6 +25,7 @@ import { Flag } from "@/flag/flag"
 import { Log } from "@/util/log"
 import { LspTool } from "./lsp"
 import { QualityTool } from "./quality"
+import { AgentBrowserTool } from "./agent-browser"
 
 export namespace ToolRegistry {
   const log = Log.create({ service: "tool.registry" })
@@ -107,6 +108,7 @@ export namespace ToolRegistry {
       CodeSearchTool,
       SkillTool,
       QualityTool,
+      AgentBrowserTool,
       ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       ...custom,

@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "timestamp": "2026-02-03T20:38:46.925Z",
-  "commit": "d70196d7",
+  "timestamp": "2026-02-11T15:12:51.584Z",
+  "commit": "4a203726",
   "projectPath": "/Users/utsavsharma/Documents/GitHub/CodeCLI/bootstrap-solidjs/spring-currency",
   "metrics": {
     "totalTests": 110,
@@ -268,21 +268,26 @@
       {
         "name": "mainMethodShouldNotThrowWithNoArgs",
         "className": "com.example.currency.CurrencyApplicationTest$MainMethodTests",
-        "time": 1.146
+        "time": 1.333
       },
       {
         "name": "convertShouldCallServiceForAllCurrencyPairs",
         "className": "com.example.currency.controller.CurrencyControllerTest$ConvertEndpointTests",
-        "time": 0.546
+        "time": 0.673
       },
       {
         "name": "openAPIShouldBeReusableAcrossMultipleCalls",
         "className": "com.example.currency.config.OpenApiConfigTest$FullOpenAPIStructureTests",
-        "time": 0.01
+        "time": 0.013
       },
       {
         "name": "springBootApplicationShouldHaveScanBasePackagesAttribute",
         "className": "com.example.currency.CurrencyApplicationTest$AnnotationTests",
+        "time": 0.004
+      },
+      {
+        "name": "convertShouldPropagateServiceExceptions",
+        "className": "com.example.currency.controller.CurrencyControllerTest$ConvertEndpointTests",
         "time": 0.003
       },
       {
@@ -296,24 +301,19 @@
         "time": 0.002
       },
       {
-        "name": "convertShouldPropagateServiceExceptions",
+        "name": "convertShouldReturnSameResponseFromService",
         "className": "com.example.currency.controller.CurrencyControllerTest$ConvertEndpointTests",
         "time": 0.002
       },
       {
-        "name": "toStringShouldBeConsistent",
-        "className": "com.example.currency.model.ConversionRequestTest$ToStringTests",
+        "name": "ordinalShouldBeUniqueForEachCurrency",
+        "className": "com.example.currency.model.CurrencyTest$OrdinalTests",
         "time": 0.002
       },
       {
-        "name": "convertShouldReturnCorrectResponseForEurToUsd",
-        "className": "com.example.currency.service.ExchangeRateServiceTest$ConvertTests",
-        "time": 0.001
-      },
-      {
-        "name": "serverShouldHaveDescription",
-        "className": "com.example.currency.config.OpenApiConfigTest$ServersTests",
-        "time": 0.001
+        "name": "controllerShouldAcceptNullServiceWithoutThrowing",
+        "className": "com.example.currency.controller.CurrencyControllerTest$ControllerInstantiationTests",
+        "time": 0.002
       }
     ],
     "productionClasses": {
